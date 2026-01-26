@@ -91,25 +91,28 @@ const UserDashboard: React.FC = () => {
           Available Modules
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {/* Test Cases Module */}
-          <div className="glass-card rounded-2xl p-6 shadow-warm opacity-70 cursor-not-allowed group">
+          {/* Test Cases Module - Now Active */}
+          <div 
+            onClick={() => navigate("/qa")}
+            className="glass-card rounded-2xl p-6 shadow-warm cursor-pointer group hover:border-primary/30 hover:shadow-glow-primary transition-all"
+          >
             <div className="flex items-start gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+              <div className="h-14 w-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
                 <ClipboardList className="h-7 w-7 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-semibold text-foreground">Test Cases</h4>
-                  <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                    Coming Soon
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-xs font-medium text-emerald-700">
+                    Active
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
                   Create, manage, and execute test cases for inter-login testing scenarios.
                 </p>
-                <div className="flex items-center text-sm text-blue-600 font-medium">
-                  Learn more
-                  <ChevronRight className="h-4 w-4 ml-1" />
+                <div className="flex items-center text-sm text-blue-600 font-medium group-hover:text-blue-700">
+                  Open Module
+                  <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </div>

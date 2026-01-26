@@ -19,6 +19,7 @@ import { QALayout } from "@/components/qa/layout";
 import { QADashboard, TestScenarios, TestRuns, Coverage } from "./pages/qa";
 import CreateScenario from "./pages/qa/CreateScenario";
 import ScenarioDetail from "./pages/qa/ScenarioDetail";
+import EditScenario from "./pages/qa/EditScenario";
 import CreateTestRun from "./pages/qa/CreateTestRun";
 import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
 
@@ -67,6 +68,7 @@ const App = () => (
               <Route path="scenarios" element={<TestScenarios />} />
               <Route path="scenarios/create" element={<CreateScenario />} />
               <Route path="scenarios/:id" element={<ScenarioDetail />} />
+              <Route path="scenarios/:id/edit" element={<EditScenario />} />
               <Route path="runs" element={<TestRuns />} />
               <Route path="runs/create" element={<CreateTestRun />} />
               <Route path="runs/:id" element={<ScenarioDetail />} />

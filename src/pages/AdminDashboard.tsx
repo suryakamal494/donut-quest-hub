@@ -16,7 +16,10 @@ import {
   Check,
   X,
   Menu,
-  ChevronRight
+  ChevronRight,
+  TestTube2,
+  PlayCircle,
+  BarChart3
 } from "lucide-react";
 
 interface UserProfile {
@@ -200,6 +203,56 @@ const AdminDashboard: React.FC = () => {
               <span className="text-2xl md:text-3xl font-bold text-red-600">{rejectedUsers.length}</span>
             </div>
             <p className="text-xs md:text-sm font-medium text-muted-foreground">Rejected</p>
+          </div>
+        </div>
+
+        {/* QA Module Quick Access */}
+        <div className="glass-card rounded-2xl shadow-warm mb-6 md:mb-8 overflow-hidden">
+          <div className="p-4 md:p-6 border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <TestTube2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-lg text-foreground">QA Testing Module</h2>
+                <p className="text-sm text-muted-foreground hidden sm:block">Manage test scenarios and track execution</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/qa")}
+              className="h-auto py-4 px-4 rounded-xl border-2 hover:border-primary/30 hover:bg-primary/5 justify-start"
+            >
+              <BarChart3 className="h-5 w-5 mr-3 text-primary" />
+              <div className="text-left">
+                <p className="font-medium">Dashboard</p>
+                <p className="text-xs text-muted-foreground">Overview & stats</p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/qa/scenarios")}
+              className="h-auto py-4 px-4 rounded-xl border-2 hover:border-primary/30 hover:bg-primary/5 justify-start"
+            >
+              <TestTube2 className="h-5 w-5 mr-3 text-primary" />
+              <div className="text-left">
+                <p className="font-medium">Scenarios</p>
+                <p className="text-xs text-muted-foreground">Manage test cases</p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/qa/runs")}
+              className="h-auto py-4 px-4 rounded-xl border-2 hover:border-primary/30 hover:bg-primary/5 justify-start"
+            >
+              <PlayCircle className="h-5 w-5 mr-3 text-primary" />
+              <div className="text-left">
+                <p className="font-medium">Test Runs</p>
+                <p className="text-xs text-muted-foreground">Execute & track</p>
+              </div>
+            </Button>
           </div>
         </div>
 
