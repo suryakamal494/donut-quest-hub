@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      features: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          login_type: Database["public"]["Enums"]["login_type"]
+          name: string
+          order_index: number
+          sub_modules: string[] | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          login_type: Database["public"]["Enums"]["login_type"]
+          name: string
+          order_index?: number
+          sub_modules?: string[] | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          login_type?: Database["public"]["Enums"]["login_type"]
+          name?: string
+          order_index?: number
+          sub_modules?: string[] | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
@@ -43,6 +73,246 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      test_cases: {
+        Row: {
+          case_code: string
+          content_types: string[] | null
+          created_at: string
+          created_by: string | null
+          dependencies: string[] | null
+          description: string | null
+          expected_result: string
+          id: string
+          is_regression: boolean
+          login_type: Database["public"]["Enums"]["login_type"]
+          order_index: number
+          preconditions: string[] | null
+          scenario_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          case_code: string
+          content_types?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          dependencies?: string[] | null
+          description?: string | null
+          expected_result: string
+          id?: string
+          is_regression?: boolean
+          login_type: Database["public"]["Enums"]["login_type"]
+          order_index?: number
+          preconditions?: string[] | null
+          scenario_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          case_code?: string
+          content_types?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          dependencies?: string[] | null
+          description?: string | null
+          expected_result?: string
+          id?: string
+          is_regression?: boolean
+          login_type?: Database["public"]["Enums"]["login_type"]
+          order_index?: number
+          preconditions?: string[] | null
+          scenario_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_cases_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "test_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_results: {
+        Row: {
+          actual_result: string | null
+          bug_reference: string | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          run_id: string
+          status: Database["public"]["Enums"]["test_status"]
+          test_case_id: string
+        }
+        Insert: {
+          actual_result?: string | null
+          bug_reference?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          run_id: string
+          status?: Database["public"]["Enums"]["test_status"]
+          test_case_id: string
+        }
+        Update: {
+          actual_result?: string | null
+          bug_reference?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          run_id?: string
+          status?: Database["public"]["Enums"]["test_status"]
+          test_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_results_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_runs: {
+        Row: {
+          completed_at: string | null
+          executed_by: string | null
+          id: string
+          name: string
+          run_code: string
+          run_type: string
+          scenario_ids: string[] | null
+          started_at: string
+          status: Database["public"]["Enums"]["run_status"]
+        }
+        Insert: {
+          completed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          name: string
+          run_code: string
+          run_type?: string
+          scenario_ids?: string[] | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["run_status"]
+        }
+        Update: {
+          completed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          name?: string
+          run_code?: string
+          run_type?: string
+          scenario_ids?: string[] | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["run_status"]
+        }
+        Relationships: []
+      }
+      test_scenarios: {
+        Row: {
+          business_impact: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          feature_id: string | null
+          id: string
+          login_types: Database["public"]["Enums"]["login_type"][]
+          name: string
+          priority: Database["public"]["Enums"]["priority_level"]
+          scenario_code: string
+          scenario_type: Database["public"]["Enums"]["scenario_type"]
+          sub_module: string | null
+          test_frequency: Database["public"]["Enums"]["test_frequency"]
+          updated_at: string
+        }
+        Insert: {
+          business_impact?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          feature_id?: string | null
+          id?: string
+          login_types: Database["public"]["Enums"]["login_type"][]
+          name: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          scenario_code: string
+          scenario_type: Database["public"]["Enums"]["scenario_type"]
+          sub_module?: string | null
+          test_frequency?: Database["public"]["Enums"]["test_frequency"]
+          updated_at?: string
+        }
+        Update: {
+          business_impact?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          feature_id?: string | null
+          id?: string
+          login_types?: Database["public"]["Enums"]["login_type"][]
+          name?: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          scenario_code?: string
+          scenario_type?: Database["public"]["Enums"]["scenario_type"]
+          sub_module?: string | null
+          test_frequency?: Database["public"]["Enums"]["test_frequency"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_scenarios_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_steps: {
+        Row: {
+          action: string
+          expected_outcome: string
+          id: string
+          order_index: number
+          test_case_id: string
+        }
+        Insert: {
+          action: string
+          expected_outcome: string
+          id?: string
+          order_index?: number
+          test_case_id: string
+        }
+        Update: {
+          action?: string
+          expected_outcome?: string
+          id?: string
+          order_index?: number
+          test_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_steps_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -85,6 +355,12 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       approval_status: "pending" | "approved" | "rejected"
+      login_type: "super_admin" | "institute" | "teacher" | "student"
+      priority_level: "critical" | "high" | "medium" | "low"
+      run_status: "in_progress" | "completed" | "aborted"
+      scenario_type: "smoke" | "intra_login" | "inter_login"
+      test_frequency: "one_time" | "regression" | "release"
+      test_status: "pass" | "fail" | "blocked" | "skipped" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -214,6 +490,12 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       approval_status: ["pending", "approved", "rejected"],
+      login_type: ["super_admin", "institute", "teacher", "student"],
+      priority_level: ["critical", "high", "medium", "low"],
+      run_status: ["in_progress", "completed", "aborted"],
+      scenario_type: ["smoke", "intra_login", "inter_login"],
+      test_frequency: ["one_time", "regression", "release"],
+      test_status: ["pass", "fail", "blocked", "skipped", "pending"],
     },
   },
 } as const
