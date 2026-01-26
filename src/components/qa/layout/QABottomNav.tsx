@@ -3,7 +3,8 @@ import {
   LayoutDashboard, 
   FileText, 
   PlayCircle, 
-  BarChart3 
+  BarChart3,
+  Bug 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,9 +26,9 @@ const navItems = [
     icon: PlayCircle,
   },
   {
-    title: "Coverage",
-    href: "/qa/coverage",
-    icon: BarChart3,
+    title: "Bugs",
+    href: "/bugs",
+    icon: Bug,
   },
 ];
 

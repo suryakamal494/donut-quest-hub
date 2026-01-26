@@ -23,6 +23,9 @@ import EditScenario from "./pages/qa/EditScenario";
 import CreateTestRun from "./pages/qa/CreateTestRun";
 import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
 
+// Bug Module
+import { BugList, CreateBug, BugDetail } from "./pages/bugs";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -74,6 +77,20 @@ const App = () => (
               <Route path="runs/:id" element={<ScenarioDetail />} />
               <Route path="runs/:id/execute" element={<ExecuteTestRun />} />
               <Route path="coverage" element={<Coverage />} />
+            </Route>
+
+            {/* Bug Tracking Routes */}
+            <Route
+              path="/bugs"
+              element={
+                <ProtectedRoute>
+                  <QALayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<BugList />} />
+              <Route path="create" element={<CreateBug />} />
+              <Route path=":id" element={<BugDetail />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

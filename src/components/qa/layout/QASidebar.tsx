@@ -7,7 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  List
+  List,
+  Bug
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,15 @@ const navItems = [
     title: "Coverage",
     href: "/qa/coverage",
     icon: BarChart3,
+  },
+  {
+    title: "Bug Tracker",
+    href: "/bugs",
+    icon: Bug,
+    subItems: [
+      { title: "All Bugs", href: "/bugs", icon: List },
+      { title: "Report Bug", href: "/bugs/create", icon: Plus },
+    ],
   },
 ];
 

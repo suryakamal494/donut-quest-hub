@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search, Filter, Loader2, FileText } from "lucide-react";
+import { Plus, Search, Filter, Loader2, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, LoginTypeBadge, PriorityBadge } from "@/components/qa/badges";
+import { exportScenariosToCSV } from "@/lib/export-utils";
 import type { TestScenario, ScenarioType, LoginType, PriorityLevel, Feature } from "@/types/qa";
 import { SCENARIO_TYPE_LABELS, LOGIN_TYPE_LABELS } from "@/types/qa";
 
@@ -130,12 +131,18 @@ export default function TestScenarios() {
             {filteredScenarios.length} of {scenarios.length} scenarios
           </p>
         </div>
-        <Button asChild>
-          <Link to="/qa/scenarios/create">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Scenario
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportScenariosToCSV(filteredScenarios)}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button asChild>
+            <Link to="/qa/scenarios/create">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Scenario
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
