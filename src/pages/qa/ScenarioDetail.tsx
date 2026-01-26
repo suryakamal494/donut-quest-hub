@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -387,31 +387,40 @@ export default function ScenarioDetail() {
             
             return (
               <Card key={tc.id} className="glass overflow-hidden">
-                <button
-                  onClick={() => toggleCase(tc.id)}
-                  className="w-full p-4 text-left flex items-start gap-3"
-                >
-                  <span className="w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center flex-shrink-0">
-                    {index + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {tc.case_code}
-                      </span>
-                      <LoginTypeBadge type={tc.login_type} size="sm" />
+                <div className="flex items-start gap-3 p-4">
+                  <button
+                    onClick={() => toggleCase(tc.id)}
+                    className="flex-1 text-left flex items-start gap-3"
+                  >
+                    <span className="w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {tc.case_code}
+                        </span>
+                        <LoginTypeBadge type={tc.login_type} size="sm" />
+                      </div>
+                      <h3 className="font-medium text-foreground">{tc.title}</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {tc.steps.length} steps • Expected: {tc.expected_result.slice(0, 60)}...
+                      </p>
                     </div>
-                    <h3 className="font-medium text-foreground">{tc.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {tc.steps.length} steps • Expected: {tc.expected_result.slice(0, 60)}...
-                    </p>
-                  </div>
-                  {isExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  )}
-                </button>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    )}
+                  </button>
+                  <Link
+                    to={`/qa/test-cases/${tc.id}/history`}
+                    className="flex-shrink-0 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                    title="View execution history"
+                  >
+                    <History className="h-4 w-4" />
+                  </Link>
+                </div>
 
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t bg-muted/30">
