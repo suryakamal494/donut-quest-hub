@@ -230,7 +230,10 @@ export default function EditScenario() {
         return name.trim().length > 0;
       case 2:
         return testCases.length > 0 && testCases.every(tc => 
-          tc.title.trim() && tc.expected_result.trim() && tc.steps.length > 0
+          tc.title.trim() && 
+          tc.expected_result.trim() && 
+          tc.steps.length > 0 &&
+          tc.steps.every(step => step.action.trim() && step.expected_outcome.trim())
         );
       default:
         return true;
@@ -261,50 +264,110 @@ export default function EditScenario() {
 
       if (scenarioError) throw scenarioError;
 
-      // Delete existing test cases (cascades to steps)
-      await supabase
+      // Get current test case IDs from the form (existing ones have id property)
+      const existingCaseIds = testCases.filter(tc => tc.id).map(tc => tc.id!);
+      
+      // Fetch original test cases to find which ones to delete
+      const { data: originalCases } = await supabase
         .from("test_cases")
-        .delete()
+        .select("id")
         .eq("scenario_id", id);
+      
+      const originalCaseIds = (originalCases || []).map(tc => tc.id);
+      const caseIdsToDelete = originalCaseIds.filter(cid => !existingCaseIds.includes(cid));
 
-      // Create new test cases and steps
+      // Delete test cases that were removed (only those explicitly removed by user)
+      if (caseIdsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("test_cases")
+          .delete()
+          .in("id", caseIdsToDelete);
+        
+        if (deleteError) throw deleteError;
+      }
+
+      // Process each test case: update existing or insert new
       for (let i = 0; i < testCases.length; i++) {
         const tc = testCases[i];
         
-        const { data: testCase, error: tcError } = await supabase
-          .from("test_cases")
-          .insert({
-            scenario_id: id,
-            title: tc.title,
-            description: tc.description || null,
-            login_type: tc.login_type,
-            preconditions: tc.preconditions,
-            expected_result: tc.expected_result,
-            content_types: tc.content_types,
-            order_index: i,
-            is_regression: tc.is_regression,
-            dependencies: [],
-            created_by: user.id,
-            case_code: "",
-          })
-          .select()
-          .single();
+        if (tc.id) {
+          // Update existing test case (preserves ID, case_code, and test_results)
+          const { error: updateError } = await supabase
+            .from("test_cases")
+            .update({
+              title: tc.title,
+              description: tc.description || null,
+              login_type: tc.login_type,
+              preconditions: tc.preconditions,
+              expected_result: tc.expected_result,
+              content_types: tc.content_types,
+              order_index: i,
+              is_regression: tc.is_regression,
+            })
+            .eq("id", tc.id);
 
-        if (tcError) throw tcError;
+          if (updateError) throw updateError;
 
-        if (tc.steps.length > 0) {
-          const { error: stepsError } = await supabase
+          // Delete existing steps for this test case
+          const { error: deleteStepsError } = await supabase
             .from("test_steps")
-            .insert(
-              tc.steps.map((step, si) => ({
-                test_case_id: testCase.id,
-                order_index: si,
-                action: step.action,
-                expected_outcome: step.expected_outcome,
-              }))
-            );
+            .delete()
+            .eq("test_case_id", tc.id);
+          
+          if (deleteStepsError) throw deleteStepsError;
 
-          if (stepsError) throw stepsError;
+          // Insert new steps
+          if (tc.steps.length > 0) {
+            const { error: stepsError } = await supabase
+              .from("test_steps")
+              .insert(
+                tc.steps.map((step, si) => ({
+                  test_case_id: tc.id,
+                  order_index: si,
+                  action: step.action,
+                  expected_outcome: step.expected_outcome,
+                }))
+              );
+
+            if (stepsError) throw stepsError;
+          }
+        } else {
+          // Insert new test case
+          const { data: testCase, error: tcError } = await supabase
+            .from("test_cases")
+            .insert({
+              scenario_id: id,
+              title: tc.title,
+              description: tc.description || null,
+              login_type: tc.login_type,
+              preconditions: tc.preconditions,
+              expected_result: tc.expected_result,
+              content_types: tc.content_types,
+              order_index: i,
+              is_regression: tc.is_regression,
+              dependencies: [],
+              created_by: user.id,
+              case_code: "",
+            })
+            .select()
+            .single();
+
+          if (tcError) throw tcError;
+
+          if (tc.steps.length > 0) {
+            const { error: stepsError } = await supabase
+              .from("test_steps")
+              .insert(
+                tc.steps.map((step, si) => ({
+                  test_case_id: testCase.id,
+                  order_index: si,
+                  action: step.action,
+                  expected_outcome: step.expected_outcome,
+                }))
+              );
+
+            if (stepsError) throw stepsError;
+          }
         }
       }
 

@@ -139,7 +139,10 @@ export default function CreateScenario() {
         return name.trim().length > 0;
       case 2:
         return testCases.length > 0 && testCases.every(tc => 
-          tc.title.trim() && tc.expected_result.trim() && tc.steps.length > 0
+          tc.title.trim() && 
+          tc.expected_result.trim() && 
+          tc.steps.length > 0 &&
+          tc.steps.every(step => step.action.trim() && step.expected_outcome.trim())
         );
       default:
         return true;
