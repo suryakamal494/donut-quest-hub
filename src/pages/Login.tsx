@@ -4,9 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ClipboardCheck } from "lucide-react";
+import { Loader2, ClipboardCheck, Mail, Lock } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -28,7 +27,6 @@ const Login: React.FC = () => {
     e.preventDefault();
     setErrors({});
 
-    // Validate inputs
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
       const fieldErrors: { email?: string; password?: string } = {};
@@ -59,77 +57,113 @@ const Login: React.FC = () => {
       description: "You have successfully logged in.",
     });
 
-    // Navigation will be handled by auth state change
     navigate("/");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-              <ClipboardCheck className="h-6 w-6 text-primary-foreground" />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-warm px-4 py-8">
+      {/* Decorative elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-primary shadow-glow-primary mb-4">
+            <ClipboardCheck className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">QA Platform</CardTitle>
-          <CardDescription>
-            Enter your credentials to access your account
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <h1 className="text-3xl font-bold text-foreground">QA Platform</h1>
+          <p className="text-muted-foreground mt-2">Sign in to your account</p>
+        </div>
+
+        {/* Login Card */}
+        <div className="glass-card rounded-3xl p-8 shadow-warm">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-                className={errors.email ? "border-destructive" : ""}
-              />
+              <Label htmlFor="email" className="text-sm font-medium text-foreground">
+                Email Address
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                  className={`pl-12 h-12 rounded-xl border-2 bg-white/50 focus:bg-white transition-smooth ${
+                    errors.email ? "border-destructive" : "border-border focus:border-primary"
+                  }`}
+                />
+              </div>
               {errors.email && (
-                <p className="text-sm text-destructive">{errors.email}</p>
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  {errors.email}
+                </p>
               )}
             </div>
+
+            {/* Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                className={errors.password ? "border-destructive" : ""}
-              />
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  className={`pl-12 h-12 rounded-xl border-2 bg-white/50 focus:bg-white transition-smooth ${
+                    errors.password ? "border-destructive" : "border-border focus:border-primary"
+                  }`}
+                />
+              </div>
               {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  {errors.password}
+                </p>
               )}
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+
+            {/* Submit Button */}
+            <Button 
+              type="submit" 
+              className="w-full h-12 rounded-xl bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-warm transition-smooth"
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Signing in...
                 </>
               ) : (
                 "Sign In"
               )}
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
+          </form>
+
+          {/* Register Link */}
+          <div className="mt-6 text-center">
+            <p className="text-muted-foreground">
               Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:underline font-medium">
-                Register here
+              <Link 
+                to="/register" 
+                className="text-primary hover:text-primary/80 font-semibold transition-smooth"
+              >
+                Create Account
               </Link>
             </p>
-          </CardFooter>
-        </form>
-      </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

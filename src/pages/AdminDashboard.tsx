@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -15,16 +14,10 @@ import {
   ClipboardCheck,
   Loader2,
   Check,
-  X
+  X,
+  Menu,
+  ChevronRight
 } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 interface UserProfile {
   id: string;
@@ -43,6 +36,7 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -117,236 +111,250 @@ const AdminDashboard: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
+        return (
+          <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
+        );
       case "approved":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>;
+        return (
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+            <Check className="w-3 h-3 mr-1" />
+            Approved
+          </Badge>
+        );
       case "rejected":
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
+        return (
+          <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
+            <X className="w-3 h-3 mr-1" />
+            Rejected
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-gradient-warm">
       {/* Header */}
-      <header className="bg-background border-b">
+      <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-              <ClipboardCheck className="h-5 w-5 text-primary-foreground" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-warm">
+              <ClipboardCheck className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h1 className="font-bold text-lg">QA Platform</h1>
+            <div className="hidden sm:block">
+              <h1 className="font-bold text-lg text-foreground">QA Platform</h1>
               <p className="text-xs text-muted-foreground">Admin Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.full_name}
+          
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden md:block">
+              Welcome, <span className="font-medium text-foreground">{profile?.full_name}</span>
             </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="rounded-xl border-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-smooth"
+            >
               <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+              <span className="hidden sm:inline">Sign Out</span>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 md:py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending Approval
-              </CardTitle>
-              <Clock className="h-4 w-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{pendingUsers.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Approved Users
-              </CardTitle>
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{approvedUsers.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Rejected Users
-              </CardTitle>
-              <UserX className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{rejectedUsers.length}</div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-3 gap-3 md:gap-6 mb-6 md:mb-8">
+          <div className="glass-card rounded-2xl p-4 md:p-6 shadow-warm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-amber-100 flex items-center justify-center">
+                <Clock className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
+              </div>
+              <span className="text-2xl md:text-3xl font-bold text-amber-600">{pendingUsers.length}</span>
+            </div>
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Pending</p>
+          </div>
+
+          <div className="glass-card rounded-2xl p-4 md:p-6 shadow-warm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <UserCheck className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />
+              </div>
+              <span className="text-2xl md:text-3xl font-bold text-emerald-600">{approvedUsers.length}</span>
+            </div>
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Approved</p>
+          </div>
+
+          <div className="glass-card rounded-2xl p-4 md:p-6 shadow-warm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-red-100 flex items-center justify-center">
+                <UserX className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
+              </div>
+              <span className="text-2xl md:text-3xl font-bold text-red-600">{rejectedUsers.length}</span>
+            </div>
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Rejected</p>
+          </div>
         </div>
 
         {/* Pending Approvals Section */}
         {pendingUsers.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-amber-500" />
-                Pending Approvals
-              </CardTitle>
-              <CardDescription>
-                Users awaiting your approval to access the platform
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Registered</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.full_name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => handleApproval(user.user_id, "approved")}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4" />
-                            )}
-                            <span className="ml-1 hidden sm:inline">Approve</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleApproval(user.user_id, "rejected")}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <X className="h-4 w-4" />
-                            )}
-                            <span className="ml-1 hidden sm:inline">Reject</span>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="glass-card rounded-2xl shadow-warm mb-6 md:mb-8 overflow-hidden">
+            <div className="p-4 md:p-6 border-b border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg text-foreground">Pending Approvals</h2>
+                  <p className="text-sm text-muted-foreground hidden sm:block">Users awaiting your approval</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="divide-y divide-border/50">
+              {pendingUsers.map((user) => (
+                <div key={user.id} className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
+                        {user.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate">{user.full_name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-xs text-muted-foreground hidden md:block">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApproval(user.user_id, "approved")}
+                      disabled={actionLoading === user.user_id}
+                      className="flex-1 sm:flex-none rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-smooth"
+                    >
+                      {actionLoading === user.user_id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-1" />
+                          Approve
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleApproval(user.user_id, "rejected")}
+                      disabled={actionLoading === user.user_id}
+                      className="flex-1 sm:flex-none rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-smooth"
+                    >
+                      {actionLoading === user.user_id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <X className="h-4 w-4 mr-1" />
+                          Reject
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
-        {/* All Users Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              All Users
-            </CardTitle>
-            <CardDescription>
-              Complete list of registered users
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        {/* All Users Section */}
+        <div className="glass-card rounded-2xl shadow-warm overflow-hidden">
+          <div className="p-4 md:p-6 border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
               </div>
-            ) : users.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No users registered yet
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Registered</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.full_name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{getStatusBadge(user.approval_status)}</TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {user.approval_status !== "approved" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-green-600 hover:text-green-700"
-                            onClick={() => handleApproval(user.user_id, "approved")}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Check className="h-4 w-4 mr-1" />
-                                Approve
-                              </>
-                            )}
-                          </Button>
+              <div>
+                <h2 className="font-semibold text-lg text-foreground">All Users</h2>
+                <p className="text-sm text-muted-foreground hidden sm:block">Complete list of registered users</p>
+              </div>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+              <p className="text-muted-foreground">No users registered yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {users.map((user) => (
+                <div key={user.id} className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold shrink-0">
+                        {user.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground">{user.full_name}</p>
+                          {getStatusBadge(user.approval_status)}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pl-13 sm:pl-0">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </span>
+                    {user.approval_status !== "approved" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleApproval(user.user_id, "approved")}
+                        disabled={actionLoading === user.user_id}
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                      >
+                        {actionLoading === user.user_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
                         )}
-                        {user.approval_status !== "rejected" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => handleApproval(user.user_id, "rejected")}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <X className="h-4 w-4 mr-1" />
-                                Reject
-                              </>
-                            )}
-                          </Button>
+                      </Button>
+                    )}
+                    {user.approval_status !== "rejected" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleApproval(user.user_id, "rejected")}
+                        disabled={actionLoading === user.user_id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                      >
+                        {actionLoading === user.user_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <X className="h-4 w-4" />
                         )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
