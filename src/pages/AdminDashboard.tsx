@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { ClearTestDataDialog } from "@/components/qa/ClearTestDataDialog";
 import { 
   LogOut, 
   Users, 
@@ -19,7 +20,8 @@ import {
   ChevronRight,
   TestTube2,
   PlayCircle,
-  BarChart3
+  BarChart3,
+  Settings
 } from "lucide-react";
 
 interface UserProfile {
@@ -253,6 +255,30 @@ const AdminDashboard: React.FC = () => {
                 <p className="text-xs text-muted-foreground">Execute & track</p>
               </div>
             </Button>
+          </div>
+        </div>
+
+        {/* Admin Settings */}
+        <div className="glass-card rounded-2xl shadow-warm mb-6 md:mb-8 overflow-hidden">
+          <div className="p-4 md:p-6 border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <Settings className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-lg text-foreground">Admin Settings</h2>
+                <p className="text-sm text-muted-foreground hidden sm:block">Dangerous actions - use with caution</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-destructive/5 border border-destructive/20 rounded-xl">
+              <div>
+                <p className="font-medium text-foreground">Clear All Test Data</p>
+                <p className="text-sm text-muted-foreground">Permanently delete all test scenarios, cases, runs, and results</p>
+              </div>
+              <ClearTestDataDialog />
+            </div>
           </div>
         </div>
 
