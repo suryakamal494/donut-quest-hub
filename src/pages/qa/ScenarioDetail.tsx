@@ -1,8 +1,20 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   ScenarioTypeBadge, 
@@ -16,12 +28,17 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function ScenarioDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { toast } = useToast();
+  const { user, role } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [cloning, setCloning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [scenario, setScenario] = useState<TestScenario | null>(null);
   const [testCases, setTestCases] = useState<(TestCase & { steps: TestStep[] })[]>([]);
   const [feature, setFeature] = useState<Feature | null>(null);
   const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
+
+  const canEdit = role === "admin" || scenario?.created_by === user?.id;
 
   useEffect(() => {
     if (id) loadScenario();
@@ -82,6 +99,121 @@ export default function ScenarioDetail() {
     }
   };
 
+  const handleClone = async () => {
+    if (!scenario || !user) return;
+
+    try {
+      setCloning(true);
+
+      // Create cloned scenario
+      const { data: newScenario, error: scenarioError } = await supabase
+        .from("test_scenarios")
+        .insert({
+          name: `${scenario.name} (Copy)`,
+          description: scenario.description,
+          feature_id: scenario.feature_id,
+          sub_module: scenario.sub_module,
+          scenario_type: scenario.scenario_type,
+          login_types: scenario.login_types,
+          test_frequency: scenario.test_frequency,
+          priority: scenario.priority,
+          business_impact: scenario.business_impact,
+          created_by: user.id,
+          scenario_code: "",
+        })
+        .select()
+        .single();
+
+      if (scenarioError) throw scenarioError;
+
+      // Clone test cases and steps
+      for (const tc of testCases) {
+        const { data: newCase, error: caseError } = await supabase
+          .from("test_cases")
+          .insert({
+            scenario_id: newScenario.id,
+            title: tc.title,
+            description: tc.description,
+            login_type: tc.login_type,
+            preconditions: tc.preconditions,
+            expected_result: tc.expected_result,
+            content_types: tc.content_types,
+            order_index: tc.order_index,
+            is_regression: tc.is_regression,
+            dependencies: [],
+            created_by: user.id,
+            case_code: "",
+          })
+          .select()
+          .single();
+
+        if (caseError) throw caseError;
+
+        if (tc.steps.length > 0) {
+          const { error: stepsError } = await supabase
+            .from("test_steps")
+            .insert(
+              tc.steps.map(step => ({
+                test_case_id: newCase.id,
+                order_index: step.order_index,
+                action: step.action,
+                expected_outcome: step.expected_outcome,
+              }))
+            );
+
+          if (stepsError) throw stepsError;
+        }
+      }
+
+      toast({
+        title: "Scenario cloned",
+        description: `Created ${newScenario.scenario_code}`,
+      });
+
+      navigate(`/qa/scenarios/${newScenario.id}`);
+    } catch (error: any) {
+      console.error("Error cloning scenario:", error);
+      toast({
+        title: "Error cloning scenario",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCloning(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!scenario || role !== "admin") return;
+
+    try {
+      setDeleting(true);
+
+      const { error } = await supabase
+        .from("test_scenarios")
+        .delete()
+        .eq("id", scenario.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Scenario deleted",
+        description: `${scenario.scenario_code} has been removed`,
+      });
+
+      navigate("/qa/scenarios");
+    } catch (error: any) {
+      console.error("Error deleting scenario:", error);
+      toast({
+        title: "Error deleting scenario",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const toggleCase = (caseId: string) => {
     setExpandedCases(prev => {
       const next = new Set(prev);
@@ -135,13 +267,66 @@ export default function ScenarioDetail() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
-          {role === "admin" && (
-            <Button variant="outline" size="sm">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+        <div className="flex flex-wrap gap-2">
+          {/* Clone Button */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleClone}
+            disabled={cloning}
+          >
+            {cloning ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Copy className="h-4 w-4 mr-2" />
+            )}
+            Clone
+          </Button>
+          
+          {/* Edit Button - only show if user can edit */}
+          {canEdit && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/qa/scenarios/${id}/edit`}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Link>
             </Button>
           )}
+          
+          {/* Delete Button - admin only */}
+          {role === "admin" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Scenario?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete <strong>{scenario.scenario_code}</strong> and all its test cases. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deleting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          
+          {/* Run Test Button */}
           <Button size="sm" asChild>
             <Link to={`/qa/runs/create?scenario=${id}`}>
               <PlayCircle className="h-4 w-4 mr-2" />
