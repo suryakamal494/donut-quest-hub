@@ -2,8 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, LogOut, RefreshCw } from "lucide-react";
+import { Clock, LogOut, RefreshCw, ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PendingApproval: React.FC = () => {
@@ -38,53 +37,79 @@ const PendingApproval: React.FC = () => {
   }, [profile, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
-              <Clock className="h-8 w-8 text-amber-600" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-warm px-4 py-8">
+      {/* Decorative elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-amber-200/30 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-primary shadow-warm">
+            <ClipboardCheck className="h-6 w-6 text-white" />
+          </div>
+        </div>
+
+        {/* Card */}
+        <div className="glass-card rounded-3xl p-8 shadow-warm text-center">
+          {/* Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="h-20 w-20 rounded-full bg-amber-100 flex items-center justify-center">
+              <Clock className="h-10 w-10 text-amber-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Pending Approval</CardTitle>
-          <CardDescription className="text-base">
+
+          {/* Content */}
+          <h1 className="text-2xl font-bold text-foreground mb-2">Pending Approval</h1>
+          <p className="text-muted-foreground mb-6">
             Your account is awaiting administrator approval
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            Thank you for registering! An administrator will review your account and 
-            approve your access to the QA Platform. You will be able to access the 
-            platform once your account is approved.
           </p>
+
+          <p className="text-sm text-muted-foreground mb-6">
+            Thank you for registering! An administrator will review your account 
+            and approve your access to the QA Platform.
+          </p>
+
+          {/* User Info */}
           {profile && (
-            <div className="bg-muted rounded-lg p-4 text-left">
-              <p className="text-sm text-muted-foreground">Registered as:</p>
-              <p className="font-medium">{profile.full_name}</p>
-              <p className="text-sm text-muted-foreground">{profile.email}</p>
+            <div className="bg-muted/50 rounded-2xl p-4 mb-6 text-left">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Registered as</p>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
+                  {profile.full_name?.charAt(0).toUpperCase() || "U"}
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{profile.full_name}</p>
+                  <p className="text-sm text-muted-foreground">{profile.email}</p>
+                </div>
+              </div>
             </div>
           )}
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Check Status
-          </Button>
-          <Button 
-            variant="ghost" 
-            className="w-full text-muted-foreground" 
-            onClick={handleSignOut}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
-        </CardFooter>
-      </Card>
+
+          {/* Actions */}
+          <div className="space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full h-12 rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 transition-smooth" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Check Status
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full h-12 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-smooth" 
+              onClick={handleSignOut}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

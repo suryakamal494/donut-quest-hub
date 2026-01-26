@@ -2,13 +2,14 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   LogOut, 
   ClipboardCheck,
   ClipboardList,
   Bug,
-  CheckCircle2
+  CheckCircle2,
+  ChevronRight,
+  Sparkles
 } from "lucide-react";
 
 const UserDashboard: React.FC = () => {
@@ -21,113 +22,135 @@ const UserDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-gradient-warm">
       {/* Header */}
-      <header className="bg-background border-b">
+      <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-              <ClipboardCheck className="h-5 w-5 text-primary-foreground" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-warm">
+              <ClipboardCheck className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h1 className="font-bold text-lg">QA Platform</h1>
+            <div className="hidden sm:block">
+              <h1 className="font-bold text-lg text-foreground">QA Platform</h1>
               <p className="text-xs text-muted-foreground">User Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.full_name}
+          
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden md:block">
+              Welcome, <span className="font-medium text-foreground">{profile?.full_name}</span>
             </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="rounded-xl border-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-smooth"
+            >
               <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+              <span className="hidden sm:inline">Sign Out</span>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 md:py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-2">
-            Welcome, {profile?.full_name}!
-          </h2>
-          <p className="text-muted-foreground">
-            Your account has been approved. You can now access the QA Platform features.
-          </p>
+        <div className="glass-card rounded-2xl p-6 md:p-8 shadow-warm mb-6 md:mb-8">
+          <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+            <div className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-gradient-primary flex items-center justify-center text-white text-2xl md:text-3xl font-bold shadow-glow-primary">
+              {profile?.full_name?.charAt(0).toUpperCase() || "U"}
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
+                Welcome back, {profile?.full_name?.split(" ")[0]}! 👋
+              </h2>
+              <p className="text-muted-foreground">
+                Your account is active and ready to use. Start testing today!
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Status Card */}
-        <Card className="mb-8 border-green-200 bg-green-50/50">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <CardTitle className="text-green-800">Account Active</CardTitle>
+        <div className="glass-card rounded-2xl p-4 md:p-6 shadow-warm mb-6 md:mb-8 border-l-4 border-l-emerald-500">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-green-700 text-sm">
-              Your account is fully approved and active. You have access to all user features.
-            </p>
-          </CardContent>
-        </Card>
+            <div>
+              <h3 className="font-semibold text-emerald-800">Account Active</h3>
+              <p className="text-sm text-emerald-600">You have full access to all user features</p>
+            </div>
+          </div>
+        </div>
 
         {/* Module Cards */}
-        <h3 className="text-lg font-semibold mb-4">Available Modules</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <h3 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          Available Modules
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Test Cases Module */}
-          <Card className="hover:shadow-md transition-shadow cursor-pointer opacity-60">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <ClipboardList className="h-6 w-6 text-blue-600" />
+          <div className="glass-card rounded-2xl p-6 shadow-warm opacity-70 cursor-not-allowed group">
+            <div className="flex items-start gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                <ClipboardList className="h-7 w-7 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-semibold text-foreground">Test Cases</h4>
+                  <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    Coming Soon
+                  </span>
                 </div>
-                <div>
-                  <CardTitle>Test Cases</CardTitle>
-                  <CardDescription>Coming Soon</CardDescription>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create, manage, and execute test cases for inter-login testing scenarios.
+                </p>
+                <div className="flex items-center text-sm text-blue-600 font-medium">
+                  Learn more
+                  <ChevronRight className="h-4 w-4 ml-1" />
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Create, manage, and execute test cases for inter-login testing scenarios. 
-                Track test coverage across Super Admin, Institute Teacher, and Student logins.
-              </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Bug Reporting Module */}
-          <Card className="hover:shadow-md transition-shadow cursor-pointer opacity-60">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-lg bg-red-100 flex items-center justify-center">
-                  <Bug className="h-6 w-6 text-red-600" />
+          <div className="glass-card rounded-2xl p-6 shadow-warm opacity-70 cursor-not-allowed group">
+            <div className="flex items-start gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+                <Bug className="h-7 w-7 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-semibold text-foreground">Bug Reporting</h4>
+                  <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    Coming Soon
+                  </span>
                 </div>
-                <div>
-                  <CardTitle>Bug Reporting</CardTitle>
-                  <CardDescription>Coming Soon</CardDescription>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Report, track, and manage bugs discovered during testing.
+                </p>
+                <div className="flex items-center text-sm text-red-600 font-medium">
+                  Learn more
+                  <ChevronRight className="h-4 w-4 ml-1" />
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Report, track, and manage bugs discovered during testing. 
-                Link bugs to test cases and monitor resolution status.
-              </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
         {/* Info Message */}
-        <Card className="mt-8 bg-muted/50">
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground text-center">
-              The Test Cases and Bug Reporting modules will be available in the next update. 
-              Stay tuned!
-            </p>
-          </CardContent>
-        </Card>
+        <div className="glass-card rounded-2xl p-6 mt-6 md:mt-8 shadow-warm text-center">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-primary/10 mb-4">
+            <Sparkles className="h-6 w-6 text-primary" />
+          </div>
+          <p className="text-muted-foreground">
+            The Test Cases and Bug Reporting modules will be available in the next update.
+            <br className="hidden sm:block" />
+            Stay tuned for new features!
+          </p>
+        </div>
       </main>
     </div>
   );
