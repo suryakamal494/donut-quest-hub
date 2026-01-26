@@ -340,6 +340,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_test_step: {
+        Args: { _test_case_id: string }
+        Returns: boolean
+      }
       get_approval_status: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["approval_status"]
