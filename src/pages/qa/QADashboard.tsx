@@ -7,13 +7,18 @@ import {
   TrendingUp, 
   AlertCircle,
   ArrowRight,
-  Loader2
+  Loader2,
+  PieChart,
+  BarChart2,
+  Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, StatusBadge } from "@/components/qa/badges";
+import { ScenarioTypeChart, TestRunsChart, PassFailTrendChart } from "@/components/qa/analytics";
+import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
@@ -29,7 +34,9 @@ export default function QADashboard() {
   });
   const [recentScenarios, setRecentScenarios] = useState<TestScenario[]>([]);
   const [recentRuns, setRecentRuns] = useState<TestRun[]>([]);
+  const [allRuns, setAllRuns] = useState<TestRun[]>([]);
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
+  const [allResults, setAllResults] = useState<TestResult[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -57,35 +64,42 @@ export default function QADashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Get test runs
-      const { data: runs } = await supabase
+      // Get all test runs for chart (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data: allRunsData } = await supabase
         .from("test_runs")
         .select("*")
-        .order("started_at", { ascending: false })
-        .limit(5);
+        .gte("started_at", thirtyDaysAgo.toISOString())
+        .order("started_at", { ascending: false });
 
-      const inProgressRuns = runs?.filter(r => r.status === "in_progress").length || 0;
+      const inProgressRuns = allRunsData?.filter(r => r.status === "in_progress").length || 0;
 
-      // Get failed tests from recent runs
-      const { data: failedResults } = await supabase
+      // Get all results for chart
+      const { data: allResultsData } = await supabase
         .from("test_results")
         .select("*, test_cases(*)")
-        .eq("status", "fail")
-        .order("executed_at", { ascending: false })
-        .limit(5);
+        .gte("executed_at", thirtyDaysAgo.toISOString())
+        .order("executed_at", { ascending: false });
+
+      // Get failed tests
+      const failedResults = allResultsData?.filter(r => r.status === "fail") || [];
 
       setStats({
         totalScenarios: scenarios?.length || 0,
         smokeCount,
         intraLoginCount,
         interLoginCount,
-        totalRuns: runs?.length || 0,
+        totalRuns: allRunsData?.length || 0,
         inProgressRuns,
       });
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
-      setRecentRuns(runs as TestRun[] || []);
-      setFailedTests(failedResults as TestResult[] || []);
+      setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
+      setAllRuns(allRunsData as TestRun[] || []);
+      setFailedTests(failedResults as TestResult[]);
+      setAllResults(allResultsData as TestResult[] || []);
 
     } catch (error) {
       console.error("Error loading dashboard:", error);
@@ -136,7 +150,7 @@ export default function QADashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">{stats.totalScenarios}</div>
-            <div className="flex gap-2 mt-2">
+            <div className="flex flex-wrap gap-1.5 mt-2">
               <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded">
                 {stats.smokeCount} Smoke
               </span>
@@ -171,7 +185,7 @@ export default function QADashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600">{failedTests.length}</div>
+            <div className="text-3xl font-bold text-destructive">{failedTests.length}</div>
             <p className="text-sm text-muted-foreground mt-1">Needs attention</p>
           </CardContent>
         </Card>
@@ -179,58 +193,77 @@ export default function QADashboard() {
         <Card className="glass">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Coverage
+              Pass Rate
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">--</div>
-            <p className="text-sm text-muted-foreground mt-1">Feature coverage</p>
+            {allResults.length > 0 ? (
+              <>
+                <div className="text-3xl font-bold text-emerald-600">
+                  {Math.round((allResults.filter(r => r.status === "pass").length / allResults.length) * 100)}%
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {allResults.filter(r => r.status === "pass").length} / {allResults.length} tests
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-foreground">--</div>
+                <p className="text-sm text-muted-foreground mt-1">No results yet</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions & Recent Activity */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Failed Tests Alert */}
-        {failedTests.length > 0 && (
-          <Card className="border-red-200 bg-red-50/50 lg:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-5 w-5" />
-                Failed Tests Need Attention
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {failedTests.slice(0, 3).map((result) => (
-                  <div 
-                    key={result.id} 
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100"
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {result.test_case?.title || "Unknown Test"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {result.actual_result || "No details provided"}
-                      </p>
-                    </div>
-                    <StatusBadge status="fail" size="sm" />
-                  </div>
-                ))}
-              </div>
-              {failedTests.length > 3 && (
-                <Button variant="ghost" asChild className="mt-3 text-red-600">
-                  <Link to="/qa/runs">
-                    View all {failedTests.length} failed tests
-                    <ArrowRight className="h-4 w-4 ml-1" />
-                  </Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
+      {/* Failed Tests Reminder */}
+      <FailedTestsReminder failedTests={failedTests} maxDisplay={3} />
 
+      {/* Analytics Charts */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="glass">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <PieChart className="h-4 w-4 text-primary" />
+              Scenarios by Type
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScenarioTypeChart
+              smokeCount={stats.smokeCount}
+              intraLoginCount={stats.intraLoginCount}
+              interLoginCount={stats.interLoginCount}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="glass">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Weekly Test Runs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TestRunsChart runs={allRuns} />
+          </CardContent>
+        </Card>
+
+        <Card className="glass">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart2 className="h-4 w-4 text-primary" />
+              Pass/Fail Trend
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PassFailTrendChart results={allResults} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent Scenarios */}
         <Card className="glass">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -319,7 +352,7 @@ export default function QADashboard() {
                           ? 'bg-emerald-100 text-emerald-700'
                           : run.status === 'in_progress'
                           ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-100 text-gray-700'
+                          : 'bg-muted text-muted-foreground'
                       }`}>
                         {run.status === 'in_progress' ? 'In Progress' : run.status}
                       </span>
