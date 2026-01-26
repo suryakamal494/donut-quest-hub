@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      bugs: {
+        Row: {
+          actual_behavior: string | null
+          assigned_to: string | null
+          attachments: string[] | null
+          bug_code: string
+          created_at: string
+          description: string | null
+          environment: string | null
+          expected_behavior: string | null
+          feature_id: string | null
+          id: string
+          reported_by: string | null
+          severity: Database["public"]["Enums"]["bug_severity"]
+          status: Database["public"]["Enums"]["bug_status"]
+          steps_to_reproduce: string[] | null
+          test_result_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_behavior?: string | null
+          assigned_to?: string | null
+          attachments?: string[] | null
+          bug_code: string
+          created_at?: string
+          description?: string | null
+          environment?: string | null
+          expected_behavior?: string | null
+          feature_id?: string | null
+          id?: string
+          reported_by?: string | null
+          severity?: Database["public"]["Enums"]["bug_severity"]
+          status?: Database["public"]["Enums"]["bug_status"]
+          steps_to_reproduce?: string[] | null
+          test_result_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_behavior?: string | null
+          assigned_to?: string | null
+          attachments?: string[] | null
+          bug_code?: string
+          created_at?: string
+          description?: string | null
+          environment?: string | null
+          expected_behavior?: string | null
+          feature_id?: string | null
+          id?: string
+          reported_by?: string | null
+          severity?: Database["public"]["Enums"]["bug_severity"]
+          status?: Database["public"]["Enums"]["bug_status"]
+          steps_to_reproduce?: string[] | null
+          test_result_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bugs_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_test_result_id_fkey"
+            columns: ["test_result_id"]
+            isOneToOne: false
+            referencedRelation: "test_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       features: {
         Row: {
           created_at: string
@@ -41,6 +116,39 @@ export type Database = {
           name?: string
           order_index?: number
           sub_modules?: string[] | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message: string
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -359,6 +467,8 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       approval_status: "pending" | "approved" | "rejected"
+      bug_severity: "critical" | "major" | "minor" | "trivial"
+      bug_status: "open" | "in_progress" | "resolved" | "closed" | "wont_fix"
       login_type: "super_admin" | "institute" | "teacher" | "student"
       priority_level: "critical" | "high" | "medium" | "low"
       run_status: "in_progress" | "completed" | "aborted"
@@ -494,6 +604,8 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       approval_status: ["pending", "approved", "rejected"],
+      bug_severity: ["critical", "major", "minor", "trivial"],
+      bug_status: ["open", "in_progress", "resolved", "closed", "wont_fix"],
       login_type: ["super_admin", "institute", "teacher", "student"],
       priority_level: ["critical", "high", "medium", "low"],
       run_status: ["in_progress", "completed", "aborted"],
