@@ -1,4 +1,4 @@
-import { Menu, Bell, LogOut, Settings, User } from "lucide-react";
+import { Menu, LogOut, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface QAHeaderProps {
   onMenuToggle: () => void;
@@ -65,10 +66,7 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-          </Button>
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>
