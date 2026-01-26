@@ -14,6 +14,14 @@ import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import NotFound from "./pages/NotFound";
 
+// QA Module
+import { QALayout } from "@/components/qa/layout";
+import { QADashboard, TestScenarios, TestRuns, Coverage } from "./pages/qa";
+import CreateScenario from "./pages/qa/CreateScenario";
+import ScenarioDetail from "./pages/qa/ScenarioDetail";
+import CreateTestRun from "./pages/qa/CreateTestRun";
+import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -45,6 +53,27 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            
+            {/* QA Module Routes */}
+            <Route
+              path="/qa"
+              element={
+                <ProtectedRoute>
+                  <QALayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<QADashboard />} />
+              <Route path="scenarios" element={<TestScenarios />} />
+              <Route path="scenarios/create" element={<CreateScenario />} />
+              <Route path="scenarios/:id" element={<ScenarioDetail />} />
+              <Route path="runs" element={<TestRuns />} />
+              <Route path="runs/create" element={<CreateTestRun />} />
+              <Route path="runs/:id" element={<ScenarioDetail />} />
+              <Route path="runs/:id/execute" element={<ExecuteTestRun />} />
+              <Route path="coverage" element={<Coverage />} />
+            </Route>
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
