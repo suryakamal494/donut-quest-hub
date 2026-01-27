@@ -161,12 +161,26 @@ export default function EditScenario() {
 
   const selectedFeature = features.find(f => f.id === featureId);
 
+  // Filter features based on selected login types
+  const filteredFeatures = features.filter(f => 
+    loginTypes.length === 0 || loginTypes.includes(f.login_type)
+  );
+
   const toggleLoginType = (type: LoginType) => {
-    setLoginTypes(prev => 
-      prev.includes(type) 
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
+    const newLoginTypes = loginTypes.includes(type) 
+      ? loginTypes.filter(t => t !== type)
+      : [...loginTypes, type];
+    
+    setLoginTypes(newLoginTypes);
+    
+    // Clear feature if it no longer matches selected login types
+    if (featureId) {
+      const feature = features.find(f => f.id === featureId);
+      if (feature && newLoginTypes.length > 0 && !newLoginTypes.includes(feature.login_type)) {
+        setFeatureId("");
+        setSubModule("");
+      }
+    }
   };
 
   const addTestCase = () => {
@@ -467,40 +481,12 @@ export default function EditScenario() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="feature">Feature</Label>
-                  <Select value={featureId} onValueChange={setFeatureId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select feature" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {features.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name} ({LOGIN_TYPE_LABELS[f.login_type]})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="subModule">Sub-Module</Label>
-                  <Select value={subModule} onValueChange={setSubModule}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select sub-module" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedFeature?.sub_modules?.map((sm) => (
-                        <SelectItem key={sm} value={sm}>{sm}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
+              {/* Login Types - Select First */}
               <div>
                 <Label className="text-base font-medium mb-3 block">Login Types Involved *</Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Select the login types involved in this test scenario. Features will be filtered based on your selection.
+                </p>
                 <div className="flex flex-wrap gap-3">
                   {(Object.keys(LOGIN_TYPE_LABELS) as LoginType[]).map((type) => (
                     <label
@@ -518,6 +504,45 @@ export default function EditScenario() {
                       <span className="text-sm font-medium">{LOGIN_TYPE_LABELS[type]}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+
+              {/* Feature & Sub-Module - Filtered by Login Types */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="feature">Feature</Label>
+                  <Select value={featureId} onValueChange={(v) => { setFeatureId(v); setSubModule(""); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loginTypes.length === 0 ? "Select login types first" : "Select feature"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredFeatures.length === 0 ? (
+                        <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                          Select login types first to see available features
+                        </div>
+                      ) : (
+                        filteredFeatures.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.name} ({LOGIN_TYPE_LABELS[f.login_type]})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="subModule">Sub-Module</Label>
+                  <Select value={subModule} onValueChange={setSubModule} disabled={!featureId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={featureId ? "Select sub-module" : "Select feature first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedFeature?.sub_modules?.map((sm) => (
+                        <SelectItem key={sm} value={sm}>{sm}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
