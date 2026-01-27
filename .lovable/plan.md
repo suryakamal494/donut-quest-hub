@@ -1,176 +1,195 @@
 
 
-# Test Scenario Creation Audit Report
+# Implementation Plan: Reorder Login Types Before Feature Selection
 
-## Executive Summary
+## Overview
 
-I've identified the **root cause** of the "Error creating scenario: invalid input syntax for type integer: 'SAMPLE-001'" error. The issue is **not in the frontend code** but in the **database trigger logic** combined with **corrupted existing data**.
+This plan addresses the UX workflow issue where features are shown before login types, causing potential data inconsistencies. The fix reorders the Classification step to select Login Types first, then dynamically filter the Feature dropdown.
 
 ---
 
-## Root Cause Analysis
+## Current vs Proposed Flow
 
-### The Problem
+```text
+CURRENT (Problematic):
++------------------+     +-------------+     +--------------+     +-------------+
+| Scenario Type    | --> | Feature     | --> | Sub-Module   | --> | Login Types |
+| (smoke/intra/    |     | (all 29     |     | (depends on  |     | (multi-     |
+|  inter)          |     |  shown)     |     |  feature)    |     |  select)    |
++------------------+     +-------------+     +--------------+     +-------------+
 
-The database has existing records with non-standard code formats that break the auto-generation triggers:
-
-| Table | Column | Expected Format | Actual Data Found |
-|-------|--------|-----------------|-------------------|
-| test_scenarios | scenario_code | `TS-001` | `TS-SAMPLE-001` |
-| test_cases | case_code | `TC-001` | `TC-CL-001`, `TC-CL-002`, etc. |
-
-### Why This Causes Errors
-
-The trigger function `generate_scenario_code()` does:
-
-```sql
-SELECT COALESCE(MAX(CAST(SUBSTRING(scenario_code FROM 4) AS INTEGER)), 0) + 1
+PROPOSED (Correct):
++------------------+     +-------------+     +--------------+     +-------------+
+| Scenario Type    | --> | Login Types | --> | Feature      | --> | Sub-Module  |
+| (smoke/intra/    |     | (multi-     |     | (filtered by |     | (depends on |
+|  inter)          |     |  select)    |     |  login types)|     |  feature)   |
++------------------+     +-------------+     +--------------+     +-------------+
 ```
 
-This extracts everything after the 3rd character and tries to cast it to integer:
-
-- `'TS-001'` → `SUBSTRING FROM 4` = `'001'` → `CAST AS INTEGER` = `1` (works)
-- `'TS-SAMPLE-001'` → `SUBSTRING FROM 4` = `'SAMPLE-001'` → `CAST AS INTEGER` = **ERROR**
-
-Similarly for `generate_case_code()`:
-
-- `'TC-CL-001'` → `SUBSTRING FROM 4` = `'CL-001'` → `CAST AS INTEGER` = **ERROR**
-
 ---
 
-## Detailed Findings
+## Changes Required
 
-### Issue 1: CRITICAL - Corrupted Scenario Code Data
+### File: `src/pages/qa/CreateScenario.tsx`
 
-**Evidence:** Query shows `scenario_code = 'TS-SAMPLE-001'` exists in database
+#### Change 1: Add Filtered Features Computation
 
-**Impact:** Every new scenario creation attempt fails because the trigger scans ALL existing scenario codes to find the MAX
+Add a computed variable that filters features based on selected login types:
 
-**Severity:** CRITICAL - Complete blocker for creating new scenarios
+```text
+Location: After line 71 (const selectedFeature = ...)
+Purpose: Filter features to only show those matching selected login types
 
-### Issue 2: CRITICAL - Corrupted Case Code Data
-
-**Evidence:** Query shows case codes like `TC-CL-001`, `TC-CL-002` exist (7 records)
-
-**Impact:** Every new test case creation fails when trying to auto-generate case codes
-
-**Severity:** CRITICAL - Complete blocker for creating new test cases
-
-### Issue 3: LOW - Trigger Logic Fragility
-
-The trigger functions don't handle edge cases:
-- No validation that codes match expected format
-- No error handling for non-numeric substrings
-- Assumes all data follows strict `XX-NNN` format
-
----
-
-## Fix Plan
-
-### Phase 1: Data Cleanup (Immediate Fix)
-
-Fix the existing corrupted data by updating codes to match the expected format:
-
-```sql
--- Fix scenario codes
-UPDATE public.test_scenarios 
-SET scenario_code = 'TS-001' 
-WHERE scenario_code = 'TS-SAMPLE-001';
-
--- Fix case codes (renumber sequentially)
-WITH numbered AS (
-  SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) as rn
-  FROM public.test_cases
-)
-UPDATE public.test_cases tc
-SET case_code = 'TC-' || LPAD(n.rn::TEXT, 3, '0')
-FROM numbered n
-WHERE tc.id = n.id;
+Logic:
+const filteredFeatures = features.filter(f => 
+  loginTypes.length === 0 || loginTypes.includes(f.login_type)
+);
 ```
 
-### Phase 2: Robust Trigger Functions
+When no login types are selected, this shows all features (fallback).
+When login types are selected, only matching features appear.
 
-Update triggers to handle edge cases gracefully:
+---
 
-```sql
-CREATE OR REPLACE FUNCTION public.generate_scenario_code()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    next_num INTEGER;
-BEGIN
-    -- Only extract numeric portion from properly formatted codes
-    SELECT COALESCE(
-      MAX(
-        CASE 
-          WHEN scenario_code ~ '^TS-[0-9]+$' 
-          THEN CAST(SUBSTRING(scenario_code FROM 4) AS INTEGER)
-          ELSE 0 
-        END
-      ), 0
-    ) + 1
-    INTO next_num
-    FROM public.test_scenarios;
-    
-    NEW.scenario_code := 'TS-' || LPAD(next_num::TEXT, 3, '0');
-    RETURN NEW;
-END;
-$$;
+#### Change 2: Clear Feature When Login Types Change
+
+When the user changes login types, clear the feature selection if it no longer matches:
+
+```text
+Location: Modify toggleLoginType function (lines 73-79)
+Purpose: Reset feature/sub-module if they become invalid
+
+const toggleLoginType = (type: LoginType) => {
+  const newLoginTypes = loginTypes.includes(type) 
+    ? loginTypes.filter(t => t !== type)
+    : [...loginTypes, type];
+  
+  setLoginTypes(newLoginTypes);
+  
+  // Clear feature if it no longer matches selected login types
+  if (featureId) {
+    const feature = features.find(f => f.id === featureId);
+    if (feature && !newLoginTypes.includes(feature.login_type)) {
+      setFeatureId("");
+      setSubModule("");
+    }
+  }
+};
 ```
 
-Apply similar fix for `generate_case_code()`.
+---
 
-### Phase 3: Frontend Validation (Optional Enhancement)
+#### Change 3: Reorder UI Components in Step 1
 
-Add client-side validation to ensure codes match expected patterns when displaying or editing, preventing future data corruption.
+Current order (lines 284-393):
+1. Scenario Type selection
+2. Feature dropdown
+3. Sub-Module dropdown
+4. Login Types checkboxes
+5. Test Frequency
+6. Priority
+
+New order:
+1. Scenario Type selection
+2. Login Types checkboxes (moved up)
+3. Feature dropdown (uses filteredFeatures)
+4. Sub-Module dropdown
+5. Test Frequency
+6. Priority
 
 ---
 
-## Technical Details
+#### Change 4: Update Feature Dropdown to Use Filtered List
 
-### Files Involved
+```text
+Location: Lines 312-325
+Change: Replace `features.map` with `filteredFeatures.map`
 
-| File | Issue Found |
-|------|-------------|
-| `src/pages/qa/CreateScenario.tsx` | No code issues - correctly passes empty string for auto-generation |
-| `src/pages/qa/EditScenario.tsx` | No code issues - correctly handles both update and insert flows |
-| `src/pages/qa/ScenarioDetail.tsx` | Clone function would also fail due to same trigger issue |
-| Database triggers | Fragile logic that doesn't validate input format |
+<SelectContent>
+  {filteredFeatures.length === 0 ? (
+    <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+      Select login types first to see available features
+    </div>
+  ) : (
+    filteredFeatures.map((f) => (
+      <SelectItem key={f.id} value={f.id}>
+        {f.name}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
+```
 
-### Current Frontend Flow (Verified Working)
-
-1. **CreateScenario.tsx** (lines 159-176): Inserts with `scenario_code: ""` 
-2. **Trigger fires**: Should generate `TS-001`, `TS-002`, etc.
-3. **Trigger fails**: Due to existing `TS-SAMPLE-001` corrupted data
-
-### Affected Operations
-
-| Operation | Affected | Reason |
-|-----------|----------|--------|
-| Create new scenario | Yes | Trigger fails on MAX() calculation |
-| Edit scenario | Partial | Adding new test cases fails |
-| Clone scenario | Yes | Same trigger issue |
-| Delete scenario | No | Not related to triggers |
-| View scenario | No | Read-only operation |
+Note: Remove the login type label from feature names since features will already be filtered.
 
 ---
 
-## Implementation Priority
+#### Change 5: Add Visual Guidance
 
-| Priority | Fix | Effort | Impact |
-|----------|-----|--------|--------|
-| 1 | Data cleanup migration | Low | Immediate unblock |
-| 2 | Robust trigger functions | Medium | Prevent future issues |
-| 3 | Add data validation | Low | Defense in depth |
+Add helper text to guide the tester:
+
+```text
+Location: Above Login Types section
+
+<div className="p-3 bg-muted/50 rounded-lg mb-4">
+  <p className="text-sm text-muted-foreground">
+    Select the login types involved in this test scenario. 
+    Features will be filtered based on your selection.
+  </p>
+</div>
+```
 
 ---
 
-## Recommended Actions
+## Implementation Summary
 
-1. **Immediate**: Run database migration to fix corrupted data and update trigger functions
-2. **Testing**: After fix, verify scenario creation, editing, and cloning all work
-3. **Prevention**: Consider adding database CHECK constraints or trigger validations to prevent non-standard codes from being inserted in future
+| Step | Change | Lines Affected |
+|------|--------|----------------|
+| 1 | Add `filteredFeatures` computed variable | After line 71 |
+| 2 | Update `toggleLoginType` to clear invalid feature | Lines 73-79 |
+| 3 | Move Login Types UI section before Feature | Lines 342-362 → Lines 310-330 |
+| 4 | Update Feature dropdown to use filtered list | Lines 312-325 |
+| 5 | Add empty state for feature dropdown | Lines 317-319 |
+| 6 | Add helper text for guidance | Before Login Types section |
+
+---
+
+## Validation Logic Update
+
+The existing validation on line 137 already checks `loginTypes.length > 0`, so no changes needed there.
+
+---
+
+## Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| No login types selected | Feature dropdown shows "Select login types first" message |
+| Login type deselected | Feature cleared if it no longer matches remaining login types |
+| Multiple login types | Features from ALL selected login types are shown |
+| Sub-module selection | Cleared when feature changes (existing behavior) |
+
+---
+
+## Testing Checklist
+
+After implementation, verify:
+
+1. Login Types appear before Feature in the form
+2. Selecting "Teacher" shows only Teacher features (7 features)
+3. Selecting "Teacher" + "Student" shows features from both (14 features)
+4. Deselecting a login type clears incompatible feature selection
+5. Empty state message shows when no login types selected
+6. Sub-module clears when feature changes
+7. Form submission still works correctly
+8. Edit scenario page should also be updated with same logic
+
+---
+
+## Optional Enhancement: Update Edit Scenario Page
+
+The same logic should be applied to `src/pages/qa/EditScenario.tsx` for consistency. This involves:
+- Same filtered features logic
+- Same reordered UI
+- Same validation when changing login types
 
