@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Save, Loader2, HelpCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Loader2, HelpCircle, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +52,23 @@ import {
 } from "@/types/qa";
 
 const STEPS = ["Classification", "Details", "Test Cases", "Review"];
+const DRAFT_STORAGE_KEY = "qa_scenario_draft";
+const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
+
+interface DraftData {
+  scenarioType: ScenarioType;
+  featureId: string;
+  subModule: string;
+  loginTypes: LoginType[];
+  testFrequency: TestFrequency;
+  priority: PriorityLevel;
+  name: string;
+  description: string;
+  businessImpact: string;
+  testCases: CreateTestCaseForm[];
+  currentStep: number;
+  savedAt: string;
+}
 
 export default function CreateScenario() {
   const navigate = useNavigate();
@@ -50,6 +77,9 @@ export default function CreateScenario() {
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [features, setFeatures] = useState<Feature[]>([]);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   // Form state
   const [scenarioType, setScenarioType] = useState<ScenarioType>("smoke");
@@ -62,6 +92,104 @@ export default function CreateScenario() {
   const [description, setDescription] = useState("");
   const [businessImpact, setBusinessImpact] = useState("");
   const [testCases, setTestCases] = useState<CreateTestCaseForm[]>([]);
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const draft: DraftData = JSON.parse(savedDraft);
+        // Check if draft has meaningful data
+        const hasData = draft.name || draft.loginTypes.length > 0 || draft.testCases.length > 0;
+        if (hasData) {
+          setHasDraft(true);
+          setShowRestoreDialog(true);
+        }
+      } catch {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+    }
+  }, []);
+
+  // Auto-save draft every 30 seconds
+  useEffect(() => {
+    const saveDraft = () => {
+      // Only save if there's meaningful data
+      const hasData = name || loginTypes.length > 0 || testCases.length > 0 || description;
+      if (!hasData) return;
+
+      const draft: DraftData = {
+        scenarioType,
+        featureId,
+        subModule,
+        loginTypes,
+        testFrequency,
+        priority,
+        name,
+        description,
+        businessImpact,
+        testCases,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      setLastSavedAt(new Date().toLocaleTimeString());
+      setHasDraft(true);
+    };
+
+    const intervalId = setInterval(saveDraft, AUTO_SAVE_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, [scenarioType, featureId, subModule, loginTypes, testFrequency, priority, name, description, businessImpact, testCases, currentStep]);
+
+  const restoreDraft = useCallback(() => {
+    const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const draft: DraftData = JSON.parse(savedDraft);
+        setScenarioType(draft.scenarioType);
+        setFeatureId(draft.featureId);
+        setSubModule(draft.subModule);
+        setLoginTypes(draft.loginTypes);
+        setTestFrequency(draft.testFrequency);
+        setPriority(draft.priority);
+        setName(draft.name);
+        setDescription(draft.description);
+        setBusinessImpact(draft.businessImpact);
+        setTestCases(draft.testCases);
+        setCurrentStep(draft.currentStep);
+        setLastSavedAt(new Date(draft.savedAt).toLocaleTimeString());
+        
+        toast({
+          title: "Draft restored",
+          description: "Your previous work has been restored",
+        });
+      } catch {
+        toast({
+          title: "Error restoring draft",
+          description: "Could not restore your previous work",
+          variant: "destructive",
+        });
+      }
+    }
+    setShowRestoreDialog(false);
+  }, [toast]);
+
+  const discardDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setHasDraft(false);
+    setShowRestoreDialog(false);
+    toast({
+      title: "Draft discarded",
+      description: "Starting fresh",
+    });
+  }, [toast]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setHasDraft(false);
+    setLastSavedAt(null);
+  };
 
   useEffect(() => {
     loadFeatures();
@@ -239,6 +367,9 @@ export default function CreateScenario() {
         }
       }
 
+      // Clear draft after successful save
+      clearDraft();
+
       toast({
         title: "Scenario created",
         description: `${scenario.scenario_code} - ${name}`,
@@ -259,15 +390,64 @@ export default function CreateScenario() {
 
   return (
     <div className="space-y-6">
+      {/* Restore Draft Dialog */}
+      <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-primary" />
+              Restore Previous Draft?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an unsaved draft from a previous session. Would you like to restore it and continue where you left off?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={discardDraft}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Discard & Start Fresh
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={restoreDraft}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restore Draft
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">Create Test Scenario</h1>
           <p className="text-muted-foreground">Step {currentStep + 1} of {STEPS.length}</p>
         </div>
+        {/* Auto-save indicator */}
+        {hasDraft && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="hidden sm:inline">
+              {lastSavedAt ? `Saved at ${lastSavedAt}` : "Draft saved"}
+            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={discardDraft}
+                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Discard draft</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
       </div>
 
       {/* Progress Steps */}
