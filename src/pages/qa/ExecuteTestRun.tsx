@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, 
@@ -8,16 +8,24 @@ import {
   AlertTriangle, 
   SkipForward,
   Loader2,
-  Save
+  Save,
+  Keyboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LoginTypeBadge, StatusBadge } from "@/components/qa/badges";
+import { FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
 import type { TestRun, TestResult, TestCase, TestStep, TestStatus } from "@/types/qa";
 
 interface TestResultWithCase extends TestResult {
@@ -37,10 +45,54 @@ export default function ExecuteTestRun() {
   const [notes, setNotes] = useState("");
   const [actualResult, setActualResult] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
+  const [showKeyboardHint, setShowKeyboardHint] = useState(true);
 
   useEffect(() => {
     if (id) loadRun();
   }, [id]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is typing in a text field
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+        return;
+      }
+
+      // Skip if saving
+      if (saving) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'p':
+          e.preventDefault();
+          saveResult('pass');
+          break;
+        case 'f':
+          e.preventDefault();
+          saveResult('fail');
+          break;
+        case 's':
+          e.preventDefault();
+          saveResult('skipped');
+          break;
+        case 'b':
+          e.preventDefault();
+          saveResult('blocked');
+          break;
+        case 'arrowleft':
+          e.preventDefault();
+          setCurrentIndex(prev => Math.max(0, prev - 1));
+          break;
+        case 'arrowright':
+          e.preventDefault();
+          setCurrentIndex(prev => Math.min(results.length - 1, prev + 1));
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [saving, results.length]);
 
   const loadRun = async () => {
     try {
@@ -128,8 +180,14 @@ export default function ExecuteTestRun() {
     });
   };
 
-  const saveResult = async (status: TestStatus) => {
-    if (!currentResult || !user) return;
+  const markAllStepsComplete = () => {
+    if (currentCase?.steps) {
+      setCheckedSteps(new Set(currentCase.steps.map(s => s.id)));
+    }
+  };
+
+  const saveResult = useCallback(async (status: TestStatus) => {
+    if (!currentResult || !user || saving) return;
 
     try {
       setSaving(true);
@@ -182,7 +240,7 @@ export default function ExecuteTestRun() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [currentResult, user, saving, actualResult, notes, currentIndex, results, currentCase?.title, toast]);
 
   const completeRun = async () => {
     if (!run) return;
@@ -246,6 +304,34 @@ export default function ExecuteTestRun() {
           <p className="text-sm text-muted-foreground">{run.run_code}</p>
         </div>
       </div>
+
+      {/* Keyboard Shortcut Hint */}
+      {showKeyboardHint && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-blue-700">
+              <Keyboard className="h-4 w-4" />
+              <span className="hidden sm:inline">Pro tip: Use keyboard shortcuts – </span>
+              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">P</span>
+              <span>Pass</span>
+              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">F</span>
+              <span>Fail</span>
+              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">S</span>
+              <span>Skip</span>
+              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">←→</span>
+              <span>Navigate</span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowKeyboardHint(false)}
+              className="text-blue-700 hover:text-blue-800 h-6 px-2"
+            >
+              ×
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress */}
       <Card className="glass">
@@ -322,7 +408,19 @@ export default function ExecuteTestRun() {
 
             {/* Steps */}
             <div className="space-y-2 mb-4">
-              <p className="text-sm font-medium text-muted-foreground">Test Steps</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">Test Steps</p>
+                {currentCase.steps.length > 1 && checkedSteps.size !== currentCase.steps.length && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={markAllStepsComplete}
+                    className="h-7 text-xs"
+                  >
+                    Mark All Complete
+                  </Button>
+                )}
+              </div>
               {currentCase.steps.map((step, i) => (
                 <button
                   key={step.id}
@@ -367,7 +465,7 @@ export default function ExecuteTestRun() {
                 <Textarea
                   value={actualResult}
                   onChange={(e) => setActualResult(e.target.value)}
-                  placeholder="What actually happened..."
+                  placeholder={FIELD_PLACEHOLDERS.actualResult}
                   rows={2}
                   className="mt-1"
                 />
@@ -377,7 +475,7 @@ export default function ExecuteTestRun() {
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Additional observations..."
+                  placeholder={FIELD_PLACEHOLDERS.notes}
                   rows={2}
                   className="mt-1"
                 />
@@ -393,64 +491,106 @@ export default function ExecuteTestRun() {
           <div className="flex items-center justify-between gap-2">
             {/* Navigation */}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
-                disabled={currentIndex === 0}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentIndex(prev => Math.min(results.length - 1, prev + 1))}
-                disabled={currentIndex === results.length - 1}
-              >
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+                      disabled={currentIndex === 0}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Previous test (←)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentIndex(prev => Math.min(results.length - 1, prev + 1))}
+                      disabled={currentIndex === results.length - 1}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Next test (→)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Result Buttons */}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => saveResult("skipped")}
-                disabled={saving}
-                className="text-gray-600"
-              >
-                <SkipForward className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Skip</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => saveResult("blocked")}
-                disabled={saving}
-                className="text-amber-600"
-              >
-                <AlertTriangle className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Blocked</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => saveResult("fail")}
-                disabled={saving}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <XCircle className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Fail</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => saveResult("pass")}
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                <CheckCircle className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Pass</span>
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => saveResult("skipped")}
+                      disabled={saving}
+                      className="text-gray-600"
+                    >
+                      <SkipForward className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Skip</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Skip this test - not executed (S)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => saveResult("blocked")}
+                      disabled={saving}
+                      className="text-amber-600"
+                    >
+                      <AlertTriangle className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Blocked</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Test blocked by dependency or environment (B)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      onClick={() => saveResult("fail")}
+                      disabled={saving}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      <XCircle className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Fail</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Test failed - actual differs from expected (F)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      onClick={() => saveResult("pass")}
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      <CheckCircle className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Pass</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Test passed - all steps successful (P)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 

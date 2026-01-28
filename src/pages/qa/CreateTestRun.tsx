@@ -1,15 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, PlayCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, PlayCircle, Loader2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, PriorityBadge } from "@/components/qa/badges";
+import { FormTooltip, FIELD_TOOLTIPS } from "@/components/qa/FormTooltip";
 import type { TestScenario } from "@/types/qa";
 
 export default function CreateTestRun() {
@@ -170,13 +176,17 @@ export default function CreateTestRun() {
       {/* Run Name */}
       <Card className="glass">
         <CardContent className="p-4">
-          <Label htmlFor="runName">Run Name (optional)</Label>
+          <FormTooltip 
+            label="Run Name" 
+            tooltip={FIELD_TOOLTIPS.runName}
+            htmlFor="runName"
+          />
           <Input
             id="runName"
             value={runName}
             onChange={(e) => setRunName(e.target.value)}
-            placeholder={`Test Run - ${new Date().toLocaleDateString()}`}
-            className="mt-1"
+            placeholder={`e.g., Regression Test - Sprint 42 or Test Run - ${new Date().toLocaleDateString()}`}
+            className="mt-1.5"
           />
         </CardContent>
       </Card>
@@ -191,18 +201,30 @@ export default function CreateTestRun() {
                 {selectedIds.size} scenarios • {totalTestCases} tests
               </p>
             </div>
-            <Button
-              onClick={handleCreate}
-              disabled={selectedIds.size === 0 || creating}
-              size="lg"
-            >
-              {creating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <PlayCircle className="h-4 w-4 mr-2" />
-              )}
-              Start Run
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={selectedIds.size === 0 || creating}
+                    size="lg"
+                  >
+                    {creating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Start Run
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selectedIds.size === 0 
+                    ? "Select at least one scenario to start" 
+                    : `Start executing ${totalTestCases} test cases`
+                  }
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardContent>
       </Card>
@@ -210,7 +232,19 @@ export default function CreateTestRun() {
       {/* Scenarios List */}
       <Card className="glass">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle>Select Scenarios</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Select Scenarios</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  <p className="text-sm">{FIELD_TOOLTIPS.selectScenarios}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={selectAll}>
               Select All

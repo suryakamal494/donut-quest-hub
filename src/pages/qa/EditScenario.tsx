@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Loader2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,10 +14,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge } from "@/components/qa/badges";
+import { FormTooltip, FIELD_TOOLTIPS, FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
 import type { 
   Feature, 
   ScenarioType, 
@@ -452,13 +459,18 @@ export default function EditScenario() {
         ))}
       </div>
 
-      {/* Step Content - Same as CreateScenario but populated */}
+      {/* Step Content */}
       <Card className="glass">
         <CardContent className="p-6">
           {currentStep === 0 && (
             <div className="space-y-6">
               <div>
-                <Label className="text-base font-medium mb-3 block">Scenario Type *</Label>
+                <FormTooltip 
+                  label="Scenario Type" 
+                  tooltip={FIELD_TOOLTIPS.scenarioType}
+                  required
+                  className="text-base font-medium mb-3"
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {(["smoke", "intra_login", "inter_login"] as ScenarioType[]).map((type) => (
                     <button
@@ -481,9 +493,14 @@ export default function EditScenario() {
                 </div>
               </div>
 
-              {/* Login Types - Select First */}
+              {/* Login Types */}
               <div>
-                <Label className="text-base font-medium mb-3 block">Login Types Involved *</Label>
+                <FormTooltip 
+                  label="Login Types Involved" 
+                  tooltip={FIELD_TOOLTIPS.loginTypes}
+                  required
+                  className="text-base font-medium mb-3"
+                />
                 <p className="text-sm text-muted-foreground mb-3">
                   Select the login types involved in this test scenario. Features will be filtered based on your selection.
                 </p>
@@ -507,12 +524,16 @@ export default function EditScenario() {
                 </div>
               </div>
 
-              {/* Feature & Sub-Module - Filtered by Login Types */}
+              {/* Feature & Sub-Module */}
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="feature">Feature</Label>
+                  <FormTooltip 
+                    label="Feature" 
+                    tooltip={FIELD_TOOLTIPS.feature}
+                    htmlFor="feature"
+                  />
                   <Select value={featureId} onValueChange={(v) => { setFeatureId(v); setSubModule(""); }}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder={loginTypes.length === 0 ? "Select login types first" : "Select feature"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -532,9 +553,13 @@ export default function EditScenario() {
                 </div>
 
                 <div>
-                  <Label htmlFor="subModule">Sub-Module</Label>
+                  <FormTooltip 
+                    label="Sub-Module" 
+                    tooltip={FIELD_TOOLTIPS.subModule}
+                    htmlFor="subModule"
+                  />
                   <Select value={subModule} onValueChange={setSubModule} disabled={!featureId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder={featureId ? "Select sub-module" : "Select feature first"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -548,9 +573,13 @@ export default function EditScenario() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="frequency">Test Frequency</Label>
+                  <FormTooltip 
+                    label="Test Frequency" 
+                    tooltip={FIELD_TOOLTIPS.testFrequency}
+                    htmlFor="frequency"
+                  />
                   <Select value={testFrequency} onValueChange={(v) => setTestFrequency(v as TestFrequency)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -562,9 +591,13 @@ export default function EditScenario() {
                 </div>
 
                 <div>
-                  <Label htmlFor="priority">Priority</Label>
+                  <FormTooltip 
+                    label="Priority" 
+                    tooltip={FIELD_TOOLTIPS.priority}
+                    htmlFor="priority"
+                  />
                   <Select value={priority} onValueChange={(v) => setPriority(v as PriorityLevel)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -581,34 +614,50 @@ export default function EditScenario() {
           {currentStep === 1 && (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="name">Scenario Name *</Label>
+                <FormTooltip 
+                  label="Scenario Name" 
+                  tooltip={FIELD_TOOLTIPS.scenarioName}
+                  required
+                  htmlFor="name"
+                />
                 <Input
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Content Library - Global Content Propagation"
+                  placeholder={FIELD_PLACEHOLDERS.scenarioName}
+                  className="mt-1.5"
                 />
               </div>
 
               <div>
-                <Label htmlFor="description">Description</Label>
+                <FormTooltip 
+                  label="Description" 
+                  tooltip={FIELD_TOOLTIPS.description}
+                  htmlFor="description"
+                />
                 <Textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what this scenario validates..."
+                  placeholder={FIELD_PLACEHOLDERS.description}
                   rows={4}
+                  className="mt-1.5"
                 />
               </div>
 
               <div>
-                <Label htmlFor="businessImpact">Business Impact</Label>
+                <FormTooltip 
+                  label="Business Impact" 
+                  tooltip={FIELD_TOOLTIPS.businessImpact}
+                  htmlFor="businessImpact"
+                />
                 <Textarea
                   id="businessImpact"
                   value={businessImpact}
                   onChange={(e) => setBusinessImpact(e.target.value)}
-                  placeholder="Why is this test important?"
+                  placeholder={FIELD_PLACEHOLDERS.businessImpact}
                   rows={3}
+                  className="mt-1.5"
                 />
               </div>
             </div>
@@ -641,20 +690,29 @@ export default function EditScenario() {
                       <CardContent className="space-y-4">
                         <div className="grid sm:grid-cols-2 gap-4">
                           <div>
-                            <Label>Title *</Label>
+                            <FormTooltip 
+                              label="Title" 
+                              tooltip={FIELD_TOOLTIPS.testCaseTitle}
+                              required
+                            />
                             <Input
                               value={tc.title}
                               onChange={(e) => updateTestCase(tcIndex, { title: e.target.value })}
-                              placeholder="What this test validates"
+                              placeholder={FIELD_PLACEHOLDERS.testCaseTitle}
+                              className="mt-1.5"
                             />
                           </div>
                           <div>
-                            <Label>Login Type *</Label>
+                            <FormTooltip 
+                              label="Login Type" 
+                              tooltip={FIELD_TOOLTIPS.testCaseLoginType}
+                              required
+                            />
                             <Select
                               value={tc.login_type}
                               onValueChange={(v) => updateTestCase(tcIndex, { login_type: v as LoginType })}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="mt-1.5">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -667,17 +725,34 @@ export default function EditScenario() {
                         </div>
 
                         <div>
-                          <Label>Expected Result *</Label>
+                          <FormTooltip 
+                            label="Expected Result" 
+                            tooltip={FIELD_TOOLTIPS.expectedResult}
+                            required
+                          />
                           <Textarea
                             value={tc.expected_result}
                             onChange={(e) => updateTestCase(tcIndex, { expected_result: e.target.value })}
-                            placeholder="What should happen if this test passes"
+                            placeholder={FIELD_PLACEHOLDERS.expectedResult}
                             rows={2}
+                            className="mt-1.5"
                           />
                         </div>
 
                         <div>
-                          <Label className="mb-2 block">Steps</Label>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Label className="mb-0">Steps</Label>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs">
+                                  <p className="text-sm">Each step has an action and expected outcome. Actions describe what the tester does, outcomes describe what should happen.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                           <div className="space-y-2">
                             {tc.steps.map((step, stepIndex) => (
                               <div key={stepIndex} className="flex gap-2 items-start">
@@ -688,12 +763,12 @@ export default function EditScenario() {
                                   <Input
                                     value={step.action}
                                     onChange={(e) => updateStep(tcIndex, stepIndex, { action: e.target.value })}
-                                    placeholder="Action"
+                                    placeholder={FIELD_PLACEHOLDERS.stepAction}
                                   />
                                   <Input
                                     value={step.expected_outcome}
                                     onChange={(e) => updateStep(tcIndex, stepIndex, { expected_outcome: e.target.value })}
-                                    placeholder="Expected outcome"
+                                    placeholder={FIELD_PLACEHOLDERS.stepExpectedOutcome}
                                   />
                                 </div>
                                 <Button
