@@ -9,12 +9,16 @@ import {
   SkipForward,
   Loader2,
   Save,
-  Keyboard
+  Keyboard,
+  CheckSquare,
+  Square,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +50,10 @@ export default function ExecuteTestRun() {
   const [actualResult, setActualResult] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
+  
+  // Bulk selection state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedTests, setSelectedTests] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (id) loadRun();
@@ -242,6 +250,82 @@ export default function ExecuteTestRun() {
     }
   }, [currentResult, user, saving, actualResult, notes, currentIndex, results, currentCase?.title, toast]);
 
+  // Bulk operations
+  const toggleBulkMode = () => {
+    setBulkMode(prev => !prev);
+    setSelectedTests(new Set());
+  };
+
+  const toggleTestSelection = (testId: string) => {
+    setSelectedTests(prev => {
+      const next = new Set(prev);
+      if (next.has(testId)) {
+        next.delete(testId);
+      } else {
+        next.add(testId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllPending = () => {
+    const pendingIds = results.filter(r => r.status === "pending").map(r => r.id);
+    setSelectedTests(new Set(pendingIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedTests(new Set());
+  };
+
+  const saveBulkResult = async (status: TestStatus) => {
+    if (selectedTests.size === 0 || !user || saving) return;
+
+    try {
+      setSaving(true);
+
+      const selectedIds = Array.from(selectedTests);
+      
+      // Update all selected tests in parallel
+      const updatePromises = selectedIds.map(testId => 
+        supabase
+          .from("test_results")
+          .update({
+            status,
+            executed_at: new Date().toISOString(),
+            executed_by: user.id,
+          })
+          .eq("id", testId)
+      );
+
+      await Promise.all(updatePromises);
+
+      // Update local state
+      setResults(prev => prev.map(r => 
+        selectedTests.has(r.id)
+          ? { ...r, status }
+          : r
+      ));
+
+      toast({
+        title: `${selectedTests.size} tests marked as ${status}`,
+        description: "Bulk update completed successfully",
+      });
+
+      // Clear selection after bulk action
+      setSelectedTests(new Set());
+
+    } catch (error: any) {
+      console.error("Error saving bulk results:", error);
+      toast({
+        title: "Error saving results",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const completeRun = async () => {
     if (!run) return;
 
@@ -346,33 +430,122 @@ export default function ExecuteTestRun() {
             <span className="text-red-600">✗ {failedCount}</span>
             <span className="text-gray-500">○ {results.length - completedCount}</span>
           </div>
-        </CardContent>
+      </CardContent>
       </Card>
 
-      {/* Test Navigator */}
-      <div className="flex gap-1 overflow-x-auto pb-2">
-        {results.map((r, i) => (
-          <button
-            key={r.id}
-            onClick={() => setCurrentIndex(i)}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 transition-all ${
-              i === currentIndex
-                ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
-                : r.status === "pass"
-                ? "bg-emerald-100 text-emerald-700"
-                : r.status === "fail"
-                ? "bg-red-100 text-red-700"
-                : r.status === "blocked"
-                ? "bg-amber-100 text-amber-700"
-                : r.status === "skipped"
-                ? "bg-gray-100 text-gray-700"
-                : "bg-muted text-muted-foreground"
-            }`}
+      {/* Bulk Mode Toggle & Test Navigator */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Button
+            variant={bulkMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleBulkMode}
+            className="gap-2"
           >
-            {i + 1}
-          </button>
-        ))}
+            {bulkMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            Bulk Mode
+          </Button>
+          
+          {bulkMode && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {selectedTests.size} selected
+              </span>
+              <Button variant="ghost" size="sm" onClick={selectAllPending}>
+                Select All Pending
+              </Button>
+              {selectedTests.size > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearSelection}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-1 overflow-x-auto pb-2">
+          {results.map((r, i) => (
+            <button
+              key={r.id}
+              onClick={() => {
+                if (bulkMode) {
+                  toggleTestSelection(r.id);
+                } else {
+                  setCurrentIndex(i);
+                }
+              }}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 transition-all relative ${
+                bulkMode && selectedTests.has(r.id)
+                  ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1"
+                  : i === currentIndex && !bulkMode
+                  ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                  : r.status === "pass"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : r.status === "fail"
+                  ? "bg-red-100 text-red-700"
+                  : r.status === "blocked"
+                  ? "bg-amber-100 text-amber-700"
+                  : r.status === "skipped"
+                  ? "bg-gray-100 text-gray-700"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {bulkMode && selectedTests.has(r.id) ? "✓" : i + 1}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Bulk Actions Panel */}
+      {bulkMode && selectedTests.size > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4">
+            <p className="text-sm text-blue-700 mb-3">
+              Apply status to {selectedTests.size} selected test{selectedTests.size > 1 ? 's' : ''}:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => saveBulkResult("pass")}
+                disabled={saving}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                Pass All
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => saveBulkResult("fail")}
+                disabled={saving}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
+                Fail All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => saveBulkResult("skipped")}
+                disabled={saving}
+                className="text-gray-600"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <SkipForward className="h-4 w-4 mr-1" />}
+                Skip All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => saveBulkResult("blocked")}
+                disabled={saving}
+                className="text-amber-600"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <AlertTriangle className="h-4 w-4 mr-1" />}
+                Block All
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Test Case */}
       {currentCase && (
