@@ -26,7 +26,7 @@ export function FormTooltip({ label, tooltip, required, className, htmlFor }: Fo
             <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
           </Label>
         </TooltipTrigger>
-        <TooltipContent side="right" className="max-w-xs">
+        <TooltipContent side="top" className="max-w-xs z-[100]">
           <p className="text-sm">{tooltip}</p>
         </TooltipContent>
       </Tooltip>
