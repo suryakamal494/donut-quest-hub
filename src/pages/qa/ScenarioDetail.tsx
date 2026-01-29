@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2, History } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2, History, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,14 +22,24 @@ import {
   PriorityBadge, 
   FrequencyBadge 
 } from "@/components/qa/badges";
+import { ScenarioClaimButton, RecentlyTestedAlert } from "@/components/qa";
 import type { TestScenario, TestCase, TestStep, Feature } from "@/types/qa";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
+import { differenceInHours } from "date-fns";
+
+interface ClaimInfo {
+  user_id: string;
+  user_name: string;
+  started_at: string;
+}
 
 export default function ScenarioDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, role } = useAuth();
+  const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [cloning, setCloning] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -37,12 +47,101 @@ export default function ScenarioDetail() {
   const [testCases, setTestCases] = useState<(TestCase & { steps: TestStep[] })[]>([]);
   const [feature, setFeature] = useState<Feature | null>(null);
   const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
+  
+  // Collaboration state
+  const [currentClaimer, setCurrentClaimer] = useState<ClaimInfo | null>(null);
+  const [showRecentlyTestedAlert, setShowRecentlyTestedAlert] = useState(false);
+  const [recentTestStats, setRecentTestStats] = useState({ passed: 0, failed: 0, testerName: "" });
 
   const canEdit = role === "admin" || scenario?.created_by === user?.id;
 
   useEffect(() => {
-    if (id) loadScenario();
+    if (id) {
+      loadScenario();
+      loadCurrentClaimer();
+    }
   }, [id]);
+
+  const loadCurrentClaimer = async () => {
+    if (!id) return;
+    
+    try {
+      // First expire stale activity
+      await supabase.rpc("expire_stale_test_activity");
+      
+      // Get active claim for this scenario
+      const { data: activity } = await supabase
+        .from("test_activity")
+        .select("user_id, started_at")
+        .eq("scenario_id", id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (activity) {
+        // Get claimer's name
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", activity.user_id)
+          .maybeSingle();
+
+        setCurrentClaimer({
+          user_id: activity.user_id,
+          user_name: profile?.full_name || "Someone",
+          started_at: activity.started_at,
+        });
+      } else {
+        setCurrentClaimer(null);
+      }
+    } catch (error) {
+      console.error("Error loading claimer:", error);
+    }
+  };
+
+  const loadRecentTestStats = async () => {
+    if (!id || !scenario?.last_tested_at) return;
+    
+    try {
+      // Get test cases for this scenario
+      const { data: cases } = await supabase
+        .from("test_cases")
+        .select("id")
+        .eq("scenario_id", id);
+
+      if (!cases || cases.length === 0) return;
+
+      const caseIds = cases.map(c => c.id);
+
+      // Get most recent results for these test cases
+      const { data: results } = await supabase
+        .from("test_results")
+        .select("status, executed_by")
+        .in("test_case_id", caseIds)
+        .not("status", "eq", "pending")
+        .order("executed_at", { ascending: false })
+        .limit(cases.length);
+
+      if (!results) return;
+
+      const passed = results.filter(r => r.status === "pass").length;
+      const failed = results.filter(r => r.status === "fail").length;
+
+      // Get tester name
+      let testerName = "";
+      if (scenario.last_tested_by) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", scenario.last_tested_by)
+          .maybeSingle();
+        testerName = profile?.full_name || "";
+      }
+
+      setRecentTestStats({ passed, failed, testerName });
+    } catch (error) {
+      console.error("Error loading test stats:", error);
+    }
+  };
 
   const loadScenario = async () => {
     try {
@@ -326,15 +425,53 @@ export default function ScenarioDetail() {
             </AlertDialog>
           )}
           
+          {/* Scenario Claim Button */}
+          <ScenarioClaimButton
+            scenarioId={id!}
+            currentClaimer={currentClaimer}
+            onClaim={loadCurrentClaimer}
+            onRelease={loadCurrentClaimer}
+          />
+          
           {/* Run Test Button */}
-          <Button size="sm" asChild>
-            <Link to={`/qa/runs/create?scenario=${id}`}>
-              <PlayCircle className="h-4 w-4 mr-2" />
-              Run Test
-            </Link>
+          <Button 
+            size="sm" 
+            onClick={() => {
+              // Check if scenario was recently tested (within 24 hours)
+              if (scenario?.last_tested_at) {
+                const hoursSinceTest = differenceInHours(new Date(), new Date(scenario.last_tested_at));
+                if (hoursSinceTest < 24) {
+                  loadRecentTestStats();
+                  setShowRecentlyTestedAlert(true);
+                  return;
+                }
+              }
+              navigate(`/qa/runs/create?scenario=${id}`);
+            }}
+          >
+            <PlayCircle className="h-4 w-4 mr-2" />
+            Run Test
           </Button>
         </div>
       </div>
+
+      {/* Recently Tested Alert */}
+      <RecentlyTestedAlert
+        open={showRecentlyTestedAlert}
+        onOpenChange={setShowRecentlyTestedAlert}
+        lastTestedAt={scenario?.last_tested_at || new Date().toISOString()}
+        testerName={recentTestStats.testerName}
+        passedCount={recentTestStats.passed}
+        failedCount={recentTestStats.failed}
+        onContinue={() => {
+          setShowRecentlyTestedAlert(false);
+          navigate(`/qa/runs/create?scenario=${id}`);
+        }}
+        onViewResults={() => {
+          setShowRecentlyTestedAlert(false);
+          navigate(`/qa/failures`);
+        }}
+      />
 
       {/* Scenario Info */}
       <Card className="glass">

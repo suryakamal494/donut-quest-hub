@@ -9,13 +9,16 @@ import {
   RefreshCw,
   Wrench,
   ExternalLink,
-  FolderKanban
+  FolderKanban,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,8 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
+import { FailureThread, AttachmentGallery, SLABadge } from "@/components/qa";
+import { notifyFixedForVerification } from "@/lib/notifications";
 import type { TestResult, TestCase } from "@/types/qa";
 
 interface FailedTestWithDetails extends TestResult {
@@ -41,10 +46,12 @@ interface FailedTestWithDetails extends TestResult {
   };
   tester_name?: string;
   fixer_name?: string;
+  due_date?: string | null;
+  sla_status?: string | null;
 }
 
 type FixStatus = "unfixed" | "fixed" | "verified";
-type FilterTab = "all" | "unfixed" | "fixed" | "stale";
+type FilterTab = "all" | "unfixed" | "fixed" | "stale" | "overdue";
 
 export default function Failures() {
   const { user, role } = useAuth();
@@ -52,12 +59,29 @@ export default function Failures() {
   const [loading, setLoading] = useState(true);
   const [failures, setFailures] = useState<FailedTestWithDetails[]>([]);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   
   // Mark Fixed Dialog state
   const [fixDialogOpen, setFixDialogOpen] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState<FailedTestWithDetails | null>(null);
   const [fixNote, setFixNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Get user's full name for notifications
+  const [currentUserName, setCurrentUserName] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setCurrentUserName(data.full_name);
+        });
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user && currentProject) {
@@ -139,6 +163,7 @@ export default function Failures() {
       const daysSinceFailure = f.executed_at 
         ? differenceInDays(now, new Date(f.executed_at))
         : 0;
+      const isOverdue = f.due_date && new Date(f.due_date) < now && fixStatus !== "verified";
 
       switch (activeTab) {
         case "unfixed":
@@ -147,9 +172,23 @@ export default function Failures() {
           return fixStatus === "fixed";
         case "stale":
           return fixStatus === "unfixed" && daysSinceFailure > 7;
+        case "overdue":
+          return isOverdue;
         default:
           return true;
       }
+    });
+  };
+
+  const toggleThread = (failureId: string) => {
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(failureId)) {
+        next.delete(failureId);
+      } else {
+        next.add(failureId);
+      }
+      return next;
     });
   };
 
@@ -179,6 +218,17 @@ export default function Failures() {
         .eq("id", selectedFailure.id);
 
       if (error) throw error;
+
+      // Send notification to the original tester
+      if (selectedFailure.executed_by && selectedFailure.executed_by !== user?.id) {
+        await notifyFixedForVerification(
+          selectedFailure.executed_by,
+          selectedFailure.test_case?.title || "Unknown Test",
+          selectedFailure.test_case?.case_code || "TC-???",
+          fixNote.trim(),
+          currentUserName || "Developer"
+        );
+      }
 
       toast.success("Marked as fixed! Re-testing is now required.");
       setFixDialogOpen(false);
@@ -244,6 +294,9 @@ export default function Failures() {
       ? differenceInDays(new Date(), new Date(f.executed_at))
       : 0;
     return (!f.fix_status || f.fix_status === "unfixed") && daysSinceFailure > 7;
+  }).length;
+  const overdueCount = failures.filter(f => {
+    return f.due_date && new Date(f.due_date) < new Date() && f.fix_status !== "verified";
   }).length;
 
   if (loading || projectLoading) {
@@ -314,10 +367,11 @@ export default function Failures() {
 
       {/* Filter Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-        <TabsList className="grid w-full grid-cols-4 max-w-md">
+        <TabsList className="grid w-full grid-cols-5 max-w-lg">
           <TabsTrigger value="all">All ({failures.length})</TabsTrigger>
           <TabsTrigger value="unfixed">Unfixed ({unfixedCount})</TabsTrigger>
           <TabsTrigger value="fixed">Fixed ({fixedCount})</TabsTrigger>
+          <TabsTrigger value="overdue" className="text-destructive">Overdue ({overdueCount})</TabsTrigger>
           <TabsTrigger value="stale">Stale ({staleCount})</TabsTrigger>
         </TabsList>
 
@@ -356,10 +410,17 @@ export default function Failures() {
                               {testCase?.case_code}
                             </span>
                             {getFixStatusBadge(failure.fix_status)}
+                            {failure.due_date && failure.fix_status !== "verified" && (
+                              <SLABadge 
+                                dueDate={failure.due_date} 
+                                slaStatus={failure.sla_status}
+                                fixStatus={failure.fix_status}
+                              />
+                            )}
                             {daysSinceFailure > 7 && failure.fix_status !== "fixed" && failure.fix_status !== "verified" && (
                               <Badge variant="outline" className="text-orange-600 border-orange-300">
                                 <Clock className="h-3 w-3 mr-1" />
-                                {daysSinceFailure} days
+                                {daysSinceFailure} days old
                               </Badge>
                             )}
                           </div>
@@ -386,9 +447,9 @@ export default function Failures() {
 
                           {/* Issue Description */}
                           {(failure.actual_result || failure.notes) && (
-                            <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg">
-                              <p className="text-sm font-medium text-red-700 mb-1">Issue:</p>
-                              <p className="text-sm text-red-600">
+                            <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                              <p className="text-sm font-medium text-destructive mb-1">Issue:</p>
+                              <p className="text-sm text-destructive/80">
                                 {failure.actual_result || failure.notes}
                               </p>
                             </div>
@@ -406,6 +467,35 @@ export default function Failures() {
                               </p>
                             </div>
                           )}
+
+                          {/* Collapsible Failure Thread */}
+                          <Collapsible 
+                            open={expandedThreads.has(failure.id)}
+                            onOpenChange={() => toggleThread(failure.id)}
+                            className="mt-3"
+                          >
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="w-full justify-between p-2 h-auto">
+                                <span className="text-sm text-muted-foreground">
+                                  View Thread
+                                </span>
+                                {expandedThreads.has(failure.id) ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <FailureThread 
+                                failure={{
+                                  ...failure,
+                                  tester_name: failure.tester_name,
+                                  fixer_name: failure.fixer_name,
+                                }}
+                              />
+                            </CollapsibleContent>
+                          </Collapsible>
                         </div>
 
                         {/* Right: Actions */}
