@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search, Filter, Loader2, FileText, Download, FolderKanban } from "lucide-react";
+import { Plus, Search, Filter, Loader2, FileText, Download, FolderKanban, List, FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
-import { ScenarioCard } from "@/components/qa/ScenarioCard";
+import { ScenarioCard, GroupedScenarioView } from "@/components/qa";
 import { exportScenariosToCSV } from "@/lib/export-utils";
 import type { TestScenario, ScenarioType, LoginType, Feature } from "@/types/qa";
 import { SCENARIO_TYPE_LABELS, LOGIN_TYPE_LABELS } from "@/types/qa";
@@ -33,6 +34,9 @@ export default function TestScenarios() {
   const [scenarios, setScenarios] = useState<ExtendedScenario[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [viewMode, setViewMode] = useState<"list" | "grouped">(
+    (searchParams.get("view") as "list" | "grouped") || "list"
+  );
   const [typeFilter, setTypeFilter] = useState<ScenarioType | "all">(
     (searchParams.get("type") as ScenarioType) || "all"
   );
@@ -50,10 +54,11 @@ export default function TestScenarios() {
     // Update URL params when filters change
     const params = new URLSearchParams();
     if (search) params.set("search", search);
+    if (viewMode !== "list") params.set("view", viewMode);
     if (typeFilter !== "all") params.set("type", typeFilter);
     if (loginFilter !== "all") params.set("login", loginFilter);
     setSearchParams(params);
-  }, [search, typeFilter, loginFilter]);
+  }, [search, viewMode, typeFilter, loginFilter]);
 
   const loadData = async () => {
     if (!currentProject) return;
@@ -196,54 +201,75 @@ export default function TestScenarios() {
       {/* Filters */}
       <Card className="glass">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search scenarios..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search scenarios..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Type Filter */}
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as ScenarioType | "all")}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Scenario Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {Object.entries(SCENARIO_TYPE_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Login Filter */}
+              <Select
+                value={loginFilter}
+                onValueChange={(v) => setLoginFilter(v as LoginType | "all")}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Login Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Logins</SelectItem>
+                  {Object.entries(LOGIN_TYPE_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-
-            {/* Type Filter */}
-            <Select
-              value={typeFilter}
-              onValueChange={(v) => setTypeFilter(v as ScenarioType | "all")}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Scenario Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {Object.entries(SCENARIO_TYPE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Login Filter */}
-            <Select
-              value={loginFilter}
-              onValueChange={(v) => setLoginFilter(v as LoginType | "all")}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Login Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Logins</SelectItem>
-                {Object.entries(LOGIN_TYPE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            {/* View Toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">View:</span>
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value) => value && setViewMode(value as "list" | "grouped")}
+              >
+                <ToggleGroupItem value="list" aria-label="List view" className="gap-2">
+                  <List className="h-4 w-4" />
+                  <span className="hidden sm:inline">List</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="grouped" aria-label="Grouped view" className="gap-2">
+                  <FolderTree className="h-4 w-4" />
+                  <span className="hidden sm:inline">Grouped</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -271,6 +297,8 @@ export default function TestScenarios() {
             )}
           </CardContent>
         </Card>
+      ) : viewMode === "grouped" ? (
+        <GroupedScenarioView scenarios={filteredScenarios} features={features} />
       ) : (
         <div className="grid gap-4">
           {filteredScenarios.map((scenario) => (
