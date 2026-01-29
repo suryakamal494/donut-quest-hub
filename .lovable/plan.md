@@ -1,232 +1,479 @@
 
-# Fix Multi-Project Data Isolation and Minor Issues
 
-## Summary
-This plan addresses critical data isolation gaps found during the audit, plus a minor React warning. The main work is **low effort** (under 1 hour total) and essential for proper multi-project functionality.
+# QA Platform Enhancement: Scale, Collaboration & Developer Workflow
 
-**Skipping for now:**
-- Feature Management UI (time-consuming - requires new pages, forms, CRUD operations)
-- Project-specific Login Types (time-consuming - requires schema changes and complex UI)
+## Overview
 
-These can be added in a future iteration when the core multi-project architecture is stable.
+This plan addresses the real-world challenges you're facing with managing 200+ test scenarios across multiple testers and developers. The implementation introduces new workflows, UI improvements, and role-based permissions to streamline testing collaboration.
 
 ---
 
-## Changes Required
+## Problem Statements (What You're Experiencing)
 
-### 1. Fix BugList.tsx - Add Project Filtering
-**File:** `src/pages/bugs/BugList.tsx`
+### Problem 1: Too Many Test Scenarios to Navigate
+With 200+ scenarios for Super Admin alone (and more coming for Teacher, Student, Institute), the current flat list view becomes unmanageable. Finding specific scenarios and understanding overall progress is difficult.
 
-Update the `loadBugs` function to filter by current project:
+### Problem 2: Slow Test Execution Due to Page-by-Page Navigation
+When executing a test run with 15 test cases, testers must navigate through 15 separate views. This back-and-forth wastes time and breaks concentration.
 
-```typescript
-// Add import
-import { useProject } from "@/contexts/ProjectContext";
+### Problem 3: No Quick Overview of Test Cases
+Before starting testing, testers can't see all test cases in a scenario at once. They must expand each card individually to understand what they're about to test.
 
-// Inside component
-const { currentProject } = useProject();
+### Problem 4: Multiple Testers Working Blindly
+Two QA testers working on the same product don't know what the other is testing. This leads to duplicate effort (both testing the same thing) or gaps (both skipping something thinking the other did it).
 
-// Update query
-const loadBugs = async () => {
-  if (!currentProject) return;
-  
-  const { data, error } = await supabase
-    .from("bugs")
-    .select("*")
-    .eq("project_id", currentProject.id)  // Add filter
-    .order("created_at", { ascending: false });
-  // ...
-};
+### Problem 5: No Visibility into Testing History
+Looking at a scenario card, you can't see: When was it last tested? By whom? How many times? This makes it impossible to know testing coverage at a glance.
 
-// Add dependency
-useEffect(() => {
-  if (user && currentProject) {
-    loadBugs();
-  }
-}, [user, currentProject]);
-```
+### Problem 6: Broken Workflow Between QA and Developers
+When a test fails:
+- The failure is recorded but goes nowhere
+- Developers don't have a dedicated view to see what needs fixing
+- No way to mark something as "Fixed"
+- No way to trigger re-testing after a fix
 
-### 2. Fix CreateBug.tsx - Include Project ID
-**File:** `src/pages/bugs/CreateBug.tsx`
+### Problem 7: No Communication Trail
+When a tester writes "Manual refresh required after save", that comment sits in the database but there's no conversation. Developer fixes it, but tester doesn't know. No thread connecting the issue → fix → verification.
 
-Update to include project_id when creating bugs and filter features:
-
-```typescript
-// Add import
-import { useProject } from "@/contexts/ProjectContext";
-
-// Inside component
-const { currentProject } = useProject();
-
-// Filter features by project
-const loadFeatures = async () => {
-  if (!currentProject) return;
-  
-  const { data } = await supabase
-    .from("features")
-    .select("*")
-    .eq("project_id", currentProject.id)
-    .order("order_index");
-  // ...
-};
-
-// Include project_id in insert
-const { error } = await supabase.from("bugs").insert({
-  // ... existing fields
-  project_id: currentProject?.id,  // Add this
-});
-```
-
-### 3. Fix Coverage.tsx - Add Project Filtering
-**File:** `src/pages/qa/Coverage.tsx`
-
-Update both features and scenarios queries:
-
-```typescript
-// Add import
-import { useProject } from "@/contexts/ProjectContext";
-
-// Inside component
-const { currentProject } = useProject();
-
-// Update loadCoverage
-const loadCoverage = async () => {
-  if (!currentProject) return;
-  
-  const { data: features } = await supabase
-    .from("features")
-    .select("*")
-    .eq("project_id", currentProject.id)
-    .order("order_index");
-
-  const { data: scenarios } = await supabase
-    .from("test_scenarios")
-    .select("id, feature_id, scenario_type, login_types")
-    .eq("project_id", currentProject.id);
-  // ...
-};
-
-useEffect(() => {
-  if (currentProject) loadCoverage();
-}, [currentProject]);
-```
-
-### 4. Fix EditScenario.tsx - Filter Features by Project
-**File:** `src/pages/qa/EditScenario.tsx`
-
-Update the features query:
-
-```typescript
-// Add import
-import { useProject } from "@/contexts/ProjectContext";
-
-// Inside component
-const { currentProject } = useProject();
-
-// Update loadData
-const { data: featuresData } = await supabase
-  .from("features")
-  .select("*")
-  .eq("project_id", currentProject?.id)
-  .order("order_index");
-```
-
-### 5. Fix CreateTestRun.tsx - Filter Scenarios by Project
-**File:** `src/pages/qa/CreateTestRun.tsx`
-
-Update scenarios query and include project_id:
-
-```typescript
-// Add import
-import { useProject } from "@/contexts/ProjectContext";
-
-// Inside component
-const { currentProject } = useProject();
-
-// Update loadScenarios
-const loadScenarios = async () => {
-  if (!currentProject) return;
-  
-  const { data } = await supabase
-    .from("test_scenarios")
-    .select(`*, test_cases (id)`)
-    .eq("project_id", currentProject.id)
-    .order("created_at", { ascending: false });
-  // ...
-};
-
-// Include project_id in run creation
-const { data: run, error: runError } = await supabase
-  .from("test_runs")
-  .insert({
-    // ... existing fields
-    project_id: currentProject?.id,  // Add this
-  });
-```
-
-### 6. Fix DialogFooter React Warning
-**File:** `src/components/projects/CreateProjectDialog.tsx`
-
-The DialogFooter component needs to be wrapped properly. Update the footer section:
-
-```typescript
-<DialogFooter className="gap-2 sm:gap-0">
-  <Button
-    variant="outline"
-    onClick={() => onOpenChange(false)}
-    disabled={saving}
-  >
-    Cancel
-  </Button>
-  <Button onClick={handleSave} disabled={saving}>
-    {saving ? (
-      <>
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        Creating...
-      </>
-    ) : (
-      "Create Project"
-    )}
-  </Button>
-</DialogFooter>
-```
+### Problem 8: Missing Developer Role
+Currently only Admin and User roles exist. Developers need their own permissions to view failures and mark fixes without being able to run tests or manipulate pass/fail statuses.
 
 ---
 
-## Files to Modify
+## Solutions Overview
 
-| File | Changes |
-|------|---------|
-| `src/pages/bugs/BugList.tsx` | Add project context, filter bugs by project_id |
-| `src/pages/bugs/CreateBug.tsx` | Add project context, include project_id in insert, filter features |
-| `src/pages/qa/Coverage.tsx` | Add project context, filter features and scenarios |
-| `src/pages/qa/EditScenario.tsx` | Add project context, filter features |
-| `src/pages/qa/CreateTestRun.tsx` | Add project context, filter scenarios, include project_id |
-| `src/components/projects/CreateProjectDialog.tsx` | Fix DialogFooter structure |
-
----
-
-## Technical Notes
-
-### Why These Fixes Are Critical
-Without project filtering, if a user creates a second project:
-- They would see bugs from ALL projects
-- Coverage page would show ALL features across projects
-- Test runs would include scenarios from other projects
-- Data isolation would be completely broken
-
-### RLS Policies Are Already Set
-The database already has proper RLS policies using `has_project_access()` function, but the frontend queries need to explicitly filter by project_id for the policies to work correctly with the current project context.
-
-### What's Already Working
-- QADashboard.tsx - Already filters by project
-- TestScenarios.tsx - Already filters by project
-- TestRuns.tsx - Already filters by project
-- CreateScenario.tsx - Already filters features and includes project_id
+| Problem | Solution | Effort |
+|---------|----------|--------|
+| Too many scenarios | Feature-based grouping + collapsible tree view | Medium |
+| Slow execution | Quick Execution Mode with inline actions | Medium |
+| No quick overview | Summary table view before execution | Low |
+| Blind collaboration | "I'm Testing This" + Today's Plan + Alerts | Medium |
+| No history visibility | Enhanced scenario cards with last tested info | Low |
+| Broken QA-Dev workflow | Failures Tab + "Mark Fixed" + "Testing Required" | High |
+| No communication | Thread system on failed tests | High |
+| Missing developer role | New role + permissions | Medium |
 
 ---
 
-## Estimated Time
-- 5 pages need updates: ~10 minutes each = 50 minutes
-- DialogFooter fix: 5 minutes
-- **Total: Under 1 hour**
+## Detailed Solution Designs
+
+### Solution 1: Feature-Based Grouping (Scenario List View)
+
+**What it does:**
+Instead of a flat list of 200 scenarios, group them by Feature (e.g., Institutes, Master Data, Question Bank) with collapsible sections.
+
+**How it looks (for users):**
+
+```text
+Test Scenarios (212 total)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Toggle: List View | Grouped View]
+
+▼ Institutes (24 scenarios)                    [3 failed] [21 passed]
+  ├── All Institutes (12)
+  │     ├── Create New Institute (Basic Plan)     ✓ Passed
+  │     ├── Edit and Update Institute Name        ✗ Failed - Testing Required
+  │     └── Create Enterprise Institute           ✗ Failed - Unfixed
+  └── Tier Management (12)
+        └── ...
+
+▼ Master Data (36 scenarios)                   [5 failed] [31 passed]
+  ├── Curriculum (18)
+  └── Courses (18)
+
+▼ Question Bank (28 scenarios)                 [2 failed] [26 passed]
+  └── ...
+```
+
+**Benefits:**
+- See 200+ scenarios organized logically
+- Quickly find scenarios for a specific feature
+- See failure counts per feature at a glance
+- Collapse features you're not interested in
+
+---
+
+### Solution 2: Quick Execution Mode
+
+**What it does:**
+New toggle in test execution that shows ALL test cases in a compact table format. Testers can mark Pass/Fail directly in the table without navigating page by page.
+
+**How it looks (for users):**
+
+```text
+Test Run: Institutes Smoke Test (TR-042)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Toggle: Detailed View | Quick View]
+
+Progress: 3/15 completed (20%)
+[==........] Passed: 2 | Failed: 1 | Pending: 12
+
+┌────┬──────────────────────────────────────────┬──────────┬───────────────────────┐
+│ #  │ Test Case                                │ Status   │ Quick Actions         │
+├────┼──────────────────────────────────────────┼──────────┼───────────────────────┤
+│ 1  │ Create New Institute (Basic Plan)        │ ✓ Passed │ [Undo]               │
+│ 2  │ Edit and Update Institute Name           │ ✗ Failed │ [Undo]               │
+│ 3  │ Create Enterprise Institute              │ Pending  │ [Pass][Fail][Skip]   │
+│ 4  │ Change Plan from Basic to Enterprise     │ Pending  │ [Pass][Fail][Skip]   │
+│ 5  │ View Institute List and Counts           │ Pending  │ [Pass][Fail][Skip]   │
+└────┴──────────────────────────────────────────┴──────────┴───────────────────────┘
+
+[Expand Row] - Click any row to see steps + add notes
+```
+
+**When tester clicks "Fail":**
+- A small input box appears inline: "What went wrong? (required)"
+- They type their observation
+- Click "Save" → row updates to Failed, moves to next pending
+
+**Benefits:**
+- See all 15 test cases at once
+- No page navigation between tests
+- Faster execution for experienced testers
+- Still can expand for detailed view when needed
+
+---
+
+### Solution 3: Enhanced Scenario Cards with Testing History
+
+**What it does:**
+Add testing history information directly on each scenario card in the list view.
+
+**How it looks (for users):**
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TS-042                                    Smoke Test        Critical        │
+│ Create and Manage Institute                                                 │
+│ Login Types: [Super Admin] [Institute]                                      │
+│ 15 test cases                                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 📅 Last Tested: Yesterday (Jan 28) by Praneetha                             │
+│ 🔄 Tested 5 times  |  ⚠️ 2 failures pending fix                             │
+│ [View History] [Run Test]                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Click "View History" → Modal showing:**
+- Jan 28: Praneetha - 13 passed, 2 failed
+- Jan 25: Praneetha - 14 passed, 1 failed  
+- Jan 20: First test - 10 passed, 5 failed
+
+**Benefits:**
+- Instantly know if a scenario was tested recently
+- See who tested it without opening the scenario
+- Know if failures are pending without digging
+
+---
+
+### Solution 4: Tester Collaboration Features
+
+**What it does:**
+Prevents duplicate testing and enables testers to coordinate without admin intervention.
+
+**Feature 4A: "I'm Testing This" Claim**
+
+On each scenario card, add an "I'm Testing This" button. When clicked:
+- Scenario shows: "🔒 Being tested by Praneetha (started 10 min ago)"
+- Other testers see this indicator
+- Claim auto-expires after 2 hours of inactivity
+
+**Feature 4B: Alert When Opening Recently Tested Scenario**
+
+When a tester opens a scenario that was tested in the last 24 hours:
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│  ℹ️  This scenario was tested today                            │
+│                                                                │
+│  Praneetha tested this 2 hours ago                            │
+│  Result: 13 passed, 2 failed                                  │
+│                                                                │
+│  Do you want to continue anyway?                              │
+│                                                                │
+│  [View Results]  [Cancel]  [Continue Testing]                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Feature 4C: Today's Testing Plan (Simple View)**
+
+New section on QA Dashboard showing who's testing what today:
+
+```text
+Today's Testing Activity
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Praneetha (Active now)
+  └── Currently testing: TS-042 - Institutes Management
+  └── Completed today: TS-040, TS-041
+
+Dev Team Tester (Last active 1 hour ago)
+  └── Currently testing: TS-050 - Question Bank
+  └── Completed today: TS-048, TS-049
+```
+
+**Benefits:**
+- Testers see at a glance who's doing what
+- No need to communicate externally to coordinate
+- Automatic conflict detection
+
+---
+
+### Solution 5: Failures Tab for Developers
+
+**What it does:**
+A dedicated tab showing ONLY failed tests that need developer attention. Developers can see what's broken, mark as fixed, and trigger re-testing.
+
+**New "Failures" Tab (visible to Admin and Developer roles):**
+
+```text
+Failures Requiring Attention (8 issues)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Filter: All | Unfixed | Fixed - Awaiting Retest | Stale (>7 days)]
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TC002 - Edit and Update Institute Name                                     │
+│ Scenario: TS-042 - Institutes Management                                   │
+│                                                                             │
+│ Failed on: Jan 28, 2026 by Praneetha                                       │
+│ Days Open: 1 day                                                           │
+│                                                                             │
+│ Issue:                                                                      │
+│ "Changes require a manual page refresh to appear. Expected: Auto-refresh   │
+│  after saving changes."                                                     │
+│                                                                             │
+│ Status: [Unfixed] ───────────────────────────────────────────────────────   │
+│                                                                             │
+│ [Mark as Fixed]  [View Full Details]  [Link to Bug]                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**When Developer clicks "Mark as Fixed":**
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│  Mark as Fixed                                                 │
+│                                                                │
+│  What did you fix? *                                          │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ Added auto-refresh after API response in InstituteForm.  │ │
+│  │ The form now calls refetchInstitutes() after successful  │ │
+│  │ update.                                                   │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  [Cancel]  [Mark Fixed & Request Re-test]                     │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**After marking fixed:**
+- Status changes to "Testing Required"
+- Scenario card shows badge: "🔄 Re-test Needed"
+- Notification appears for testers: "TC002 was fixed. Please re-test."
+
+**Benefits:**
+- Developers see only what they need to fix
+- Clear workflow from failure → fix → verify
+- Accountability and tracking
+
+---
+
+### Solution 6: Communication Thread on Failed Tests
+
+**What it does:**
+When viewing a failed test, show the complete conversation thread between QA and Developer.
+
+**Thread View (inside test result or failures tab):**
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TC002 - Edit and Update Institute Name                                     │
+│ Thread (3 messages)                                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ 🔴 FAILED - Jan 28, 2026 at 3:42 PM                                        │
+│ ├── Tested by: Praneetha                                                   │
+│ └── Issue: "Changes require a manual page refresh to appear.               │
+│            Expected: Auto-refresh after saving changes."                   │
+│                                                                             │
+│ ─────────────────────────────────────────────────────────────────────────── │
+│                                                                             │
+│ 🔧 FIXED - Jan 29, 2026 at 10:15 AM                                        │
+│ ├── Fixed by: Developer (Surya)                                            │
+│ └── Note: "Added auto-refresh after API response in InstituteForm.         │
+│            Please re-test to verify."                                      │
+│                                                                             │
+│ ─────────────────────────────────────────────────────────────────────────── │
+│                                                                             │
+│ ✅ VERIFIED - Jan 29, 2026 at 2:30 PM                                      │
+│ ├── Verified by: Praneetha                                                 │
+│ └── Result: "Working correctly now. Auto-refresh confirmed."               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- Complete history of issue → fix → verification
+- No need for external Excel files or emails
+- Audit trail for quality reports
+
+---
+
+### Solution 7: New Developer Role
+
+**What it does:**
+Add a new role type specifically for developers who need to see failures and mark fixes, but shouldn't be able to run tests or manipulate pass/fail results.
+
+**Role Permissions:**
+
+| Action | QA Tester | Developer | Admin |
+|--------|-----------|-----------|-------|
+| View all scenarios | ✓ | ✓ (read-only) | ✓ |
+| Run tests | ✓ | ✗ | ✓ |
+| Mark Pass/Fail | ✓ | ✗ | ✓ |
+| View Failures Tab | ✓ (own only) | ✓ (all) | ✓ (all) |
+| Mark as Fixed | ✗ | ✓ | ✓ |
+| Request Re-test | ✗ | ✓ | ✓ |
+| Create scenarios | ✓ | ✗ | ✓ |
+| Delete scenarios | ✗ | ✗ | ✓ |
+| Approve users | ✗ | ✗ | ✓ |
+
+**Benefits:**
+- Clear separation of responsibilities
+- Developers can't accidentally mess with test results
+- QA can't mark their own failures as fixed
+
+---
+
+### Solution 8: Admin Alerts for Stale Failures
+
+**What it does:**
+Automatically alert admin when failures aren't being addressed.
+
+**Alert Types:**
+- "3 failures are unfixed for more than 7 days"
+- "No testing activity on TS-042 for 14 days"
+- "Developer marked 5 fixes - re-testing required"
+
+**Display on Admin Dashboard:**
+
+```text
+⚠️ Attention Required
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ 🔴 3 failures pending fix for >7 days
+    - TC002: Edit Institute (8 days)
+    - TC007: Edit User (9 days)
+    - TC010: Delete Curriculum (7 days)
+    [View All] [Send Reminder to Developers]
+
+ 🔄 5 scenarios need re-testing after fixes
+    [View List]
+```
+
+**Benefits:**
+- Nothing falls through the cracks
+- Proactive monitoring of QA health
+- Admin can nudge developers when needed
+
+---
+
+## Implementation Priority
+
+I recommend implementing in this order:
+
+**Phase 1: Quick Wins (Low effort, High impact)**
+1. Enhanced Scenario Cards with last tested info
+2. Summary table view for test execution
+3. "Alert when recently tested" popup
+
+**Phase 2: Core Workflow (Medium effort, Critical)**
+4. Failures Tab for developers
+5. "Mark as Fixed" + "Testing Required" workflow
+6. Communication thread system
+
+**Phase 3: Collaboration (Medium effort, Quality of life)**
+7. "I'm Testing This" claim feature
+8. Today's Testing Plan view
+9. Developer role type
+
+**Phase 4: Scale Management (Medium effort, Future-proofing)**
+10. Feature-based grouped view
+11. Admin alerts for stale failures
+
+---
+
+## Technical Implementation Summary
+
+### New Database Tables Needed:
+
+1. **test_activity** - Track who's testing what right now
+2. **failure_threads** - Store developer responses and fix history
+3. Add `developer` to `app_role` enum
+
+### Database Changes to Existing Tables:
+
+1. **test_results** - Add `developer_response`, `fix_status`, `fixed_by`, `fixed_at` columns
+2. **test_scenarios** - Add `last_tested_at`, `last_tested_by`, `execution_count` columns
+
+### New UI Components:
+
+1. GroupedScenarioView - Feature-based collapsible tree
+2. QuickExecutionTable - Inline pass/fail table
+3. FailuresTab - Developer-facing failures list
+4. FailureThread - Communication thread display
+5. TesterActivityPanel - Today's testing activity
+6. ScenarioClaimButton - "I'm Testing This" feature
+7. RecentTestAlert - Popup when opening recently tested scenario
+
+### Files to Modify:
+
+- TestScenarios.tsx - Add grouped view option
+- ExecuteTestRun.tsx - Add quick mode toggle
+- ScenarioDetail.tsx - Add testing history section
+- QADashboard.tsx - Add Today's Activity + Admin Alerts
+- AdminDashboard.tsx - Add failure alerts section
+- types/qa.ts - Add new types for threads, activity
+
+---
+
+## What This Means for Your Team
+
+**For QA Testers:**
+- Faster test execution with Quick Mode
+- No duplicate work due to coordination features
+- Clear visibility into what needs re-testing
+
+**For Developers:**
+- Dedicated failures view - see only what's broken
+- Clear workflow to mark fixes
+- Their fix comments reach the testers directly
+
+**For Admin (You):**
+- Complete visibility into testing progress
+- Alerts when things are stuck
+- Audit trail of all testing activity
+
+---
+
+## Estimated Effort
+
+| Phase | Components | Estimated Time |
+|-------|------------|----------------|
+| Phase 1 | Enhanced cards, Summary table, Alerts | 3-4 hours |
+| Phase 2 | Failures tab, Fix workflow, Threads | 5-6 hours |
+| Phase 3 | Collaboration features, Developer role | 4-5 hours |
+| Phase 4 | Grouped view, Admin alerts | 3-4 hours |
+
+**Total: 15-19 hours of implementation work**
+
+This can be broken into 4 separate implementation sessions, testing each phase before moving to the next.
+
+---
+
+## Next Step
+
+Would you like me to start implementing Phase 1 (Quick Wins) first? This will give immediate improvements while we plan the larger workflow changes.
+
