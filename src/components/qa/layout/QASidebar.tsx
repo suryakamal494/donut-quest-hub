@@ -8,7 +8,8 @@ import {
   ChevronRight,
   Plus,
   List,
-  Bug
+  Bug,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,11 @@ const navItems = [
       { title: "All Runs", href: "/qa/runs", icon: List },
       { title: "Start Run", href: "/qa/runs/create", icon: Plus },
     ],
+  },
+  {
+    title: "Failures",
+    href: "/qa/failures",
+    icon: AlertTriangle,
   },
   {
     title: "Coverage",

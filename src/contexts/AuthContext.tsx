@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
 type ApprovalStatus = "pending" | "approved" | "rejected";
-type AppRole = "admin" | "user";
+type AppRole = "admin" | "user" | "developer";
 
 interface Profile {
   id: string;
