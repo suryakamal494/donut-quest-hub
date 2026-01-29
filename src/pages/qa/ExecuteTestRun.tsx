@@ -480,9 +480,12 @@ export default function ExecuteTestRun() {
                   executed_by: user.id,
                 };
                 
-                // Only set fix_status for failures
+                // Only set fix_status and attachments for failures
                 if (status === 'fail') {
                   updateData.fix_status = 'unfixed';
+                  if (attachments && attachments.length > 0) {
+                    updateData.attachments = attachments;
+                  }
                 }
                 
                 const { error } = await supabase
