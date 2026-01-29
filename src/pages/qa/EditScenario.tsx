@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FormTooltip, FIELD_TOOLTIPS, FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
@@ -51,6 +52,7 @@ export default function EditScenario() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, role } = useAuth();
+  const { currentProject } = useProject();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,10 +79,11 @@ export default function EditScenario() {
     try {
       setLoading(true);
 
-      // Load features
+      // Load features for current project
       const { data: featuresData } = await supabase
         .from("features")
         .select("*")
+        .eq("project_id", currentProject?.id)
         .order("order_index");
       setFeatures(featuresData as Feature[] || []);
 

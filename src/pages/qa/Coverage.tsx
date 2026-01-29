@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { useProject } from "@/contexts/ProjectContext";
 import type { Feature, LoginType } from "@/types/qa";
 import { LOGIN_TYPE_LABELS } from "@/types/qa";
 
@@ -14,6 +15,7 @@ interface CoverageData {
 }
 
 export default function Coverage() {
+  const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [coverageData, setCoverageData] = useState<CoverageData[]>([]);
   const [loginCoverage, setLoginCoverage] = useState<Record<LoginType, number>>({
@@ -24,23 +26,29 @@ export default function Coverage() {
   });
 
   useEffect(() => {
-    loadCoverage();
-  }, []);
+    if (currentProject) {
+      loadCoverage();
+    }
+  }, [currentProject]);
 
   const loadCoverage = async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading(true);
 
-      // Load features
+      // Load features for current project
       const { data: features } = await supabase
         .from("features")
         .select("*")
+        .eq("project_id", currentProject.id)
         .order("order_index");
 
-      // Load all scenarios
+      // Load all scenarios for current project
       const { data: scenarios } = await supabase
         .from("test_scenarios")
-        .select("id, feature_id, scenario_type, login_types");
+        .select("id, feature_id, scenario_type, login_types")
+        .eq("project_id", currentProject.id);
 
       // Calculate coverage by feature
       const coverage: CoverageData[] = (features || []).map((feature) => {

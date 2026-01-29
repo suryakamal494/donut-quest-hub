@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, PriorityBadge } from "@/components/qa/badges";
 import { FormTooltip, FIELD_TOOLTIPS } from "@/components/qa/FormTooltip";
@@ -23,6 +24,7 @@ export default function CreateTestRun() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [scenarios, setScenarios] = useState<TestScenario[]>([]);
@@ -32,8 +34,10 @@ export default function CreateTestRun() {
   const preselectedScenario = searchParams.get("scenario");
 
   useEffect(() => {
-    loadScenarios();
-  }, []);
+    if (currentProject) {
+      loadScenarios();
+    }
+  }, [currentProject]);
 
   useEffect(() => {
     if (preselectedScenario && scenarios.length > 0) {
@@ -42,6 +46,8 @@ export default function CreateTestRun() {
   }, [preselectedScenario, scenarios]);
 
   const loadScenarios = async () => {
+    if (!currentProject) return;
+    
     try {
       const { data } = await supabase
         .from("test_scenarios")
@@ -49,6 +55,7 @@ export default function CreateTestRun() {
           *,
           test_cases (id)
         `)
+        .eq("project_id", currentProject.id)
         .order("created_at", { ascending: false });
 
       const transformed = data?.map(s => ({
@@ -105,6 +112,7 @@ export default function CreateTestRun() {
           executed_by: user.id,
           scenario_ids: Array.from(selectedIds),
           run_code: "", // Will be auto-generated
+          project_id: currentProject?.id,
         })
         .select()
         .single();
