@@ -230,6 +230,51 @@ export type Database = {
         }
         Relationships: []
       }
+      test_activity: {
+        Row: {
+          id: string
+          last_active_at: string
+          project_id: string | null
+          scenario_id: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_active_at?: string
+          project_id?: string | null
+          scenario_id: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          last_active_at?: string
+          project_id?: string | null
+          scenario_id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_activity_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_activity_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "test_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_cases: {
         Row: {
           case_code: string
@@ -574,6 +619,7 @@ export type Database = {
         Args: { _test_case_id: string }
         Returns: boolean
       }
+      expire_stale_test_activity: { Args: never; Returns: undefined }
       get_approval_status: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["approval_status"]

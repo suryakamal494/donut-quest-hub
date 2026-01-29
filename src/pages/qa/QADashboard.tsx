@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, StatusBadge } from "@/components/qa/badges";
 import { ScenarioTypeChart, TestRunsChart, PassFailTrendChart } from "@/components/qa/analytics";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
+import { TodayActivityPanel } from "@/components/qa/TodayActivityPanel";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
@@ -240,6 +241,9 @@ export default function QADashboard() {
 
       {/* Failed Tests Reminder */}
       <FailedTestsReminder failedTests={failedTests} maxDisplay={3} />
+
+      {/* Today's Testing Activity */}
+      <TodayActivityPanel />
 
       {/* Analytics Charts */}
       <div className="grid md:grid-cols-3 gap-4">

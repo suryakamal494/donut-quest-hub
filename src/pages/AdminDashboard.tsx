@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ClearTestDataDialog } from "@/components/qa/ClearTestDataDialog";
 import { CreateProjectDialog, AssignProjectDialog } from "@/components/projects";
+import { RoleSelector } from "@/components/admin/RoleSelector";
 import { 
   LogOut, 
   Users, 
@@ -25,7 +26,8 @@ import {
   Settings,
   FolderKanban,
   Plus,
-  FolderOpen
+  FolderOpen,
+  AlertTriangle
 } from "lucide-react";
 import type { Project } from "@/types/project";
 
@@ -518,7 +520,11 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 pl-13 sm:pl-0">
+                  <div className="flex items-center gap-2 pl-13 sm:pl-0 flex-wrap">
+                    {/* Role selector */}
+                    <RoleSelector userId={user.user_id} />
+                    
+                    {/* Project count badge */}
                     {/* Project count badge */}
                     <Button
                       size="sm"
