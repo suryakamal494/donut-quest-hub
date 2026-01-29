@@ -26,6 +26,7 @@ export type Database = {
           expected_behavior: string | null
           feature_id: string | null
           id: string
+          project_id: string | null
           reported_by: string | null
           severity: Database["public"]["Enums"]["bug_severity"]
           status: Database["public"]["Enums"]["bug_status"]
@@ -45,6 +46,7 @@ export type Database = {
           expected_behavior?: string | null
           feature_id?: string | null
           id?: string
+          project_id?: string | null
           reported_by?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
           status?: Database["public"]["Enums"]["bug_status"]
@@ -64,6 +66,7 @@ export type Database = {
           expected_behavior?: string | null
           feature_id?: string | null
           id?: string
+          project_id?: string | null
           reported_by?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
           status?: Database["public"]["Enums"]["bug_status"]
@@ -78,6 +81,13 @@ export type Database = {
             columns: ["feature_id"]
             isOneToOne: false
             referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -97,6 +107,7 @@ export type Database = {
           login_type: Database["public"]["Enums"]["login_type"]
           name: string
           order_index: number
+          project_id: string | null
           sub_modules: string[] | null
         }
         Insert: {
@@ -106,6 +117,7 @@ export type Database = {
           login_type: Database["public"]["Enums"]["login_type"]
           name: string
           order_index?: number
+          project_id?: string | null
           sub_modules?: string[] | null
         }
         Update: {
@@ -115,9 +127,18 @@ export type Database = {
           login_type?: Database["public"]["Enums"]["login_type"]
           name?: string
           order_index?: number
+          project_id?: string | null
           sub_modules?: string[] | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "features_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -179,6 +200,33 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -301,6 +349,7 @@ export type Database = {
           executed_by: string | null
           id: string
           name: string
+          project_id: string | null
           run_code: string
           run_type: string
           scenario_ids: string[] | null
@@ -312,6 +361,7 @@ export type Database = {
           executed_by?: string | null
           id?: string
           name: string
+          project_id?: string | null
           run_code: string
           run_type?: string
           scenario_ids?: string[] | null
@@ -323,13 +373,22 @@ export type Database = {
           executed_by?: string | null
           id?: string
           name?: string
+          project_id?: string | null
           run_code?: string
           run_type?: string
           scenario_ids?: string[] | null
           started_at?: string
           status?: Database["public"]["Enums"]["run_status"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "test_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       test_scenarios: {
         Row: {
@@ -342,6 +401,7 @@ export type Database = {
           login_types: Database["public"]["Enums"]["login_type"][]
           name: string
           priority: Database["public"]["Enums"]["priority_level"]
+          project_id: string | null
           scenario_code: string
           scenario_type: Database["public"]["Enums"]["scenario_type"]
           sub_module: string | null
@@ -358,6 +418,7 @@ export type Database = {
           login_types: Database["public"]["Enums"]["login_type"][]
           name: string
           priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
           scenario_code: string
           scenario_type: Database["public"]["Enums"]["scenario_type"]
           sub_module?: string | null
@@ -374,6 +435,7 @@ export type Database = {
           login_types?: Database["public"]["Enums"]["login_type"][]
           name?: string
           priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
           scenario_code?: string
           scenario_type?: Database["public"]["Enums"]["scenario_type"]
           sub_module?: string | null
@@ -386,6 +448,13 @@ export type Database = {
             columns: ["feature_id"]
             isOneToOne: false
             referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_scenarios_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -418,6 +487,35 @@ export type Database = {
             columns: ["test_case_id"]
             isOneToOne: false
             referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_project_access: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_project_access_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -455,6 +553,10 @@ export type Database = {
       get_approval_status: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["approval_status"]
+      }
+      has_project_access: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
       }
       has_role: {
         Args: {
