@@ -1,24 +1,30 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
+import { useProject } from "@/contexts/ProjectContext";
 import type { TestRun, RunStatus } from "@/types/qa";
 import { RUN_STATUS_LABELS } from "@/types/qa";
 
 export default function TestRuns() {
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    loadRuns();
-  }, []);
+    if (currentProject) {
+      loadRuns();
+    }
+  }, [currentProject]);
 
   const loadRuns = async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading(true);
 
@@ -28,6 +34,7 @@ export default function TestRuns() {
           *,
           test_results (id, status)
         `)
+        .eq("project_id", currentProject.id)
         .order("started_at", { ascending: false });
 
       // Calculate stats for each run
@@ -83,11 +90,25 @@ export default function TestRuns() {
     }
   };
 
-  if (loading) {
+  if (loading || projectLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <Card className="glass">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <FolderKanban className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-1">No Project Selected</h3>
+          <p className="text-muted-foreground text-center max-w-sm">
+            Please select a project from the header to view test runs.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 

@@ -10,11 +10,13 @@ import {
   Loader2,
   PieChart,
   BarChart2,
-  Activity
+  Activity,
+  FolderKanban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge, StatusBadge } from "@/components/qa/badges";
 import { ScenarioTypeChart, TestRunsChart, PassFailTrendChart } from "@/components/qa/analytics";
@@ -23,6 +25,7 @@ import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
   const { user } = useAuth();
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalScenarios: 0,
@@ -39,38 +42,43 @@ export default function QADashboard() {
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
   useEffect(() => {
-    if (user) {
+    if (user && currentProject) {
       loadDashboardData();
     }
-  }, [user]);
+  }, [user, currentProject]);
 
   const loadDashboardData = async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading(true);
 
-      // Get scenario counts
+      // Get scenario counts for current project
       const { data: scenarios } = await supabase
         .from("test_scenarios")
-        .select("id, scenario_type");
+        .select("id, scenario_type")
+        .eq("project_id", currentProject.id);
 
       const smokeCount = scenarios?.filter(s => s.scenario_type === "smoke").length || 0;
       const intraLoginCount = scenarios?.filter(s => s.scenario_type === "intra_login").length || 0;
       const interLoginCount = scenarios?.filter(s => s.scenario_type === "inter_login").length || 0;
 
-      // Get recent scenarios
+      // Get recent scenarios for current project
       const { data: recentScenariosData } = await supabase
         .from("test_scenarios")
         .select("*")
+        .eq("project_id", currentProject.id)
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Get all test runs for chart (last 30 days)
+      // Get all test runs for chart (last 30 days) for current project
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const { data: allRunsData } = await supabase
         .from("test_runs")
         .select("*")
+        .eq("project_id", currentProject.id)
         .gte("started_at", thirtyDaysAgo.toISOString())
         .order("started_at", { ascending: false });
 
@@ -108,11 +116,25 @@ export default function QADashboard() {
     }
   };
 
-  if (loading) {
+  if (loading || projectLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <Card className="glass">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <FolderKanban className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-1">No Project Selected</h3>
+          <p className="text-muted-foreground text-center max-w-sm">
+            Please select a project from the header to view the dashboard.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 

@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ProjectSelector } from "@/components/projects/ProjectSelector";
 
 interface QAHeaderProps {
   onMenuToggle: () => void;
@@ -61,6 +62,9 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
               <p className="text-xs text-muted-foreground -mt-0.5">DonutAI Platform</p>
             </div>
           </div>
+          
+          {/* Project Selector */}
+          <ProjectSelector />
         </div>
 
         {/* Right: Actions */}

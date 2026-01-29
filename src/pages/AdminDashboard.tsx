@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ClearTestDataDialog } from "@/components/qa/ClearTestDataDialog";
+import { CreateProjectDialog, AssignProjectDialog } from "@/components/projects";
 import { 
   LogOut, 
   Users, 
@@ -21,8 +22,12 @@ import {
   TestTube2,
   PlayCircle,
   BarChart3,
-  Settings
+  Settings,
+  FolderKanban,
+  Plus,
+  FolderOpen
 } from "lucide-react";
+import type { Project } from "@/types/project";
 
 interface UserProfile {
   id: string;
@@ -33,15 +38,26 @@ interface UserProfile {
   created_at: string;
 }
 
+interface UserProjectCount {
+  user_id: string;
+  count: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [userProjectCounts, setUserProjectCounts] = useState<Map<string, number>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Dialogs
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [assignProjectUser, setAssignProjectUser] = useState<UserProfile | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -68,8 +84,55 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at");
+
+      if (error) {
+        console.error("Error fetching projects:", error);
+        return;
+      }
+
+      setProjects(data || []);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  const fetchUserProjectCounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_project_access")
+        .select("user_id, project_id");
+
+      if (error) {
+        console.error("Error fetching project counts:", error);
+        return;
+      }
+
+      // Count projects per user
+      const counts = new Map<string, number>();
+      (data || []).forEach(access => {
+        const current = counts.get(access.user_id) || 0;
+        counts.set(access.user_id, current + 1);
+      });
+      setUserProjectCounts(counts);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  const loadAllData = async () => {
+    setIsLoading(true);
+    await Promise.all([fetchUsers(), fetchProjects(), fetchUserProjectCounts()]);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    fetchUsers();
+    loadAllData();
   }, []);
 
   const handleApproval = async (userId: string, newStatus: "approved" | "rejected") => {
@@ -205,6 +268,67 @@ const AdminDashboard: React.FC = () => {
               <span className="text-2xl md:text-3xl font-bold text-red-600">{rejectedUsers.length}</span>
             </div>
             <p className="text-xs md:text-sm font-medium text-muted-foreground">Rejected</p>
+          </div>
+        </div>
+
+        {/* Projects Management */}
+        <div className="glass-card rounded-2xl shadow-warm mb-6 md:mb-8 overflow-hidden">
+          <div className="p-4 md:p-6 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg text-foreground">Projects</h2>
+                  <p className="text-sm text-muted-foreground hidden sm:block">Manage QA testing projects</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setShowCreateProject(true)}
+                className="rounded-xl"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Create Project</span>
+                <span className="sm:hidden">New</span>
+              </Button>
+            </div>
+          </div>
+          <div className="p-4 md:p-6">
+            {projects.length === 0 ? (
+              <div className="text-center py-8">
+                <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                <p className="text-muted-foreground">No projects yet</p>
+                <p className="text-sm text-muted-foreground">Create your first project to get started</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="p-4 rounded-xl border-2 border-border hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer"
+                    onClick={() => navigate("/qa")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <FolderOpen className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-foreground truncate">{project.name}</h3>
+                        {project.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {project.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Created {new Date(project.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -395,7 +519,21 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 pl-13 sm:pl-0">
-                    <span className="text-xs text-muted-foreground">
+                    {/* Project count badge */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAssignProjectUser(user);
+                      }}
+                      className="rounded-xl text-xs"
+                    >
+                      <FolderKanban className="h-3.5 w-3.5 mr-1" />
+                      {userProjectCounts.get(user.user_id) || 0} Projects
+                    </Button>
+                    
+                    <span className="text-xs text-muted-foreground hidden md:block">
                       {new Date(user.created_at).toLocaleDateString()}
                     </span>
                     {user.approval_status !== "approved" && (
@@ -435,6 +573,29 @@ const AdminDashboard: React.FC = () => {
           )}
         </div>
       </main>
+      
+      {/* Dialogs */}
+      <CreateProjectDialog 
+        open={showCreateProject} 
+        onOpenChange={(open) => {
+          setShowCreateProject(open);
+          if (!open) loadAllData();
+        }}
+      />
+      
+      {assignProjectUser && (
+        <AssignProjectDialog
+          open={!!assignProjectUser}
+          onOpenChange={(open) => {
+            if (!open) setAssignProjectUser(null);
+          }}
+          userId={assignProjectUser.user_id}
+          userName={assignProjectUser.full_name}
+          onSuccess={() => {
+            loadAllData();
+          }}
+        />
+      )}
     </div>
   );
 };
