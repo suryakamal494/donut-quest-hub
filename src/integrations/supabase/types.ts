@@ -296,8 +296,12 @@ export type Database = {
         Row: {
           actual_result: string | null
           bug_reference: string | null
+          developer_response: string | null
           executed_at: string | null
           executed_by: string | null
+          fix_status: string | null
+          fixed_at: string | null
+          fixed_by: string | null
           id: string
           notes: string | null
           run_id: string
@@ -307,8 +311,12 @@ export type Database = {
         Insert: {
           actual_result?: string | null
           bug_reference?: string | null
+          developer_response?: string | null
           executed_at?: string | null
           executed_by?: string | null
+          fix_status?: string | null
+          fixed_at?: string | null
+          fixed_by?: string | null
           id?: string
           notes?: string | null
           run_id: string
@@ -318,8 +326,12 @@ export type Database = {
         Update: {
           actual_result?: string | null
           bug_reference?: string | null
+          developer_response?: string | null
           executed_at?: string | null
           executed_by?: string | null
+          fix_status?: string | null
+          fixed_at?: string | null
+          fixed_by?: string | null
           id?: string
           notes?: string | null
           run_id?: string
@@ -396,10 +408,14 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          execution_count: number
           feature_id: string | null
           id: string
+          last_tested_at: string | null
+          last_tested_by: string | null
           login_types: Database["public"]["Enums"]["login_type"][]
           name: string
+          pending_failures: number
           priority: Database["public"]["Enums"]["priority_level"]
           project_id: string | null
           scenario_code: string
@@ -413,10 +429,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          execution_count?: number
           feature_id?: string | null
           id?: string
+          last_tested_at?: string | null
+          last_tested_by?: string | null
           login_types: Database["public"]["Enums"]["login_type"][]
           name: string
+          pending_failures?: number
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           scenario_code: string
@@ -430,10 +450,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          execution_count?: number
           feature_id?: string | null
           id?: string
+          last_tested_at?: string | null
+          last_tested_by?: string | null
           login_types?: Database["public"]["Enums"]["login_type"][]
           name?: string
+          pending_failures?: number
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           scenario_code?: string

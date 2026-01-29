@@ -35,6 +35,11 @@ export interface TestScenario {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Testing history fields
+  last_tested_at?: string | null;
+  last_tested_by?: string | null;
+  execution_count?: number;
+  pending_failures?: number;
   // Joined data
   feature?: Feature;
   test_cases?: TestCase[];
@@ -103,6 +108,11 @@ export interface TestResult {
   bug_reference: string | null;
   executed_at: string | null;
   executed_by: string | null;
+  // Developer workflow fields
+  fix_status?: 'unfixed' | 'fixed' | 'verified' | null;
+  fixed_by?: string | null;
+  fixed_at?: string | null;
+  developer_response?: string | null;
   // Joined data
   test_case?: TestCase;
 }
