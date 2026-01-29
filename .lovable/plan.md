@@ -1,285 +1,316 @@
 
 
-# UX Audit: Test Scenario Creation & Test Run Execution
+# Multi-Project Architecture Implementation Plan
 
-## Executive Summary
+## Problem Statement
 
-After thoroughly reviewing the codebase, I've identified several UX improvement opportunities to make the test scenario creation less tedious and the test run execution more intuitive. Here's my comprehensive audit with specific recommendations.
+**Current State:**
+The QA platform is currently designed as a single-project system for "The Donut AI" LMS. All test scenarios, test cases, test runs, features, and bugs exist in a single global space without project segregation.
+
+**Issue:**
+When you need to test a different product (e.g., a new mobile app or another web application), the platform cannot accommodate this because:
+1. The features, modules, and login types are hardcoded for the LMS
+2. All data is stored without project context
+3. Users have access to everything - no project-based isolation
+4. There's no way to switch between different products/projects
+
+**Desired State:**
+A multi-project architecture where:
+- Admin can create multiple projects (e.g., "The Donut AI", "New Mobile App")
+- Each project has its own features, login types, modules
+- Users are assigned to specific projects
+- Test scenarios, cases, runs, and bugs are scoped to their respective projects
+- Easy switching between projects for admin and users
 
 ---
 
-## PART 1: Test Scenario Creation Flow Audit
+## What You're Asking Me To Do
 
-### Current 4-Step Flow
+1. **Create a project management system** - Admin can create and name projects
+2. **Migrate existing data** - All current data becomes part of "The Donut AI" project
+3. **Add user-project assignment** - Admin assigns users to projects during approval
+4. **Add project switching** - Navigation includes project selector
+5. **Project-specific configurations** - Each project has its own features/login types (configuration method TBD)
+
+---
+
+## Technical Analysis
+
+### Current Database Schema (No Project Isolation)
 
 ```text
-+------------------+     +-----------+     +-------------+     +----------+
-| 1. CLASSIFICATION| --> | 2. DETAILS| --> | 3. TEST CASES| --> | 4. REVIEW|
-| - Scenario Type  |     | - Name    |     | - Title     |     | Summary  |
-| - Login Types    |     | - Desc    |     | - Steps     |     | of all   |
-| - Feature        |     | - Impact  |     | - Expected  |     | data     |
-| - Priority       |     |           |     |   Result    |     |          |
-| - Frequency      |     |           |     |             |     |          |
-+------------------+     +-----------+     +-------------+     +----------+
++----------------+     +------------------+     +-------------+
+|    features    |     | test_scenarios   |     | test_cases  |
++----------------+     +------------------+     +-------------+
+| id             |<----| feature_id       |---->| scenario_id |
+| name           |     | name             |     | title       |
+| login_type     |     | login_types[]    |     | login_type  |
+| sub_modules[]  |     | scenario_code    |     | case_code   |
++----------------+     +------------------+     +-------------+
+                              |                       |
+                              v                       v
+                       +-------------+         +-------------+
+                       | test_runs   |         | test_steps  |
+                       +-------------+         +-------------+
+                       | run_code    |         | action      |
+                       | status      |         | expected    |
+                       +-------------+         +-------------+
+
++----------------+     +------------------+
+|    profiles    |     |   user_roles     |
++----------------+     +------------------+
+| user_id        |     | user_id          |
+| full_name      |     | role             |
+| email          |     |                  |
++----------------+     +------------------+
 ```
 
-### Current Pain Points Identified
-
-| Issue | Description | Impact |
-|-------|-------------|--------|
-| No tooltips | Zero tooltips currently implemented across all input fields | New testers don't understand what to enter |
-| No field hints | Most inputs have no placeholder text explaining expected format | Confusion about expected data |
-| Tedious 4-step process | Even for simple smoke tests, users must navigate all 4 steps | Time-consuming for quick tests |
-| No templates | Users start from scratch every time | Repetitive data entry |
-| No draft saving | If user navigates away, all progress is lost | Frustration and rework |
-| Step navigation blocked | Users can't skip ahead to review without completing each step | Inflexible workflow |
-
-### Improvement Recommendations
-
-#### 1. Add Comprehensive Tooltips
-
-Every input field should have a tooltip explaining what to enter. Here's the mapping:
-
-**Step 1 - Classification:**
-| Field | Tooltip Text |
-|-------|-------------|
-| Scenario Type | "Smoke: Single page tests. Intra-Login: Multi-module tests within one role. Inter-Login: Tests across different user roles." |
-| Login Types | "Select all user roles involved in this test. Features will be filtered to match these roles." |
-| Feature | "The LMS module being tested. Only features matching your selected login types are shown." |
-| Sub-Module | "The specific section within the feature. E.g., 'Chapter Management' under Content Library." |
-| Test Frequency | "One-time: Run once. Regression: Run regularly after changes. Release: Run before each release." |
-| Priority | "Critical: System-breaking if it fails. High: Major feature impact. Medium: Normal priority. Low: Minor impact." |
-
-**Step 2 - Details:**
-| Field | Tooltip Text |
-|-------|-------------|
-| Scenario Name | "A descriptive name like 'Content Library - Global Content Propagation Test'" |
-| Description | "Explain what this scenario validates and why it's important" |
-| Business Impact | "What could go wrong if this test fails? E.g., 'Students unable to view assigned content'" |
-
-**Step 3 - Test Cases:**
-| Field | Tooltip Text |
-|-------|-------------|
-| Title | "Short name describing what this specific test validates" |
-| Login Type | "Which user role executes this test case" |
-| Expected Result | "The successful outcome when all steps pass" |
-| Step Action | "What the tester should do. E.g., 'Click on Chapter 1'" |
-| Step Expected Outcome | "What should happen after the action. E.g., 'Chapter content displays'" |
-
-#### 2. Add Placeholder Text to All Inputs
-
-Update all input fields with helpful placeholder text:
+### Proposed Database Schema (With Project Isolation)
 
 ```text
-Scenario Name: "e.g., Content Library - Global Content Propagation"
-Description: "Describe what this scenario validates..."
-Business Impact: "Why is this test important? What could fail?"
-Test Case Title: "e.g., Verify teacher can upload content"
-Expected Result: "e.g., Content appears in student's library within 5 seconds"
-Step Action: "e.g., Navigate to Content Library > Upload"
-Expected Outcome: "e.g., Upload success message appears"
++----------------+
+|    projects    | <-- NEW TABLE
++----------------+
+| id             |
+| name           |
+| description    |
+| created_by     |
+| created_at     |
++----------------+
+       |
+       | (1:N relationships)
+       |
+       +-----> features.project_id
+       +-----> test_scenarios.project_id
+       +-----> test_runs.project_id
+       +-----> bugs.project_id
+
++---------------------+
+| user_project_access | <-- NEW TABLE
++---------------------+
+| id                  |
+| user_id             |
+| project_id          |
+| created_at          |
++---------------------+
 ```
 
-#### 3. Reduce Redundancy with Smart Defaults
-
-**Problem:** Test Frequency defaults to "One-time" but most tests are probably regression tests.
-
-**Solution:** Track the user's most common selections and pre-fill:
-- Default Priority to "Medium" (already done)
-- Default Test Frequency based on scenario type:
-  - Smoke Tests -> "One-time"
-  - Intra/Inter Login -> "Regression"
-
-#### 4. Add Quick Create Option (Future Enhancement)
-
-For simple smoke tests, offer a condensed single-page form:
-- Combine Steps 1 and 2 into one compact section
-- Auto-create a single test case template
-- Skip directly to save
-
-#### 5. Add Draft Auto-Save (Future Enhancement)
-
-- Save form state to localStorage every 30 seconds
-- Prompt to restore if user returns to an incomplete form
-- Clear draft after successful save
-
 ---
 
-## PART 2: Test Run Execution Flow Audit
+## Implementation Plan
 
-### Current Flow
+### Phase 1: Database Schema Changes
 
-```text
-+---------------+     +---------------+     +------------------+
-| SELECT        | --> | EXECUTE       | --> | COMPLETE         |
-| SCENARIOS     |     | TEST CASES    |     | TEST RUN         |
-| (checkboxes)  |     | (one by one)  |     | (summary)        |
-+---------------+     +---------------+     +------------------+
+**1.1 Create `projects` table**
+```sql
+CREATE TABLE public.projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
-### Current UX Strengths (Already Good!)
+**1.2 Create `user_project_access` table**
+```sql
+CREATE TABLE public.user_project_access (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, project_id)
+);
+```
 
-| Feature | Why It Works |
-|---------|-------------|
-| Circular test navigator | Quick visual of progress across all tests |
-| Sticky bottom action bar | Pass/Fail/Skip buttons always accessible |
-| Progress percentage | Clear sense of completion |
-| Color-coded status | Immediate visual feedback (green=pass, red=fail) |
-| Step checkboxes | Interactive step-by-step execution |
+**1.3 Add `project_id` to existing tables**
+- `features` - Add `project_id UUID REFERENCES projects(id)`
+- `test_scenarios` - Add `project_id UUID REFERENCES projects(id)`
+- `test_runs` - Add `project_id UUID REFERENCES projects(id)`
+- `bugs` - Add `project_id UUID REFERENCES projects(id)`
 
-### Pain Points Identified
+**1.4 Create "The Donut AI" project and migrate data**
+```sql
+-- Create the default project
+INSERT INTO projects (id, name, description)
+VALUES ('default-donut-ai-uuid', 'The Donut AI', 'LMS Platform Testing');
 
-| Issue | Description | Impact |
-|-------|-------------|--------|
-| No keyboard shortcuts | Must click buttons for every action | Slower execution |
-| No notes templates | Common failure reasons require typing each time | Repetitive input |
-| Button labels hidden on mobile | Only icons show on small screens | Unclear actions |
-| No confirmation on test skip | Easy to accidentally skip without reason | Data quality issues |
-| No "Mark All Steps Done" | Must click each step individually | Extra clicks |
-| No bulk operations | Can't mark multiple tests at once | Time-consuming |
+-- Migrate all existing data
+UPDATE features SET project_id = 'default-donut-ai-uuid';
+UPDATE test_scenarios SET project_id = 'default-donut-ai-uuid';
+UPDATE test_runs SET project_id = 'default-donut-ai-uuid';
+UPDATE bugs SET project_id = 'default-donut-ai-uuid';
 
-### Improvement Recommendations
+-- Assign existing users to the project
+INSERT INTO user_project_access (user_id, project_id)
+SELECT user_id, 'default-donut-ai-uuid' FROM profiles WHERE approval_status = 'approved';
+```
 
-#### 1. Add Keyboard Shortcuts
+**1.5 RLS Policies for project isolation**
+- Users can only see data for projects they have access to
+- Admins can see all projects and data
 
-| Key | Action |
-|-----|--------|
-| P | Mark as Pass |
-| F | Mark as Fail |
-| S | Skip Test |
-| B | Mark as Blocked |
-| Arrow Left | Previous test |
-| Arrow Right | Next test |
-| Space | Toggle current step |
+### Phase 2: Project Context System
 
-Add a subtle keyboard hint in the UI: "Pro tip: Use P, F, S keys for quick actions"
-
-#### 2. Add Quick Failure Reasons
-
-Pre-defined options for common failure reasons:
-- "UI not loading"
-- "Incorrect data displayed"
-- "Feature not accessible"
-- "Permission error"
-- "Timeout/Performance issue"
-- "Other (type below)"
-
-This reduces typing for common scenarios.
-
-#### 3. Add "Complete All Steps" Button
-
-When all steps are checked, auto-enable a "Mark All Complete" button that expands Pass/Fail options.
-
-#### 4. Add Skip Reason Prompt
-
-When user clicks "Skip", show a quick prompt:
-- "Blocked by previous test"
-- "Not applicable"
-- "Environment issue"
-- "Will test later"
-
-#### 5. Add Tooltips to Action Buttons
-
-| Button | Tooltip |
-|--------|---------|
-| Pass | "Test completed successfully - all expected results matched" |
-| Fail | "Test failed - actual result differs from expected" |
-| Skip | "Test not executed - will not count toward pass rate" |
-| Blocked | "Cannot execute - dependent test failed or environment issue" |
-
----
-
-## Implementation Priority
-
-### Phase 1 - Quick Wins (High Impact, Low Effort)
-1. Add tooltips to all form fields in CreateScenario.tsx
-2. Add tooltips to action buttons in ExecuteTestRun.tsx
-3. Improve placeholder text across all inputs
-4. Add keyboard shortcuts for test execution
-
-### Phase 2 - UX Enhancements
-5. Add quick failure reason dropdown
-6. Add skip reason prompt
-7. Add "Complete All Steps" button
-8. Add keyboard shortcut hint banner
-
-### Phase 3 - Future Enhancements
-9. Add draft auto-save for scenario creation
-10. Add scenario templates
-11. Add bulk test operations
-12. Add quick create mode for smoke tests
-
----
-
-## Technical Implementation Details
-
-### Adding Tooltips
-
-Import and use the existing Tooltip component:
-
+**2.1 Create ProjectContext (React Context)**
 ```typescript
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-// Wrap labels with tooltips
-<TooltipProvider>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Label className="flex items-center gap-1">
-        Scenario Type *
-        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-      </Label>
-    </TooltipTrigger>
-    <TooltipContent side="right" className="max-w-xs">
-      <p>Smoke: Single page tests. Intra-Login: Multi-module tests within one role. Inter-Login: Tests across different user roles.</p>
-    </TooltipContent>
-  </Tooltip>
-</TooltipProvider>
+// src/contexts/ProjectContext.tsx
+interface ProjectContextType {
+  currentProject: Project | null;
+  projects: Project[];
+  setCurrentProject: (projectId: string) => void;
+  loading: boolean;
+}
 ```
 
-### Adding Keyboard Shortcuts
+**2.2 Project selection stored in localStorage**
+- Remember the last selected project per user
+- Auto-select first project if none selected
 
-```typescript
-// In ExecuteTestRun.tsx
-useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.target instanceof HTMLTextAreaElement) return; // Skip if typing
-    
-    switch (e.key.toLowerCase()) {
-      case 'p': saveResult('pass'); break;
-      case 'f': saveResult('fail'); break;
-      case 's': saveResult('skipped'); break;
-      case 'b': saveResult('blocked'); break;
-      case 'arrowleft': setCurrentIndex(prev => Math.max(0, prev - 1)); break;
-      case 'arrowright': setCurrentIndex(prev => Math.min(results.length - 1, prev + 1)); break;
-    }
-  };
-  
-  window.addEventListener('keydown', handleKeyDown);
-  return () => window.removeEventListener('keydown', handleKeyDown);
-}, [currentResult, saving]);
-```
+### Phase 3: Admin UI Updates
+
+**3.1 Admin Dashboard additions**
+- "Projects" section with list of all projects
+- "Create Project" button and form
+- Project card showing name, description, user count, scenario count
+
+**3.2 User Approval Flow update**
+- Before approving a user, admin selects which project(s) to assign
+- Multi-select dropdown for project assignment
+- Cannot approve without at least one project assignment
+
+**3.3 Project Detail/Edit page**
+- Edit project name/description
+- View assigned users
+- Configure login types (future)
+- Configure features/modules (future - for now, inherited from project type)
+
+### Phase 4: Navigation & Header Updates
+
+**4.1 QAHeader updates**
+- Add project selector dropdown next to the logo
+- Show current project name
+- Quick switch between projects
+
+**4.2 QASidebar updates**
+- Display current project name at top
+- Filter navigation items based on project type (future)
+
+### Phase 5: Data Filtering by Project
+
+**5.1 Update all data queries**
+All queries to the following tables must filter by `project_id`:
+- `features` - Only show features for current project
+- `test_scenarios` - Only show scenarios for current project
+- `test_runs` - Only show runs for current project
+- `bugs` - Only show bugs for current project
+
+**5.2 Files to update (queries)**
+| File | Changes |
+|------|---------|
+| `src/pages/qa/CreateScenario.tsx` | Filter features by project_id |
+| `src/pages/qa/EditScenario.tsx` | Filter features by project_id |
+| `src/pages/qa/TestScenarios.tsx` | Filter scenarios by project_id |
+| `src/pages/qa/Coverage.tsx` | Filter by project_id |
+| `src/pages/qa/TestRuns.tsx` | Filter runs by project_id |
+| `src/pages/qa/QADashboard.tsx` | Filter all stats by project_id |
+| `src/pages/bugs/BugList.tsx` | Filter bugs by project_id |
+| `src/pages/bugs/CreateBug.tsx` | Filter features by project_id |
+
+**5.3 Insert queries update**
+When creating new scenarios, runs, or bugs - automatically include current `project_id`.
 
 ---
 
-## Files to Modify
+## My Suggestions for Best Practices
+
+### Suggestion 1: Project Templates (Future)
+Instead of configuring login types and features from scratch for each project, create "project templates":
+- **LMS Template** - Pre-defined login types (Super Admin, Institute, Teacher, Student)
+- **E-commerce Template** - Different login types (Admin, Seller, Customer)
+- **Custom Template** - Define your own
+
+This way, when creating a new project, admin selects a template and gets pre-configured options.
+
+### Suggestion 2: Admin Sees All, Users See Assigned
+- **Admin role**: Can see all projects, switch between any
+- **User role**: Can only see and switch between assigned projects
+
+### Suggestion 3: Default Project Selection
+- Store last selected project in localStorage
+- On login, auto-select last used project
+- If user has only one project, auto-select it
+
+### Suggestion 4: Project-Scoped Codes
+Currently codes are global (TS-001, TC-001). Consider:
+- **Option A**: Keep global codes (simpler)
+- **Option B**: Project-prefixed codes: `DONUT-TS-001`, `MOBILE-TS-001`
+
+**Recommendation**: Start with Option A (global codes) for simplicity. Can enhance later.
+
+### Suggestion 5: Feature Configuration UI (Deferred)
+For now, features are seeded in the database. A future enhancement could be:
+- Admin UI to add/edit/delete features per project
+- Admin UI to define login types per project
+
+---
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/contexts/ProjectContext.tsx` | Project state management |
+| `src/components/projects/ProjectSelector.tsx` | Dropdown for switching projects |
+| `src/components/projects/CreateProjectDialog.tsx` | Modal form to create projects |
+| `src/components/projects/ProjectCard.tsx` | Project card for admin list |
+| `src/pages/admin/ProjectManagement.tsx` | Admin page for managing projects |
+
+## Files to Update
 
 | File | Changes |
 |------|---------|
-| `src/pages/qa/CreateScenario.tsx` | Add tooltips to all fields, improve placeholders |
-| `src/pages/qa/EditScenario.tsx` | Same tooltip additions for consistency |
-| `src/pages/qa/ExecuteTestRun.tsx` | Add keyboard shortcuts, button tooltips, quick reasons |
-| `src/pages/qa/CreateTestRun.tsx` | Add tooltips to run name and scenario selection |
+| `src/pages/AdminDashboard.tsx` | Add projects section, update user approval flow |
+| `src/components/qa/layout/QAHeader.tsx` | Add project selector |
+| `src/components/qa/layout/QALayout.tsx` | Wrap with ProjectProvider |
+| `src/contexts/AuthContext.tsx` | No changes needed |
+| `src/App.tsx` | Add ProjectProvider wrapper |
+| All QA pages | Filter queries by project_id |
+
+---
+
+## Migration Summary
+
+| Current Data | Target Project |
+|--------------|----------------|
+| All 28 features | The Donut AI |
+| 2 test scenarios (TS-001, TS-002) | The Donut AI |
+| All test cases, steps, runs | The Donut AI |
+| User: Praneetha | Assigned to The Donut AI |
+| Admin: Surya | Access to all projects |
+
+---
+
+## Implementation Order
+
+1. **Database changes** - Create tables, add columns, migrate data
+2. **ProjectContext** - React context for project state
+3. **Admin UI** - Project management + user assignment
+4. **Project Selector** - Header component for switching
+5. **Query updates** - Filter all data by project_id
+6. **Testing** - Verify isolation and switching works
 
 ---
 
 ## Summary
 
-The current flows are functional but can be significantly improved for new testers. The primary focus should be:
+This plan introduces a robust multi-project architecture that:
+- Maintains all existing functionality
+- Adds complete project isolation
+- Enables admin to create unlimited projects
+- Assigns users to specific projects
+- Provides easy project switching
+- Prepares for future project-specific configurations
 
-1. **Tooltips everywhere** - Every field should explain itself
-2. **Keyboard shortcuts** - Speed up test execution
-3. **Quick failure reasons** - Reduce repetitive typing
-4. **Better placeholders** - Guide users with examples
-
-These changes will transform the platform from "functional" to "intuitive" without restructuring the existing 4-step flow.
+The core workflows (create scenario → create test case → run tests → report bugs) remain identical. Only the data scope changes based on which project is selected.
 
