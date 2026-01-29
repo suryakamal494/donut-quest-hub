@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { BugSeverity } from "@/types/bugs";
 import type { Feature } from "@/types/qa";
@@ -22,6 +23,7 @@ import type { Feature } from "@/types/qa";
 export default function CreateBug() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentProject } = useProject();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -38,13 +40,18 @@ export default function CreateBug() {
   });
 
   useEffect(() => {
-    loadFeatures();
-  }, []);
+    if (currentProject) {
+      loadFeatures();
+    }
+  }, [currentProject]);
 
   const loadFeatures = async () => {
+    if (!currentProject) return;
+    
     const { data } = await supabase
       .from("features")
       .select("*")
+      .eq("project_id", currentProject.id)
       .order("order_index");
     setFeatures((data || []) as Feature[]);
   };
@@ -72,6 +79,7 @@ export default function CreateBug() {
         environment: formData.environment || null,
         reported_by: user.id,
         status: "open",
+        project_id: currentProject?.id,
       } as any);
 
       if (error) throw error;

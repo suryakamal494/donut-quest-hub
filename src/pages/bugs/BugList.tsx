@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SeverityBadge, BugStatusBadge } from "@/components/bugs/BugBadges";
 import { exportBugsToCSV } from "@/lib/export-utils";
@@ -26,6 +27,7 @@ import type { Bug as BugType, BugSeverity, BugStatus } from "@/types/bugs";
 
 export default function BugList() {
   const { user } = useAuth();
+  const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
   const [search, setSearch] = useState("");
@@ -33,17 +35,20 @@ export default function BugList() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (user) {
+    if (user && currentProject) {
       loadBugs();
     }
-  }, [user]);
+  }, [user, currentProject]);
 
   const loadBugs = async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("bugs")
         .select("*")
+        .eq("project_id", currentProject.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

@@ -119,7 +119,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
           </div>
         </div>
         
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
