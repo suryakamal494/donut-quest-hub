@@ -30,9 +30,10 @@ All four phases have been successfully implemented:
 ### ✅ Phase B: Screenshot Attachments (COMPLETE)
 
 1. **Storage Bucket** - Created `failure-attachments` bucket with RLS policies
-2. **AttachmentUploader Component** - Drag-and-drop image upload (max 5 files, 5MB each)
-3. **AttachmentGallery Component** - Thumbnail display with lightbox
-4. **QuickExecutionTable Integration** - "Add Screenshot" button when marking as failed
+3. **AttachmentUploader Component** - Drag-and-drop image upload (max 5 files, 5MB each)
+4. **AttachmentGallery Component** - Thumbnail display with lightbox in Failures tab
+5. **QuickExecutionTable Integration** - "Add Screenshot" button when marking as failed
+6. **ExecuteTestRun Integration** - Attachments are saved to database when test fails
 
 ### ⚠️ Phase C: Scheduled Cleanup (PARTIAL - Requires pg_cron)
 

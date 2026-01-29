@@ -48,6 +48,7 @@ interface FailedTestWithDetails extends TestResult {
   fixer_name?: string;
   due_date?: string | null;
   sla_status?: string | null;
+  attachments?: string[] | null;
 }
 
 type FixStatus = "unfixed" | "fixed" | "verified";
@@ -452,6 +453,13 @@ export default function Failures() {
                               <p className="text-sm text-destructive/80">
                                 {failure.actual_result || failure.notes}
                               </p>
+                            </div>
+                          )}
+
+                          {/* Attachments */}
+                          {failure.attachments && failure.attachments.length > 0 && (
+                            <div className="mt-3">
+                              <AttachmentGallery attachments={failure.attachments} />
                             </div>
                           )}
 
