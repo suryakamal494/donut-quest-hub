@@ -340,6 +340,7 @@ export type Database = {
       test_results: {
         Row: {
           actual_result: string | null
+          attachments: string[] | null
           bug_reference: string | null
           developer_response: string | null
           due_date: string | null
@@ -357,6 +358,7 @@ export type Database = {
         }
         Insert: {
           actual_result?: string | null
+          attachments?: string[] | null
           bug_reference?: string | null
           developer_response?: string | null
           due_date?: string | null
@@ -374,6 +376,7 @@ export type Database = {
         }
         Update: {
           actual_result?: string | null
+          attachments?: string[] | null
           bug_reference?: string | null
           developer_response?: string | null
           due_date?: string | null
