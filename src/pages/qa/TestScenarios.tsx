@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search, Filter, Loader2, FileText, Download } from "lucide-react";
+import { Plus, Search, Filter, Loader2, FileText, Download, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useProject } from "@/contexts/ProjectContext";
 import { ScenarioTypeBadge, LoginTypeBadge, PriorityBadge } from "@/components/qa/badges";
 import { exportScenariosToCSV } from "@/lib/export-utils";
 import type { TestScenario, ScenarioType, LoginType, PriorityLevel, Feature } from "@/types/qa";
@@ -19,6 +20,7 @@ import { SCENARIO_TYPE_LABELS, LOGIN_TYPE_LABELS } from "@/types/qa";
 
 export default function TestScenarios() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
   const [scenarios, setScenarios] = useState<TestScenario[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -31,8 +33,10 @@ export default function TestScenarios() {
   );
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentProject) {
+      loadData();
+    }
+  }, [currentProject]);
 
   useEffect(() => {
     // Update URL params when filters change
@@ -44,16 +48,19 @@ export default function TestScenarios() {
   }, [search, typeFilter, loginFilter]);
 
   const loadData = async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading(true);
 
-      // Load features
+      // Load features for current project
       const { data: featuresData } = await supabase
         .from("features")
         .select("*")
+        .eq("project_id", currentProject.id)
         .order("order_index");
 
-      // Load scenarios with test case count
+      // Load scenarios with test case count for current project
       const { data: scenariosData } = await supabase
         .from("test_scenarios")
         .select(`
@@ -61,6 +68,7 @@ export default function TestScenarios() {
           features (id, name, login_type),
           test_cases (id)
         `)
+        .eq("project_id", currentProject.id)
         .order("created_at", { ascending: false });
 
       setFeatures(featuresData as Feature[] || []);
@@ -113,11 +121,25 @@ export default function TestScenarios() {
     return true;
   });
 
-  if (loading) {
+  if (loading || projectLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <Card className="glass">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <FolderKanban className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-1">No Project Selected</h3>
+          <p className="text-muted-foreground text-center max-w-sm">
+            Please select a project from the header to view scenarios.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
