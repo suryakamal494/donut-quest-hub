@@ -64,9 +64,10 @@ export default function TestCaseHistory() {
       const formattedResults = (resultsData || []).map((r) => ({
         ...r,
         test_run: r.test_runs as TestRun,
+        fix_status: r.fix_status as 'unfixed' | 'fixed' | 'verified' | null,
       }));
 
-      setResults(formattedResults);
+      setResults(formattedResults as ResultWithRun[]);
     } catch (error) {
       console.error("Error loading history:", error);
     } finally {

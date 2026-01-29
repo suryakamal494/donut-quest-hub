@@ -12,7 +12,9 @@ import {
   Keyboard,
   CheckSquare,
   Square,
-  X
+  X,
+  Zap,
+  List
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LoginTypeBadge, StatusBadge } from "@/components/qa/badges";
+import { QuickExecutionTable } from "@/components/qa/QuickExecutionTable";
 import { FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
 import type { TestRun, TestResult, TestCase, TestStep, TestStatus } from "@/types/qa";
 
@@ -50,6 +53,7 @@ export default function ExecuteTestRun() {
   const [actualResult, setActualResult] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
+  const [quickMode, setQuickMode] = useState(false);
   
   // Bulk selection state
   const [bulkMode, setBulkMode] = useState(false);
@@ -433,7 +437,99 @@ export default function ExecuteTestRun() {
       </CardContent>
       </Card>
 
-      {/* Bulk Mode Toggle & Test Navigator */}
+      {/* View Mode Toggle */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant={quickMode ? "default" : "outline"}
+          size="sm"
+          onClick={() => setQuickMode(true)}
+          className="gap-2"
+        >
+          <Zap className="h-4 w-4" />
+          Quick Mode
+        </Button>
+        <Button
+          variant={!quickMode ? "default" : "outline"}
+          size="sm"
+          onClick={() => setQuickMode(false)}
+          className="gap-2"
+        >
+          <List className="h-4 w-4" />
+          Detailed Mode
+        </Button>
+        <span className="text-xs text-muted-foreground ml-2">
+          {quickMode ? "Faster execution with inline actions" : "Full step-by-step testing"}
+        </span>
+      </div>
+
+      {/* Quick Mode View */}
+      {quickMode ? (
+        <>
+          <QuickExecutionTable 
+            results={results}
+            onUpdateResult={async (resultId, status, notes) => {
+              if (!user || saving) return;
+              
+              try {
+                setSaving(true);
+                
+                const { error } = await supabase
+                  .from("test_results")
+                  .update({
+                    status,
+                    notes: notes || null,
+                    executed_at: new Date().toISOString(),
+                    executed_by: user.id,
+                  })
+                  .eq("id", resultId);
+                
+                if (error) throw error;
+                
+                // Update local state
+                setResults(prev => prev.map(r => 
+                  r.id === resultId 
+                    ? { ...r, status, notes: notes || r.notes }
+                    : r
+                ));
+                
+                toast({
+                  title: `Test marked as ${status}`,
+                });
+              } catch (error: any) {
+                console.error("Error saving result:", error);
+                toast({
+                  title: "Error saving result",
+                  description: error.message,
+                  variant: "destructive",
+                });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            saving={saving}
+          />
+          
+          {/* Complete Run Button for Quick Mode */}
+          {completedCount === results.length && (
+            <div className="pb-4">
+              <Button
+                onClick={completeRun}
+                disabled={saving}
+                className="w-full"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Complete Test Run
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Bulk Mode Toggle & Test Navigator */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Button
@@ -784,6 +880,8 @@ export default function ExecuteTestRun() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

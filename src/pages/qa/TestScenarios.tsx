@@ -13,16 +13,24 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
-import { ScenarioTypeBadge, LoginTypeBadge, PriorityBadge } from "@/components/qa/badges";
+import { ScenarioCard } from "@/components/qa/ScenarioCard";
 import { exportScenariosToCSV } from "@/lib/export-utils";
-import type { TestScenario, ScenarioType, LoginType, PriorityLevel, Feature } from "@/types/qa";
+import type { TestScenario, ScenarioType, LoginType, Feature } from "@/types/qa";
 import { SCENARIO_TYPE_LABELS, LOGIN_TYPE_LABELS } from "@/types/qa";
+
+interface ExtendedScenario extends TestScenario {
+  last_tested_at?: string | null;
+  last_tested_by?: string | null;
+  execution_count?: number;
+  pending_failures?: number;
+  tester_name?: string;
+}
 
 export default function TestScenarios() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
-  const [scenarios, setScenarios] = useState<TestScenario[]>([]);
+  const [scenarios, setScenarios] = useState<ExtendedScenario[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [typeFilter, setTypeFilter] = useState<ScenarioType | "all">(
@@ -60,7 +68,7 @@ export default function TestScenarios() {
         .eq("project_id", currentProject.id)
         .order("order_index");
 
-      // Load scenarios with test case count for current project
+      // Load scenarios with test case count and testing history for current project
       const { data: scenariosData } = await supabase
         .from("test_scenarios")
         .select(`
@@ -72,8 +80,25 @@ export default function TestScenarios() {
         .order("created_at", { ascending: false });
 
       setFeatures(featuresData as Feature[] || []);
+
+      // Get tester names for scenarios that have been tested
+      const testedScenarios = scenariosData?.filter(s => s.last_tested_by) || [];
+      const testerIds = [...new Set(testedScenarios.map(s => s.last_tested_by))];
       
-      // Transform to include test_case_count
+      let testerNames: Record<string, string> = {};
+      if (testerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", testerIds);
+        
+        testerNames = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = p.full_name;
+          return acc;
+        }, {} as Record<string, string>);
+      }
+      
+      // Transform to include test_case_count and tester name
       const transformedScenarios = scenariosData?.map(s => ({
         ...s,
         feature: s.features ? {
@@ -86,9 +111,10 @@ export default function TestScenarios() {
           created_at: '',
         } : undefined,
         test_case_count: s.test_cases?.length || 0,
+        tester_name: s.last_tested_by ? testerNames[s.last_tested_by] : undefined,
       })) || [];
       
-      setScenarios(transformedScenarios as unknown as TestScenario[]);
+      setScenarios(transformedScenarios as unknown as ExtendedScenario[]);
     } catch (error) {
       console.error("Error loading scenarios:", error);
     } finally {
@@ -248,55 +274,7 @@ export default function TestScenarios() {
       ) : (
         <div className="grid gap-4">
           {filteredScenarios.map((scenario) => (
-            <Link
-              key={scenario.id}
-              to={`/qa/scenarios/${scenario.id}`}
-              className="block"
-            >
-              <Card className="glass hover:border-primary/30 transition-all">
-                <CardContent className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                    {/* Main Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {scenario.scenario_code}
-                        </span>
-                        <ScenarioTypeBadge type={scenario.scenario_type} size="sm" />
-                      </div>
-                      <h3 className="font-semibold text-foreground mb-1 line-clamp-1">
-                        {scenario.name}
-                      </h3>
-                      {scenario.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                          {scenario.description}
-                        </p>
-                      )}
-                      
-                      {/* Login Types */}
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {scenario.login_types.map((loginType) => (
-                          <LoginTypeBadge key={loginType} type={loginType} size="sm" />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Meta Info */}
-                    <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1 text-right">
-                      <PriorityBadge priority={scenario.priority} size="sm" />
-                      <span className="text-sm text-muted-foreground">
-                        {scenario.test_case_count || 0} test cases
-                      </span>
-                      {scenario.feature && (
-                        <span className="text-xs text-muted-foreground">
-                          {scenario.feature.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+            <ScenarioCard key={scenario.id} scenario={scenario} />
           ))}
         </div>
       )}
