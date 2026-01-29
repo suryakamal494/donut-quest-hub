@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
-import { Check, X, SkipForward, AlertTriangle, ChevronDown, ChevronUp, Undo2, Loader2 } from "lucide-react";
+import { Check, X, SkipForward, AlertTriangle, ChevronDown, ChevronUp, Undo2, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LoginTypeBadge, StatusBadge } from "@/components/qa/badges";
+import { AttachmentUploader } from "@/components/qa/AttachmentUploader";
 import type { TestStatus, TestCase, TestStep, TestResult } from "@/types/qa";
 import { cn } from "@/lib/utils";
 
@@ -14,14 +15,17 @@ interface TestResultWithCase extends TestResult {
 
 interface QuickExecutionTableProps {
   results: TestResultWithCase[];
-  onUpdateResult: (resultId: string, status: TestStatus, notes?: string) => Promise<void>;
+  onUpdateResult: (resultId: string, status: TestStatus, notes?: string, attachments?: string[]) => Promise<void>;
   saving: boolean;
+  userId: string;
 }
 
-export function QuickExecutionTable({ results, onUpdateResult, saving }: QuickExecutionTableProps) {
+export function QuickExecutionTable({ results, onUpdateResult, saving, userId }: QuickExecutionTableProps) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [failNotes, setFailNotes] = useState<Record<string, string>>({});
+  const [failAttachments, setFailAttachments] = useState<Record<string, string[]>>({});
   const [pendingFail, setPendingFail] = useState<string | null>(null);
+  const [showAttachmentUploader, setShowAttachmentUploader] = useState<string | null>(null);
 
   const handleQuickAction = useCallback(async (resultId: string, status: TestStatus) => {
     if (status === 'fail') {
@@ -38,13 +42,17 @@ export function QuickExecutionTable({ results, onUpdateResult, saving }: QuickEx
     if (!notes.trim()) {
       return; // Require notes for failures
     }
-    await onUpdateResult(resultId, 'fail', notes);
+    const attachments = failAttachments[resultId] || [];
+    await onUpdateResult(resultId, 'fail', notes, attachments);
     setPendingFail(null);
+    setShowAttachmentUploader(null);
     setFailNotes(prev => ({ ...prev, [resultId]: '' }));
-  }, [failNotes, onUpdateResult]);
+    setFailAttachments(prev => ({ ...prev, [resultId]: [] }));
+  }, [failNotes, failAttachments, onUpdateResult]);
 
   const cancelFail = useCallback(() => {
     setPendingFail(null);
+    setShowAttachmentUploader(null);
   }, []);
 
   const undoResult = useCallback(async (resultId: string) => {
@@ -171,9 +179,9 @@ export function QuickExecutionTable({ results, onUpdateResult, saving }: QuickEx
 
               {/* Fail Notes Input */}
               {isPendingFail && (
-                <div className="mt-3 pt-3 border-t space-y-2">
-                  <label className="text-sm font-medium text-red-700">
-                    What went wrong? <span className="text-red-500">*</span>
+                <div className="mt-3 pt-3 border-t space-y-3">
+                  <label className="text-sm font-medium text-destructive">
+                    What went wrong? <span className="text-destructive">*</span>
                   </label>
                   <Input
                     placeholder="Describe the failure (required for developers to understand the issue)"
@@ -182,12 +190,43 @@ export function QuickExecutionTable({ results, onUpdateResult, saving }: QuickEx
                     className="text-sm"
                     autoFocus
                   />
+                  
+                  {/* Attachment Uploader Toggle */}
+                  <div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAttachmentUploader(
+                        showAttachmentUploader === result.id ? null : result.id
+                      )}
+                      className="text-muted-foreground"
+                    >
+                      <Paperclip className="h-4 w-4 mr-1" />
+                      {failAttachments[result.id]?.length 
+                        ? `${failAttachments[result.id].length} attachment(s)`
+                        : "Add Screenshot"}
+                    </Button>
+                  </div>
+                  
+                  {showAttachmentUploader === result.id && (
+                    <AttachmentUploader
+                      testResultId={result.id}
+                      userId={userId}
+                      existingAttachments={failAttachments[result.id] || []}
+                      onUploadComplete={(urls) => {
+                        setFailAttachments(prev => ({ ...prev, [result.id]: urls }));
+                      }}
+                      maxFiles={5}
+                    />
+                  )}
+                  
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       onClick={() => confirmFail(result.id)}
                       disabled={saving || !failNotes[result.id]?.trim()}
-                      className="bg-red-600 hover:bg-red-700"
+                      variant="destructive"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                       Save Failure

@@ -342,6 +342,7 @@ export type Database = {
           actual_result: string | null
           bug_reference: string | null
           developer_response: string | null
+          due_date: string | null
           executed_at: string | null
           executed_by: string | null
           fix_status: string | null
@@ -350,6 +351,7 @@ export type Database = {
           id: string
           notes: string | null
           run_id: string
+          sla_status: string | null
           status: Database["public"]["Enums"]["test_status"]
           test_case_id: string
         }
@@ -357,6 +359,7 @@ export type Database = {
           actual_result?: string | null
           bug_reference?: string | null
           developer_response?: string | null
+          due_date?: string | null
           executed_at?: string | null
           executed_by?: string | null
           fix_status?: string | null
@@ -365,6 +368,7 @@ export type Database = {
           id?: string
           notes?: string | null
           run_id: string
+          sla_status?: string | null
           status?: Database["public"]["Enums"]["test_status"]
           test_case_id: string
         }
@@ -372,6 +376,7 @@ export type Database = {
           actual_result?: string | null
           bug_reference?: string | null
           developer_response?: string | null
+          due_date?: string | null
           executed_at?: string | null
           executed_by?: string | null
           fix_status?: string | null
@@ -380,6 +385,7 @@ export type Database = {
           id?: string
           notes?: string | null
           run_id?: string
+          sla_status?: string | null
           status?: Database["public"]["Enums"]["test_status"]
           test_case_id?: string
         }

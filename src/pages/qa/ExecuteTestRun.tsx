@@ -467,20 +467,27 @@ export default function ExecuteTestRun() {
         <>
           <QuickExecutionTable 
             results={results}
-            onUpdateResult={async (resultId, status, notes) => {
+            onUpdateResult={async (resultId, status, notes, attachments) => {
               if (!user || saving) return;
               
               try {
                 setSaving(true);
                 
+                const updateData: any = {
+                  status,
+                  notes: notes || null,
+                  executed_at: new Date().toISOString(),
+                  executed_by: user.id,
+                };
+                
+                // Only set fix_status for failures
+                if (status === 'fail') {
+                  updateData.fix_status = 'unfixed';
+                }
+                
                 const { error } = await supabase
                   .from("test_results")
-                  .update({
-                    status,
-                    notes: notes || null,
-                    executed_at: new Date().toISOString(),
-                    executed_by: user.id,
-                  })
+                  .update(updateData)
                   .eq("id", resultId);
                 
                 if (error) throw error;
@@ -507,6 +514,7 @@ export default function ExecuteTestRun() {
               }
             }}
             saving={saving}
+            userId={user?.id || ""}
           />
           
           {/* Complete Run Button for Quick Mode */}

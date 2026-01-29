@@ -6,3 +6,6 @@ export { TodayActivityPanel } from "./TodayActivityPanel";
 export { ScenarioClaimButton } from "./ScenarioClaimButton";
 export { GroupedScenarioView } from "./GroupedScenarioView";
 export { StaleFailuresAlert } from "./StaleFailuresAlert";
+export { AttachmentUploader } from "./AttachmentUploader";
+export { AttachmentGallery } from "./AttachmentGallery";
+export { SLABadge } from "./SLABadge";

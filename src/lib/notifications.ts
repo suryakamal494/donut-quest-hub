@@ -86,3 +86,19 @@ export async function notifyBugAssigned(
     link: `/bugs/${bugId}`,
   });
 }
+
+export async function notifyFixedForVerification(
+  testerId: string,
+  testCaseTitle: string,
+  testCaseCode: string,
+  fixDescription: string,
+  fixerName: string
+): Promise<boolean> {
+  return createNotification({
+    userId: testerId,
+    title: "Fix Ready for Verification",
+    message: `${fixerName} fixed ${testCaseCode}: "${fixDescription.slice(0, 60)}${fixDescription.length > 60 ? '...' : ''}"`,
+    type: "success",
+    link: `/qa/failures`,
+  });
+}
