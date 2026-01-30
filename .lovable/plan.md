@@ -1,101 +1,70 @@
-# Comprehensive QA Platform Enhancement Plan
-## Status: ✅ IMPLEMENTED
+
+# Fix: Direct Test Run from Scenario Detail Page
+
+## Problem
+
+When you're on a specific scenario's detail page and click **"Run Test"**, the app navigates to a scenario selection page (`/qa/runs/create`) where you must select scenarios again. This is redundant since you've already chosen the scenario you want to test.
+
+## Solution
+
+Modify the **"Run Test"** button on the Scenario Detail page to **directly create a test run** for that specific scenario and navigate straight to the execution page — bypassing the scenario selection step entirely.
+
+## Changes Required
+
+### 1. Update `src/pages/qa/ScenarioDetail.tsx`
+
+Replace the current navigation logic in the "Run Test" button with a function that:
+
+1. Creates a new test run with the current scenario pre-selected
+2. Creates pending test results for all test cases in the scenario
+3. Navigates directly to `/qa/runs/{runId}/execute`
+
+**What will change:**
+- Add a new `startTestRun()` async function that:
+  - Creates a test run record in the database
+  - Fetches all test cases for the current scenario
+  - Creates pending results for each test case
+  - Shows a success toast
+  - Navigates to the execution page
+- Update the "Run Test" button to call this function instead of navigating to `/qa/runs/create`
+- Add loading state (`startingRun`) to show a spinner while creating
+
+### 2. No changes needed to `CreateTestRun.tsx`
+
+The scenario selection page remains unchanged for cases where users want to run multiple scenarios at once from the Test Runs page.
+
+## User Experience After Fix
+
+**Before:**
+1. View scenario detail → Click "Run Test" → See scenario selection page → Select scenario again → Click "Start Run" → Execute tests
+
+**After:**
+1. View scenario detail → Click "Run Test" → Execute tests immediately
 
 ---
 
-## Implementation Summary
+## Technical Details
 
-All four phases have been successfully implemented:
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    ScenarioDetail.tsx                       │
+├─────────────────────────────────────────────────────────────┤
+│  "Run Test" button onClick:                                 │
+│                                                             │
+│  1. Check recently tested (existing logic)                  │
+│  2. Create test_runs record with:                           │
+│     - name: "Quick Run - {scenario_code}"                   │
+│     - scenario_ids: [current scenario id]                   │
+│     - status: "in_progress"                                 │
+│  3. Get test_cases for this scenario                        │
+│  4. Create test_results (status: pending) for each case     │
+│  5. Navigate to /qa/runs/{run.id}/execute                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### ✅ Phase A: Component Integrations (COMPLETE)
+**New state variable:**
+- `startingRun: boolean` — Shows loading spinner on button
 
-1. **ScenarioClaimButton Integration** - Added to ScenarioDetail page
-   - Testers can claim scenarios with "I'm Testing This" button
-   - Shows "Being tested by [Name]" when claimed by another user
-   - Auto-expires claims after 2 hours via database function
-
-2. **RecentlyTestedAlert Integration** - Added to ScenarioDetail page  
-   - Warns when scenario was tested within last 24 hours
-   - Shows pass/fail counts from previous test
-   - Allows user to continue anyway or view results
-
-3. **FailureThread Integration** - Added to Failures page
-   - Collapsible thread showing: Failed → Fixed → Verified timeline
-   - Shows tester, developer, and QA responses with timestamps
-
-4. **Developer Fix Notifications** - Added to Failures page
-   - When developer marks failure as "Fixed", original tester gets notified
-   - Notification links to Failures page for re-verification
-
-### ✅ Phase B: Screenshot Attachments (COMPLETE)
-
-1. **Storage Bucket** - Created `failure-attachments` bucket with RLS policies
-3. **AttachmentUploader Component** - Drag-and-drop image upload (max 5 files, 5MB each)
-4. **AttachmentGallery Component** - Thumbnail display with lightbox in Failures tab
-5. **QuickExecutionTable Integration** - "Add Screenshot" button when marking as failed
-6. **ExecuteTestRun Integration** - Attachments are saved to database when test fails
-
-### ⚠️ Phase C: Scheduled Cleanup (PARTIAL - Requires pg_cron)
-
-The database function `expire_stale_test_activity()` exists but requires pg_cron extension for scheduled execution. This must be enabled manually in Supabase dashboard.
-
-### ✅ Phase D: SLA/Due Date Tracking (COMPLETE)
-
-1. **Database Fields** - Added `due_date` and `sla_status` to test_results
-2. **Auto-Due Date Trigger** - Sets deadline based on scenario priority:
-   - Critical: 24 hours
-   - High: 48 hours  
-   - Medium: 72 hours
-   - Low: 7 days
-3. **SLABadge Component** - Color-coded deadline badge (green/yellow/red)
-4. **Failures Tab Update** - Added "Overdue" filter tab
-
----
-
-## New Components Created
-
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| AttachmentUploader | `src/components/qa/AttachmentUploader.tsx` | Drag-drop image upload |
-| AttachmentGallery | `src/components/qa/AttachmentGallery.tsx` | Image thumbnails + lightbox |
-| SLABadge | `src/components/qa/SLABadge.tsx` | Due date countdown badge |
-
-## Files Modified
-
-| File | Changes |
-|------|---------|
-| `src/pages/qa/ScenarioDetail.tsx` | Added claim button, recently tested alert |
-| `src/pages/qa/Failures.tsx` | Added FailureThread, SLA badges, overdue tab, notifications |
-| `src/components/qa/QuickExecutionTable.tsx` | Added attachment upload support |
-| `src/lib/notifications.ts` | Added `notifyFixedForVerification()` helper |
-| `src/components/qa/index.ts` | Exported new components |
-
-## Database Changes
-
-| Change | Description |
-|--------|-------------|
-| Storage bucket | `failure-attachments` with RLS policies |
-| test_results.due_date | Timestamp for SLA deadline |
-| test_results.sla_status | Status tracking (on_track, at_risk, breached) |
-| set_failure_due_date() | Trigger function for auto-setting due dates |
-
----
-
-## Pain Points Solved
-
-| Problem | Solution |
-|---------|----------|
-| Multiple testers working blindly | ✅ Claim system + "Being tested by" warning |
-| No communication trail | ✅ FailureThread shows full history |
-| No screenshot support | ✅ AttachmentUploader for bug evidence |
-| Stale claims blocking work | ✅ 2-hour auto-expiry function (manual trigger) |
-| Developer accountability | ✅ SLA tracking + overdue tab |
-| No notification when fixed | ✅ In-app notification to tester |
-
----
-
-## Future Enhancements (Not Implemented)
-
-1. **Scheduled Cleanup** - Enable pg_cron for automatic stale claim expiry
-2. **Email Notifications** - Requires external email service (Resend/SendGrid)
-3. **Test Data Management** - Parameterized testing (larger architectural change)
+**Button behavior:**
+- Shows `<Loader2 />` spinner when `startingRun` is true
+- Disabled during run creation to prevent double-clicks
