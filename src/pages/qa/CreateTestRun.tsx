@@ -100,7 +100,12 @@ export default function CreateTestRun() {
     try {
       setCreating(true);
 
-      const name = runName.trim() || `Test Run - ${new Date().toLocaleDateString()}`;
+      // Auto-generate meaningful name from selected scenarios
+      const name = runName.trim() || (
+        selectedScenarios.length === 1 
+          ? selectedScenarios[0].name 
+          : `${selectedScenarios.length} Scenarios - ${new Date().toLocaleDateString()}`
+      );
 
       // Create the test run
       const { data: run, error: runError } = await supabase
