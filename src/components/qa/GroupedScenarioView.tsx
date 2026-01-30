@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle, Clock, Eye } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle, Clock, Eye, Flame, ArrowLeftRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ScenarioTypeBadge, PriorityBadge } from "@/components/qa/badges";
-import type { TestScenario, Feature } from "@/types/qa";
+import type { TestScenario, Feature, ScenarioType } from "@/types/qa";
 
 interface ExtendedScenario extends TestScenario {
   last_tested_at?: string | null;
@@ -26,6 +26,10 @@ interface FeatureGroup {
   failedCount: number;
   passedCount: number;
   untestedCount: number;
+  // Scenario type counts
+  smokeCount: number;
+  intraCount: number;
+  interCount: number;
 }
 
 export function GroupedScenarioView({ scenarios, features }: GroupedScenarioViewProps) {
@@ -62,6 +66,9 @@ export function GroupedScenarioView({ scenarios, features }: GroupedScenarioView
           failedCount: featureScenarios.filter(s => (s.pending_failures || 0) > 0).length,
           passedCount: featureScenarios.filter(s => s.last_tested_at && (s.pending_failures || 0) === 0).length,
           untestedCount: featureScenarios.filter(s => !s.last_tested_at).length,
+          smokeCount: featureScenarios.filter(s => s.scenario_type === 'smoke').length,
+          intraCount: featureScenarios.filter(s => s.scenario_type === 'intra_login').length,
+          interCount: featureScenarios.filter(s => s.scenario_type === 'inter_login').length,
         });
       }
     });
@@ -74,6 +81,9 @@ export function GroupedScenarioView({ scenarios, features }: GroupedScenarioView
         failedCount: unassignedScenarios.filter(s => (s.pending_failures || 0) > 0).length,
         passedCount: unassignedScenarios.filter(s => s.last_tested_at && (s.pending_failures || 0) === 0).length,
         untestedCount: unassignedScenarios.filter(s => !s.last_tested_at).length,
+        smokeCount: unassignedScenarios.filter(s => s.scenario_type === 'smoke').length,
+        intraCount: unassignedScenarios.filter(s => s.scenario_type === 'intra_login').length,
+        interCount: unassignedScenarios.filter(s => s.scenario_type === 'inter_login').length,
       });
     }
 
@@ -133,42 +143,69 @@ export function GroupedScenarioView({ scenarios, features }: GroupedScenarioView
             {/* Feature Header */}
             <button
               onClick={() => toggleFeature(featureId)}
-              className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-start justify-between p-3 sm:p-4 hover:bg-muted/50 transition-colors text-left gap-3"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
                 {isExpanded ? (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                 ) : (
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                 )}
-                <div>
-                  <h3 className="font-semibold text-foreground">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-foreground truncate">
                     {group.feature?.name || "Unassigned Scenarios"}
                   </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {group.scenarios.length} scenario{group.scenarios.length !== 1 ? 's' : ''}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span className="text-xs text-muted-foreground">
+                      {group.scenarios.length} scenario{group.scenarios.length !== 1 ? 's' : ''}
+                    </span>
+                    {/* Scenario Type Breakdown */}
+                    <span className="text-muted-foreground/50 hidden sm:inline">•</span>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs">
+                      {group.smokeCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-orange-600">
+                          <Flame className="h-3 w-3" />
+                          {group.smokeCount}
+                        </span>
+                      )}
+                      {group.intraCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          <Zap className="h-3 w-3" />
+                          {group.intraCount}
+                        </span>
+                      )}
+                      {group.interCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-purple-600">
+                          <ArrowLeftRight className="h-3 w-3" />
+                          {group.interCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               
               {/* Stats Badges */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 {group.failedCount > 0 && (
-                  <Badge variant="destructive" className="gap-1">
+                  <Badge variant="destructive" className="gap-1 text-xs h-6">
                     <AlertTriangle className="h-3 w-3" />
-                    {group.failedCount} failed
+                    <span className="hidden sm:inline">{group.failedCount} failed</span>
+                    <span className="sm:hidden">{group.failedCount}</span>
                   </Badge>
                 )}
                 {group.passedCount > 0 && (
-                  <Badge className="gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                  <Badge className="gap-1 text-xs h-6 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400">
                     <CheckCircle className="h-3 w-3" />
-                    {group.passedCount} passed
+                    <span className="hidden sm:inline">{group.passedCount} passed</span>
+                    <span className="sm:hidden">{group.passedCount}</span>
                   </Badge>
                 )}
                 {group.untestedCount > 0 && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 text-xs h-6">
                     <Clock className="h-3 w-3" />
-                    {group.untestedCount} untested
+                    <span className="hidden sm:inline">{group.untestedCount} untested</span>
+                    <span className="sm:hidden">{group.untestedCount}</span>
                   </Badge>
                 )}
               </div>
@@ -182,48 +219,50 @@ export function GroupedScenarioView({ scenarios, features }: GroupedScenarioView
                     key={scenario.id}
                     to={`/qa/scenarios/${scenario.id}`}
                     className={cn(
-                      "flex items-center justify-between p-3 pl-12 hover:bg-muted/30 transition-colors",
+                      "flex items-center justify-between p-2.5 sm:p-3 pl-8 sm:pl-12 hover:bg-muted/30 transition-colors gap-2",
                       index !== group.scenarios.length - 1 && "border-b border-border/50"
                     )}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-muted-foreground">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                          <span className="text-xs font-mono text-muted-foreground shrink-0">
                             {scenario.scenario_code}
                           </span>
-                          <span className="font-medium text-foreground truncate">
+                          <span className="font-medium text-foreground text-sm truncate">
                             {scenario.name}
                           </span>
                         </div>
                         {scenario.sub_module && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
                             {scenario.sub_module}
                           </p>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2 shrink-0">
-                      <ScenarioTypeBadge type={scenario.scenario_type} size="sm" showIcon={false} />
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      <div className="hidden sm:block">
+                        <ScenarioTypeBadge type={scenario.scenario_type} size="sm" showIcon={false} />
+                      </div>
                       <PriorityBadge priority={scenario.priority} size="sm" />
                       
                       {/* Status Indicator */}
                       {(scenario.pending_failures || 0) > 0 ? (
-                        <Badge variant="destructive" className="text-xs">
-                          {scenario.pending_failures} fail{scenario.pending_failures !== 1 ? 's' : ''}
+                        <Badge variant="destructive" className="text-xs h-5 px-1.5">
+                          {scenario.pending_failures}
                         </Badge>
                       ) : scenario.last_tested_at ? (
-                        <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                          Passed
+                        <Badge className="text-xs h-5 px-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          ✓
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-xs">
-                          Untested
+                        <Badge variant="outline" className="text-xs h-5 px-1.5">
+                          —
                         </Badge>
                       )}
                       
-                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      <Eye className="h-4 w-4 text-muted-foreground hidden sm:block" />
                     </div>
                   </Link>
                 ))}

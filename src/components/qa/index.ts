@@ -9,3 +9,6 @@ export { StaleFailuresAlert } from "./StaleFailuresAlert";
 export { AttachmentUploader } from "./AttachmentUploader";
 export { AttachmentGallery } from "./AttachmentGallery";
 export { SLABadge } from "./SLABadge";
+export { LoginTypeTabs } from "./LoginTypeTabs";
+export { ScenarioTypeTabs } from "./ScenarioTypeTabs";
+export { CompactExecutionHeader } from "./CompactExecutionHeader";
