@@ -1,179 +1,187 @@
 
 
-# Excel Testing Data Import - Implementation Plan
+# Fix Failures Visibility & Display Issues
 
-## What You Asked Me To Do
+## Problems Identified
 
-You want me to:
-1. **Read the Excel data** - Extract the test results (Pass/Fail) and notes from your intern's manual testing
-2. **Map to existing scenarios** - Match each Excel test to the appropriate test case in our smoke testing scenarios
-3. **Add results like a real tester would** - Create test runs and mark results as Pass/Fail with the original notes
-4. **Skip User features** - Not in scope yet
-5. **Set aside Intra-Login tests** - Note them for later implementation
-6. **Create a UI scenario** if needed for color/UI-specific issues
-7. **Ensure failures appear in the Failures view** and developer workflow functions properly
-8. **Provide improvement suggestions** after data is added
+### 1. Failures Page Shows Zero Failures
+**Root Cause**: The RLS policy on `test_results` table is too restrictive.
 
----
+Current policy (from database schema):
+```sql
+-- SELECT policy:
+"Users can view results based on role"
+USING ((auth.uid() = executed_by) OR has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'developer'))
+```
 
-## What I Found in the Excel
+The issue is that **regular QA users (role = 'user')** can only see their own results (`auth.uid() = executed_by`). When failures were imported, they were assigned to the admin user, so other QA testers can't see them.
 
-From the uploaded file, I identified **19 actionable tests** (excluding User feature tests):
+**Solution**: Update RLS policy to allow all authenticated users with project access to VIEW failed test results. The failures belong to the project, not the individual tester.
 
-### Tests to Import (Smoke - 15 tests):
+### 2. Scenario Detail Page Doesn't Show Which Test Cases Failed
+**Current State**: The test cases list shows:
+- Test case code and title
+- Login type badge
+- Number of steps
 
-| # | Excel Test | Status | Issue/Notes | Maps To |
-|---|------------|--------|-------------|---------|
-| 1 | Institutes - Add Institute | FAIL | "Quick add institute quick add is not saving the data in the correct format" | TS-010: Add Institute Wizard |
-| 2 | Institutes - View Institute | PASS | "Displays institute data correctly" | TS-009: TC-053 (View Details action) |
-| 3 | Institutes - Edit Institute | FAIL | "Some fields stuck on Saving state" | TS-009: TC-054 (Edit action) |
-| 4 | Institutes - View modal | PASS | "Shows all data in view mode" | TS-009: TC-053 (View Details action) |
-| 5 | Institutes - Delete | FAIL | "Delete pending infinitely, never completes" | TS-009: (needs new test case or nearest match) |
-| 6 | Curriculum - Add Subject | FAIL | "Only blue color works in color picker" | **UI Scenario** (color picker issue) |
-| 7 | Curriculum - Add Class | PASS | "All working correctly" | TS-004: TC-012 (Add class) |
-| 8 | Curriculum - View Class | PASS | "Displays correctly" | TS-003: (Page Load) |
-| 9 | Curriculum - Edit Class | FAIL | "UI stuck on saving in some cases" | TS-004: TC-018 (Edit class/subject/chapter/topic) |
-| 10 | Curriculum - Delete Class | PASS | "Deletes successfully" | TS-004: (needs test case) |
-| 11 | Curriculum - Add Chapter | FAIL | "Some validation issues" | TS-004: TC-014 (Add single chapter) |
-| 12 | Curriculum - View Chapter | PASS | "Displays correctly" | TS-003: TC-009 (Page loads) |
-| 13 | Curriculum - Edit Chapter | PASS | "Edit works" | TS-004: TC-018 |
-| 14 | Curriculum - Delete Chapter | FAIL | "Delete not working" | TS-004: (needs test case for delete) |
-| 15 | Question Bank - Add Questions | FAIL | "Some question types fail" | TS-020/TS-021: Manual Question Creation |
-| 16 | Question Bank - View Questions | PASS | "View works correctly" | TS-019: TC-169 (Question card displays) |
-| 17 | Question Bank - Edit Questions | FAIL | "Edit fails on some types" | TS-019: TC-174 (Edit button works) |
-| 18 | Question Bank - Delete Questions | FAIL | "Delete not working" | TS-019: TC-175 (Delete button works) |
+**Missing**: No visual indication of which test cases have pending failures.
 
-### Tests Set Aside (Intra-Login - 1 test):
+**Solution**: Add a failure badge next to test cases that have unfixed failures. Query the test_results to get failure status for each test case.
 
-| Excel Test | Reason |
-|------------|--------|
-| Courses - Course Builder | Requires pre-existing Curriculum data (cross-module dependency) |
+### 3. Developer Role Verification
+**Current State**: RLS allows developers to view results, but we need to ensure:
+- Developer can see ALL failures (not just their own)
+- Developer can mark failures as "Fixed"
 
-### Tests Skipped (User Feature - 4 tests):
-
-- Add User, Edit User, View User, Delete User - Not in scope
+The SELECT policy already includes `has_role(auth.uid(), 'developer')`, so developers should see failures. The UPDATE policy also includes developers.
 
 ---
 
-## Implementation Approach
+## Implementation Plan
 
-### Step 1: Create a New Feature & Scenario for UI Issues
+### Step 1: Update RLS Policy on test_results
 
-For the color picker issue, I will create:
-- **New Feature**: "UI & Responsiveness" (if not exists)
-- **New Scenario**: "UI Visual Elements" with a test case for color picker
+Create a new, more permissive SELECT policy for failures:
 
-### Step 2: Create Test Runs for Each Scenario
+```sql
+-- Drop existing SELECT policy
+DROP POLICY IF EXISTS "Users can view results based on role" ON public.test_results;
 
-Instead of one bulk import, I will create individual test runs as a real tester would:
+-- Create new policy that allows:
+-- 1. Users to see their own results
+-- 2. Admins and developers to see all results  
+-- 3. ALL authenticated users to see FAILED results (for visibility)
+CREATE POLICY "Users can view test results"
+ON public.test_results FOR SELECT
+USING (
+  (auth.uid() = executed_by) 
+  OR has_role(auth.uid(), 'admin'::app_role) 
+  OR has_role(auth.uid(), 'developer'::app_role)
+  OR (status = 'fail')  -- All users can see failed results
+);
+```
 
-| Scenario | Test Cases to Mark |
-|----------|-------------------|
-| TS-009: Institutes Listing & Actions | View Details (PASS), Edit (FAIL) |
-| TS-010: Add Institute Wizard | Add Institute (FAIL) |
-| TS-003: Curriculum Page Load | Page loads (PASS) |
-| TS-004: Curriculum CRUD Operations | Add class (PASS), Edit class (FAIL), Add chapter (FAIL) |
-| TS-019: Question Card & Preview | View (PASS), Edit (FAIL), Delete (FAIL) |
-| TS-020/021: Question Creation | Some tests FAIL |
-| NEW UI Scenario | Color picker (FAIL) |
+### Step 2: Update Failures Page to Show "Listed By" Attribution
 
-### Step 3: Add Results with Notes
+In `src/pages/qa/Failures.tsx`, the tester_name is already being fetched and displayed:
+```tsx
+<p className="text-sm text-muted-foreground mt-2">
+  Failed on {failure.executed_at ? new Date(failure.executed_at).toLocaleDateString() : "N/A"}
+  {failure.tester_name && ` by ${failure.tester_name}`}
+</p>
+```
 
-For each test result:
-- **PASS**: Mark as "pass", add note from Excel
-- **FAIL**: Mark as "fail", add the failure reason from Excel as `actual_result` and `notes`
+This already shows "by [Name]" - just need to verify it works after RLS fix.
 
-### Step 4: Verify Failures View
+### Step 3: Add Failure Indicators to Scenario Detail Test Cases
 
-After adding data:
-- Failed tests will appear in the Failures page
-- Developer role can see and mark as "Fixed"
-- SLA deadlines will be set based on scenario priority
+Update `ScenarioDetail.tsx` to:
+1. Load failure status for each test case
+2. Display a red "Failed" badge next to test cases with unfixed failures
+3. Show the failure reason inline or on hover
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ 1  TC-018  Super Admin                           🔴 FAILED     │
+│    Edit class/subject/chapter/topic                            │
+│    2 steps • Expected: Changes saved successfully...           │
+│    ──────────────────────────────────────────────              │
+│    ⚠️ UI stuck on saving in some cases                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Step 4: Verify Developer Role Works
+
+After RLS fix:
+1. Login as developer
+2. Navigate to Failures page
+3. Verify all 8 failures are visible
+4. Test "Mark as Fixed" functionality
 
 ---
 
 ## Files to Modify
 
-| File | Purpose |
-|------|---------|
-| Database | Insert test_runs, test_results records |
-| No code changes needed | Using existing functionality as designed |
+| File | Change |
+|------|--------|
+| Database | Update RLS policy on test_results |
+| `src/pages/qa/ScenarioDetail.tsx` | Add failure status loading and display per test case |
+| `src/pages/qa/Failures.tsx` | Verify "listed by" attribution works (may be already working) |
 
 ---
 
-## Database Operations
+## Database Change
 
-### 1. Check/Create UI Feature (if needed)
 ```sql
--- Check if UI feature exists, create if not
-INSERT INTO features (name, description, login_type, project_id)
-VALUES ('UI & Responsiveness', 'Visual and UI-specific tests', 'super_admin', '11111111-1111-1111-1111-111111111111')
-ON CONFLICT DO NOTHING;
+-- Update RLS policy to allow all authenticated users to view failed results
+DROP POLICY IF EXISTS "Users can view results based on role" ON public.test_results;
+
+CREATE POLICY "Users can view test results"
+ON public.test_results FOR SELECT
+USING (
+  -- Original creators can see their results
+  (auth.uid() = executed_by) 
+  -- Admins see everything
+  OR has_role(auth.uid(), 'admin'::app_role) 
+  -- Developers see everything
+  OR has_role(auth.uid(), 'developer'::app_role)
+  -- All authenticated users can see failed results for visibility
+  OR (status = 'fail')
+);
 ```
 
-### 2. Create UI Scenario with Test Case
-```sql
--- Create scenario for UI tests
--- Create test case for color picker
+---
+
+## UI Changes in ScenarioDetail.tsx
+
+Add state for test case failures:
+```typescript
+const [testCaseFailures, setTestCaseFailures] = useState<Record<string, {
+  hasPendingFailure: boolean;
+  failureReason: string | null;
+}>>({});
 ```
 
-### 3. Create Test Runs and Results
+Load failure data:
+```typescript
+// Load failure status for test cases
+const { data: failures } = await supabase
+  .from("test_results")
+  .select("test_case_id, actual_result, notes")
+  .in("test_case_id", caseIds)
+  .eq("status", "fail")
+  .or("fix_status.is.null,fix_status.eq.unfixed");
+```
 
-For each scenario, I will:
-1. Create a test_run record with the scenario name
-2. For each matching test case, create a test_result record with:
-   - `status`: 'pass' or 'fail'
-   - `notes`: The comment from Excel
-   - `actual_result`: The failure description (for fails)
-   - `executed_by`: Current user
-   - `executed_at`: Current timestamp
+Display in test case card:
+```tsx
+{testCaseFailures[tc.id]?.hasPendingFailure && (
+  <Badge className="bg-red-100 text-red-700">
+    <AlertTriangle className="h-3 w-3 mr-1" />
+    Failed
+  </Badge>
+)}
+```
 
 ---
 
 ## Expected Outcome
 
-After implementation:
+### Before Fix
+- Surya sees 0 failures on Failures page
+- Curriculum scenario shows "2 failures" but no indication which test cases
 
-### Test Runs Page
-- Multiple test runs will appear with scenario names like "Institutes Listing & Actions", "Curriculum CRUD Operations"
-
-### Failures Page
-- Failed tests will appear with the failure reasons from Excel
-- SLA deadlines will be set (Critical: 24h, High: 48h, Medium: 72h, Low: 7 days)
-- Developer can see failures and mark as "Fixed"
-
-### Dashboard
-- Pass/Fail statistics will update
-- Pending failures will show on scenario cards
+### After Fix
+- Surya sees all 8 failures on Failures page
+- Each failure shows "listed by [Name]"
+- Curriculum scenario detail shows failure badges on TC-014 and TC-018
+- Developer role can see failures and mark as Fixed
 
 ---
 
-## Intra-Login Tests (Set Aside for Later)
+## Technical Notes
 
-| Test | Reason | Future Scenario |
-|------|--------|-----------------|
-| Course Builder | Requires Curriculum + Course + Subject selection (cross-module) | Will be part of Intra-Login scenarios |
-
----
-
-## Summary of Data to Add
-
-| Category | Count |
-|----------|-------|
-| Test Results - PASS | 7 |
-| Test Results - FAIL | 8 |
-| Total Results | 15 |
-| New UI Scenario | 1 |
-| Intra-Login (set aside) | 1 |
-| Skipped (User feature) | 4 |
-
----
-
-## After Data Import: Improvement Suggestions
-
-I will observe and note any issues I find during the import process, such as:
-- Test cases that should be split into separate cases
-- Missing test coverage areas
-- UI/UX improvements for the testing workflow
-- Any redundancy in test case definitions
+- The RLS change is additive (allows viewing failed results), not removing existing restrictions
+- Users still can only UPDATE their own results (unless admin/developer)
+- This follows the principle that **failures are project-level concerns**, not personal data
 
