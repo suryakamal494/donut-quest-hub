@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2, History, Info } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, ChevronDown, ChevronUp, Copy, Trash2, History, Info, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -27,6 +29,11 @@ import type { TestScenario, TestCase, TestStep, Feature } from "@/types/qa";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { differenceInHours } from "date-fns";
+
+interface TestCaseFailure {
+  hasPendingFailure: boolean;
+  failureReason: string | null;
+}
 
 interface ClaimInfo {
   user_id: string;
@@ -48,6 +55,7 @@ export default function ScenarioDetail() {
   const [testCases, setTestCases] = useState<(TestCase & { steps: TestStep[] })[]>([]);
   const [feature, setFeature] = useState<Feature | null>(null);
   const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
+  const [testCaseFailures, setTestCaseFailures] = useState<Record<string, TestCaseFailure>>({});
   
   // Collaboration state
   const [currentClaimer, setCurrentClaimer] = useState<ClaimInfo | null>(null);
@@ -191,6 +199,26 @@ export default function ScenarioDetail() {
       );
 
       setTestCases(casesWithSteps as (TestCase & { steps: TestStep[] })[]);
+
+      // Load failure status for test cases
+      if (casesData && casesData.length > 0) {
+        const caseIds = casesData.map(c => c.id);
+        const { data: failures } = await supabase
+          .from("test_results")
+          .select("test_case_id, actual_result, notes")
+          .in("test_case_id", caseIds)
+          .eq("status", "fail")
+          .or("fix_status.is.null,fix_status.eq.unfixed");
+
+        const failureMap: Record<string, TestCaseFailure> = {};
+        failures?.forEach(f => {
+          failureMap[f.test_case_id] = {
+            hasPendingFailure: true,
+            failureReason: f.actual_result || f.notes || null,
+          };
+        });
+        setTestCaseFailures(failureMap);
+      }
 
     } catch (error) {
       console.error("Error loading scenario:", error);
@@ -636,11 +664,37 @@ export default function ScenarioDetail() {
                       {index + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-xs font-mono text-muted-foreground">
                           {tc.case_code}
                         </span>
                         <LoginTypeBadge type={tc.login_type} size="sm" />
+                        {testCaseFailures[tc.id]?.hasPendingFailure && (
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100 cursor-help">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Failed
+                              </Badge>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-destructive">Pending Failure</p>
+                                {testCaseFailures[tc.id]?.failureReason && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {testCaseFailures[tc.id].failureReason}
+                                  </p>
+                                )}
+                                <Link 
+                                  to="/qa/failures" 
+                                  className="text-sm text-primary hover:underline block"
+                                >
+                                  View in Failures →
+                                </Link>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        )}
                       </div>
                       <h3 className="font-medium text-foreground">{tc.title}</h3>
                       <p className="text-sm text-muted-foreground mt-0.5">
