@@ -77,23 +77,42 @@ export function TodayActivityPanel() {
       const userIds = [...new Set(activities.map(a => a.user_id))];
       const scenarioIds = [...new Set(activities.map(a => a.scenario_id))];
 
-      // Fetch user profiles
-      const { data: profiles } = await supabase
+      // Fetch user profiles - using a direct query to ensure we get all profiles
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .in("user_id", userIds);
 
-      const userMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+      }
+
+      // Create map with user_id as key
+      const userMap = new Map<string, string>();
+      if (profiles && profiles.length > 0) {
+        profiles.forEach(p => {
+          if (p.user_id && p.full_name) {
+            userMap.set(p.user_id, p.full_name);
+          }
+        });
+      }
 
       // Fetch scenario info
-      const { data: scenarios } = await supabase
+      const { data: scenarios, error: scenariosError } = await supabase
         .from("test_scenarios")
         .select("id, name, scenario_code")
         .in("id", scenarioIds);
 
-      const scenarioMap = new Map(
-        scenarios?.map(s => [s.id, { name: s.name, code: s.scenario_code }]) || []
-      );
+      if (scenariosError) {
+        console.error("Error fetching scenarios:", scenariosError);
+      }
+
+      const scenarioMap = new Map<string, { name: string; code: string }>();
+      if (scenarios && scenarios.length > 0) {
+        scenarios.forEach(s => {
+          scenarioMap.set(s.id, { name: s.name, code: s.scenario_code });
+        });
+      }
 
       // Group by user
       const groupedByUser = new Map<string, TestActivity[]>();

@@ -5,12 +5,7 @@ import {
   PlayCircle, 
   FileText, 
   TrendingUp, 
-  AlertCircle,
-  ArrowRight,
   Loader2,
-  PieChart,
-  BarChart2,
-  Activity,
   FolderKanban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,8 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ScenarioTypeBadge, StatusBadge } from "@/components/qa/badges";
-import { ScenarioTypeChart, TestRunsChart, PassFailTrendChart } from "@/components/qa/analytics";
+import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
@@ -38,7 +32,6 @@ export default function QADashboard() {
   });
   const [recentScenarios, setRecentScenarios] = useState<TestScenario[]>([]);
   const [recentRuns, setRecentRuns] = useState<TestRun[]>([]);
-  const [allRuns, setAllRuns] = useState<TestRun[]>([]);
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
@@ -106,7 +99,6 @@ export default function QADashboard() {
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
       setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
-      setAllRuns(allRunsData as TestRun[] || []);
       setFailedTests(failedResults as TestResult[]);
       setAllResults(allResultsData as TestResult[] || []);
 
@@ -248,48 +240,6 @@ export default function QADashboard() {
       {/* Today's Testing Activity */}
       <TodayActivityPanel />
 
-      {/* Analytics Charts */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-primary" />
-              Scenarios by Type
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScenarioTypeChart
-              smokeCount={stats.smokeCount}
-              intraLoginCount={stats.intraLoginCount}
-              interLoginCount={stats.interLoginCount}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              Weekly Test Runs
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TestRunsChart runs={allRuns} />
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart2 className="h-4 w-4 text-primary" />
-              Pass/Fail Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PassFailTrendChart results={allResults} />
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-2 gap-6">
