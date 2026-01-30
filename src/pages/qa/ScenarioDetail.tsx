@@ -324,7 +324,7 @@ export default function ScenarioDetail() {
       const { data: run, error: runError } = await supabase
         .from("test_runs")
         .insert({
-          name: `Quick Run - ${scenario.scenario_code}`,
+          name: scenario.name,
           run_type: "manual",
           status: "in_progress",
           executed_by: user.id,
