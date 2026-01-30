@@ -38,30 +38,33 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
   };
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-orange-100/50 sticky top-0 z-40">
-      <div className="flex items-center justify-between h-14 px-4">
+    <header className="bg-background/95 backdrop-blur-md border-b border-border sticky top-0 z-40">
+      <div className="flex items-center justify-between h-14 px-3 sm:px-4">
         {/* Left: Menu + Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {!isMobile && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onMenuToggle}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground h-9 w-9"
             >
               <Menu className="h-5 w-5" />
             </Button>
           )}
           
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">QA</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0">
+              <span className="text-primary-foreground font-bold text-sm">QA</span>
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-semibold text-foreground">QA Testing</h1>
-              <p className="text-xs text-muted-foreground -mt-0.5">DonutAI Platform</p>
+              <h1 className="font-semibold text-foreground text-sm">QA Testing</h1>
+              <p className="text-[10px] text-muted-foreground -mt-0.5">DonutAI Platform</p>
             </div>
           </div>
+          
+          {/* Separator */}
+          <div className="hidden sm:block w-px h-6 bg-border mx-1" />
           
           {/* Project Selector */}
           <ProjectSelector />
@@ -103,7 +106,7 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
               </DropdownMenuItem>

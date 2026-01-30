@@ -393,6 +393,14 @@ export default function ScenarioDetail() {
     });
   };
 
+  const expandAllCases = () => {
+    setExpandedCases(new Set(testCases.map(tc => tc.id)));
+  };
+
+  const collapseAllCases = () => {
+    setExpandedCases(new Set());
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -590,7 +598,29 @@ export default function ScenarioDetail() {
 
       {/* Test Cases */}
       <div>
-        <h2 className="text-lg font-semibold mb-4">Test Cases ({testCases.length})</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Test Cases ({testCases.length})</h2>
+          {testCases.length > 3 && (
+            <div className="flex gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={expandAllCases}
+                disabled={expandedCases.size === testCases.length}
+              >
+                Expand All
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={collapseAllCases}
+                disabled={expandedCases.size === 0}
+              >
+                Collapse All
+              </Button>
+            </div>
+          )}
+        </div>
         <div className="space-y-3">
           {testCases.map((tc, index) => {
             const isExpanded = expandedCases.has(tc.id);

@@ -9,18 +9,13 @@ import {
   SkipForward,
   Loader2,
   Save,
-  Keyboard,
   CheckSquare,
   Square,
   X,
-  Zap,
-  List
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LoginTypeBadge, StatusBadge } from "@/components/qa/badges";
 import { QuickExecutionTable } from "@/components/qa/QuickExecutionTable";
+import { CompactExecutionHeader } from "@/components/qa/CompactExecutionHeader";
 import { FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
 import type { TestRun, TestResult, TestCase, TestStep, TestStatus } from "@/types/qa";
 
@@ -52,8 +48,7 @@ export default function ExecuteTestRun() {
   const [notes, setNotes] = useState("");
   const [actualResult, setActualResult] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
-  const [showKeyboardHint, setShowKeyboardHint] = useState(true);
-  const [quickMode, setQuickMode] = useState(false);
+  const [quickMode, setQuickMode] = useState(true); // Default to quick mode for efficiency
   
   // Bulk selection state
   const [bulkMode, setBulkMode] = useState(false);
@@ -381,86 +376,22 @@ export default function ExecuteTestRun() {
   }
 
   return (
-    <div className="space-y-4 pb-32">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/qa/runs")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-foreground truncate">{run.name}</h1>
-          <p className="text-sm text-muted-foreground">{run.run_code}</p>
-        </div>
-      </div>
-
-      {/* Keyboard Shortcut Hint */}
-      {showKeyboardHint && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-blue-700">
-              <Keyboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Pro tip: Use keyboard shortcuts – </span>
-              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">P</span>
-              <span>Pass</span>
-              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">F</span>
-              <span>Fail</span>
-              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">S</span>
-              <span>Skip</span>
-              <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded">←→</span>
-              <span>Navigate</span>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowKeyboardHint(false)}
-              className="text-blue-700 hover:text-blue-800 h-6 px-2"
-            >
-              ×
-            </Button>
-          </CardContent>
-        </Card>
+    <div className="flex flex-col min-h-screen">
+      {/* Compact Sticky Header */}
+      {run && (
+        <CompactExecutionHeader
+          run={run}
+          completedCount={completedCount}
+          totalCount={results.length}
+          passedCount={passedCount}
+          failedCount={failedCount}
+          pendingCount={results.length - completedCount}
+          quickMode={quickMode}
+          onQuickModeChange={setQuickMode}
+        />
       )}
 
-      {/* Progress */}
-      <Card className="glass">
-        <CardContent className="p-4">
-          <div className="flex justify-between text-sm mb-2">
-            <span>{completedCount} / {results.length} tests</span>
-            <span className="font-medium">{Math.round(progressPercent)}%</span>
-          </div>
-          <Progress value={progressPercent} className="h-2 mb-2" />
-          <div className="flex gap-4 text-sm">
-            <span className="text-emerald-600">✓ {passedCount}</span>
-            <span className="text-red-600">✗ {failedCount}</span>
-            <span className="text-gray-500">○ {results.length - completedCount}</span>
-          </div>
-      </CardContent>
-      </Card>
-
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant={quickMode ? "default" : "outline"}
-          size="sm"
-          onClick={() => setQuickMode(true)}
-          className="gap-2"
-        >
-          <Zap className="h-4 w-4" />
-          Quick Mode
-        </Button>
-        <Button
-          variant={!quickMode ? "default" : "outline"}
-          size="sm"
-          onClick={() => setQuickMode(false)}
-          className="gap-2"
-        >
-          <List className="h-4 w-4" />
-          Detailed Mode
-        </Button>
-        <span className="text-xs text-muted-foreground ml-2">
-          {quickMode ? "Faster execution with inline actions" : "Full step-by-step testing"}
-        </span>
-      </div>
+      <div className="flex-1 p-4 space-y-4 pb-32">
 
       {/* Quick Mode View */}
       {quickMode ? (
@@ -541,8 +472,8 @@ export default function ExecuteTestRun() {
       ) : (
         <>
           {/* Bulk Mode Toggle & Test Navigator */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
           <Button
             variant={bulkMode ? "default" : "outline"}
             size="sm"
@@ -893,6 +824,7 @@ export default function ExecuteTestRun() {
       </div>
         </>
       )}
+      </div>
     </div>
   );
 }
