@@ -1,187 +1,184 @@
+# Supporting Workflow Testing (Intra-Login / Inter-Login Scenarios)
 
+ see below are the 22 detailed workflow test cases that I have created. These are exclusively for the super admin.
 
-# Fix Failures Visibility & Display Issues
+In the interlogin testing okay, interlogin test cases for the superadmin are the below things. Okay make sure that you add this workflow scenarios in a super admin login, not just generally random   
+  
+What You Asked
 
-## Problems Identified
+You explained that **smoke tests** and **workflow tests** are fundamentally different:
 
-### 1. Failures Page Shows Zero Failures
-**Root Cause**: The RLS policy on `test_results` table is too restrictive.
+- **Smoke Tests** (current): Each test case is an independent check. A scenario has multiple test cases, each gets its own Pass/Fail.
+- **Workflow Tests** (intra-login / inter-login): The entire scenario IS one end-to-end workflow. All steps are displayed on a single screen, the tester reads through, executes the workflow, and gives ONE Pass/Fail for the whole thing.
 
-Current policy (from database schema):
-```sql
--- SELECT policy:
-"Users can view results based on role"
-USING ((auth.uid() = executed_by) OR has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'developer'))
+You provided 22 detailed workflow test cases (SA-IL-007 through SA-IL-028) covering Master Data propagation across Courses, Question Bank, Content Library, Exams, and AI Generators.
+
+The platform currently does NOT support this workflow view -- it treats all scenario types the same way (multiple test cases with individual pass/fail). This needs to change.
+
+---
+
+## What Needs to Change
+
+### The Core Difference
+
+```text
+SMOKE TEST (current):
+Scenario "Curriculum CRUD"
+  ├── Test Case 1: Add Class      → [Pass] [Fail]
+  ├── Test Case 2: Edit Class     → [Pass] [Fail]
+  └── Test Case 3: Delete Class   → [Pass] [Fail]
+  (Each test case tested independently)
+
+WORKFLOW TEST (new):
+Scenario "Curriculum chapters available for course mapping"
+  ┌────────────────────────────────────────────────┐
+  │ Precondition: Curriculum with chapters exists   │
+  │                                                │
+  │ Step 1: Create a new course                    │
+  │    ✓ Checkpoint: Course created successfully   │
+  │                                                │
+  │ Step 2: Map chapters from curriculum to course │
+  │    ✓ Checkpoint: All chapters are selectable   │
+  │                                                │
+  │ Step 3: Rename a mapped chapter in curriculum  │
+  │    ✓ Checkpoint: Course shows updated name     │
+  │                                                │
+  │ Expected: Chapters available & name changes    │
+  │           propagate                            │
+  │                                                │
+  │           [Pass Workflow] [Fail Workflow]       │
+  └────────────────────────────────────────────────┘
+  (Everything on ONE screen, ONE verdict)
 ```
-
-The issue is that **regular QA users (role = 'user')** can only see their own results (`auth.uid() = executed_by`). When failures were imported, they were assigned to the admin user, so other QA testers can't see them.
-
-**Solution**: Update RLS policy to allow all authenticated users with project access to VIEW failed test results. The failures belong to the project, not the individual tester.
-
-### 2. Scenario Detail Page Doesn't Show Which Test Cases Failed
-**Current State**: The test cases list shows:
-- Test case code and title
-- Login type badge
-- Number of steps
-
-**Missing**: No visual indication of which test cases have pending failures.
-
-**Solution**: Add a failure badge next to test cases that have unfixed failures. Query the test_results to get failure status for each test case.
-
-### 3. Developer Role Verification
-**Current State**: RLS allows developers to view results, but we need to ensure:
-- Developer can see ALL failures (not just their own)
-- Developer can mark failures as "Fixed"
-
-The SELECT policy already includes `has_role(auth.uid(), 'developer')`, so developers should see failures. The UPDATE policy also includes developers.
 
 ---
 
 ## Implementation Plan
 
-### Step 1: Update RLS Policy on test_results
+### No Database Changes Required
 
-Create a new, more permissive SELECT policy for failures:
+The existing data model already supports this. A workflow scenario will simply have **one test case** with **many steps**. The steps become the workflow steps with checkpoints. The difference is purely in how the UI presents it.
 
-```sql
--- Drop existing SELECT policy
-DROP POLICY IF EXISTS "Users can view results based on role" ON public.test_results;
+---
 
--- Create new policy that allows:
--- 1. Users to see their own results
--- 2. Admins and developers to see all results  
--- 3. ALL authenticated users to see FAILED results (for visibility)
-CREATE POLICY "Users can view test results"
-ON public.test_results FOR SELECT
-USING (
-  (auth.uid() = executed_by) 
-  OR has_role(auth.uid(), 'admin'::app_role) 
-  OR has_role(auth.uid(), 'developer'::app_role)
-  OR (status = 'fail')  -- All users can see failed results
-);
-```
+### Change 1: Create Scenario Form -- Workflow Mode
 
-### Step 2: Update Failures Page to Show "Listed By" Attribution
+**File**: `src/pages/qa/CreateScenario.tsx`
 
-In `src/pages/qa/Failures.tsx`, the tester_name is already being fetched and displayed:
-```tsx
-<p className="text-sm text-muted-foreground mt-2">
-  Failed on {failure.executed_at ? new Date(failure.executed_at).toLocaleDateString() : "N/A"}
-  {failure.tester_name && ` by ${failure.tester_name}`}
-</p>
-```
+When the user selects "Intra-Login" or "Inter-Login" as scenario type, Step 3 (Test Cases) transforms into a **Workflow Editor**:
 
-This already shows "by [Name]" - just need to verify it works after RLS fix.
+- Instead of "Add Test Case" buttons, show a single workflow form:
+  - **Precondition** field (text area)
+  - **Workflow Steps** list (each step = action + checkpoint/expected outcome)
+  - **Expected Result** for the whole workflow
+- Behind the scenes, this creates exactly ONE test case with the precondition, steps, and expected result
 
-### Step 3: Add Failure Indicators to Scenario Detail Test Cases
+The Classification and Details steps remain the same.
 
-Update `ScenarioDetail.tsx` to:
-1. Load failure status for each test case
-2. Display a red "Failed" badge next to test cases with unfixed failures
-3. Show the failure reason inline or on hover
+---
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 1  TC-018  Super Admin                           🔴 FAILED     │
-│    Edit class/subject/chapter/topic                            │
-│    2 steps • Expected: Changes saved successfully...           │
-│    ──────────────────────────────────────────────              │
-│    ⚠️ UI stuck on saving in some cases                         │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Change 2: Scenario Detail Page -- Workflow View
 
-### Step 4: Verify Developer Role Works
+**File**: `src/pages/qa/ScenarioDetail.tsx`
 
-After RLS fix:
-1. Login as developer
-2. Navigate to Failures page
-3. Verify all 8 failures are visible
-4. Test "Mark as Fixed" functionality
+When viewing an intra-login or inter-login scenario:
+
+- Instead of showing a list of test case cards, display the workflow as a single readable document:
+  - Precondition box at the top
+  - Numbered workflow steps with checkpoints, all visible at once
+  - Expected result box at the bottom
+- The "Start Test Run" button works the same way
+
+---
+
+### Change 3: Execution Page -- Workflow Execution Mode
+
+**File**: `src/pages/qa/ExecuteTestRun.tsx`
+
+When executing a workflow scenario (detected by checking if the run has exactly 1 test case from an intra/inter-login scenario):
+
+- Show ALL workflow steps on a single scrollable screen
+- Each step has a checkbox to track progress (existing functionality)
+- "Mark All Complete" button at the top
+- At the bottom: notes/actual result fields + single Pass/Fail/Blocked buttons
+- No test case navigation (no left/right arrows, no numbered dots)
+
+---
+
+### Change 4: Quick Execution Table -- Workflow Card
+
+**File**: `src/components/qa/QuickExecutionTable.tsx`
+
+When in quick mode for a workflow run:
+
+- Instead of showing multiple rows (one per test case), show a single workflow card
+- All steps visible within the card
+- Single Pass/Fail action for the entire workflow
+
+---
+
+### Change 5: Review Step in Create Scenario
+
+**File**: `src/pages/qa/CreateScenario.tsx`
+
+The Review step (Step 4) should display differently for workflow scenarios:
+
+- Show "Workflow Steps" instead of "Test Cases"
+- Display precondition, all steps with checkpoints, and expected result in a readable format
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| Database | Update RLS policy on test_results |
-| `src/pages/qa/ScenarioDetail.tsx` | Add failure status loading and display per test case |
-| `src/pages/qa/Failures.tsx` | Verify "listed by" attribution works (may be already working) |
+
+| File                                        | Change                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `src/pages/qa/CreateScenario.tsx`           | Add workflow editor mode for Step 3 when type is intra/inter-login |
+| `src/pages/qa/ScenarioDetail.tsx`           | Add workflow display view for intra/inter-login scenarios          |
+| `src/pages/qa/ExecuteTestRun.tsx`           | Add single-screen workflow execution mode                          |
+| `src/components/qa/QuickExecutionTable.tsx` | Add workflow card view for single-test-case workflow runs          |
+
 
 ---
 
-## Database Change
+## How It Works Behind the Scenes
 
-```sql
--- Update RLS policy to allow all authenticated users to view failed results
-DROP POLICY IF EXISTS "Users can view results based on role" ON public.test_results;
+The data mapping is straightforward:
 
-CREATE POLICY "Users can view test results"
-ON public.test_results FOR SELECT
-USING (
-  -- Original creators can see their results
-  (auth.uid() = executed_by) 
-  -- Admins see everything
-  OR has_role(auth.uid(), 'admin'::app_role) 
-  -- Developers see everything
-  OR has_role(auth.uid(), 'developer'::app_role)
-  -- All authenticated users can see failed results for visibility
-  OR (status = 'fail')
-);
-```
 
----
+| Workflow Concept      | Database Field                                                          |
+| --------------------- | ----------------------------------------------------------------------- |
+| Workflow name         | `test_scenarios.name`                                                   |
+| Workflow precondition | `test_cases.preconditions` (array)                                      |
+| Workflow steps        | `test_steps` (action = step instruction, expected_outcome = checkpoint) |
+| Expected result       | `test_cases.expected_result`                                            |
+| Pass/Fail verdict     | `test_results.status` (single result for the one test case)             |
+| Failure notes         | `test_results.notes` + `test_results.actual_result`                     |
 
-## UI Changes in ScenarioDetail.tsx
 
-Add state for test case failures:
-```typescript
-const [testCaseFailures, setTestCaseFailures] = useState<Record<string, {
-  hasPendingFailure: boolean;
-  failureReason: string | null;
-}>>({});
-```
+This means:
 
-Load failure data:
-```typescript
-// Load failure status for test cases
-const { data: failures } = await supabase
-  .from("test_results")
-  .select("test_case_id, actual_result, notes")
-  .in("test_case_id", caseIds)
-  .eq("status", "fail")
-  .or("fix_status.is.null,fix_status.eq.unfixed");
-```
-
-Display in test case card:
-```tsx
-{testCaseFailures[tc.id]?.hasPendingFailure && (
-  <Badge className="bg-red-100 text-red-700">
-    <AlertTriangle className="h-3 w-3 mr-1" />
-    Failed
-  </Badge>
-)}
-```
+- All existing features work: Failures page, Developer workflow, SLA tracking, Dashboard stats
+- No migration needed
+- Existing smoke test scenarios are completely unaffected
 
 ---
 
-## Expected Outcome
+## About the 22 Workflow Test Cases You Provided
 
-### Before Fix
-- Surya sees 0 failures on Failures page
-- Curriculum scenario shows "2 failures" but no indication which test cases
+After implementing the workflow UI, these will need to be added as intra-login scenarios. Each one (SA-IL-007 through SA-IL-028) becomes:
 
-### After Fix
-- Surya sees all 8 failures on Failures page
-- Each failure shows "listed by [Name]"
-- Curriculum scenario detail shows failure badges on TC-014 and TC-018
-- Developer role can see failures and mark as Fixed
+- 1 scenario (e.g., "Curriculum chapters available for course mapping")
+- 1 test case inside it (with the precondition, steps, and expected result)
+
+That will be a separate task after the UI is built.
 
 ---
 
-## Technical Notes
+## What Will NOT Change
 
-- The RLS change is additive (allows viewing failed results), not removing existing restrictions
-- Users still can only UPDATE their own results (unless admin/developer)
-- This follows the principle that **failures are project-level concerns**, not personal data
-
+- Smoke test creation and execution -- completely untouched
+- Database schema -- no changes needed
+- Failures page, Developer workflow, Dashboard -- all work with both types
+- RLS policies -- no changes needed
+- Test run creation from scenario detail -- same flow
