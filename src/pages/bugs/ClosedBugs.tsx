@@ -39,12 +39,7 @@ export default function ClosedBugs() {
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
-  }, [user, currentProject, page]);
-
-  // Reset page on filter change
-  useEffect(() => {
-    setPage(1);
-  }, [search, severityFilter, bugTypeFilter, loginTypeFilter]);
+  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
