@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Bug, Plus, X } from "lucide-react";
+import { ArrowLeft, Loader2, Bug, Plus, X, ChevronDown, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
@@ -17,7 +18,16 @@ import { LOGIN_TYPE_LABELS } from "@/types/qa";
 import { BUG_TYPE_LABELS, BUG_SEVERITY_LABELS } from "@/types/bugs";
 
 const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none";
+  "flex h-10 w-full rounded-md border border-input bg-background pl-3 pr-9 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none";
+
+function SelectWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {children}
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    </div>
+  );
+}
 
 export default function CreateBug() {
   const navigate = useNavigate();
@@ -30,6 +40,9 @@ export default function CreateBug() {
   const [subModules, setSubModules] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [tempBugId] = useState(() => crypto.randomUUID());
+  const [isOtherFeature, setIsOtherFeature] = useState(false);
+  const [customFeature, setCustomFeature] = useState("");
+  const [scenarioOpen, setScenarioOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -51,6 +64,15 @@ export default function CreateBug() {
   }, [currentProject]);
 
   const handleFeatureChange = (featureId: string) => {
+    if (featureId === "__other__") {
+      setIsOtherFeature(true);
+      setFormData(prev => ({ ...prev, feature_id: "", sub_module: "", scenario_id: "" }));
+      setSubModules([]);
+      setScenarios([]);
+      return;
+    }
+    setIsOtherFeature(false);
+    setCustomFeature("");
     setFormData(prev => ({ ...prev, feature_id: featureId, sub_module: "", scenario_id: "" }));
     if (featureId) {
       const feature = features.find(f => f.id === featureId);
@@ -66,6 +88,8 @@ export default function CreateBug() {
     setFormData(prev => ({ ...prev, login_type: loginType, feature_id: "", sub_module: "", scenario_id: "" }));
     setSubModules([]);
     setScenarios([]);
+    setIsOtherFeature(false);
+    setCustomFeature("");
   };
 
   const filteredFeatures = formData.login_type
@@ -106,6 +130,8 @@ export default function CreateBug() {
 
     setLoading(true);
     try {
+      const subModule = isOtherFeature ? customFeature : formData.sub_module;
+
       const { error } = await supabase.from("bugs").insert({
         bug_code: "TEMP",
         title: formData.title,
@@ -114,7 +140,7 @@ export default function CreateBug() {
         bug_type: formData.bug_type,
         login_type: formData.login_type as LoginType,
         feature_id: formData.feature_id || null,
-        sub_module: formData.sub_module || null,
+        sub_module: subModule || null,
         scenario_id: formData.scenario_id || null,
         steps_to_reproduce: formData.steps_to_reproduce.filter(s => s.trim()),
         expected_behavior: formData.expected_behavior || null,
@@ -160,94 +186,28 @@ export default function CreateBug() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/bugs")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Report Bug</h1>
-          <p className="text-muted-foreground">Document a new issue</p>
+          <p className="text-muted-foreground text-sm">Document a new issue</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Section 1: Classification */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Card 1: Classification + Core Details */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Classification</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Login Type *</Label>
-                <select
-                  className={selectClass}
-                  value={formData.login_type}
-                  onChange={(e) => handleLoginTypeChange(e.target.value)}
-                >
-                  <option value="">Select login type</option>
-                  {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Bug Type *</Label>
-                <select
-                  className={selectClass}
-                  value={formData.bug_type}
-                  onChange={(e) => setFormData(prev => ({ ...prev, bug_type: e.target.value as BugType }))}
-                >
-                  {(Object.entries(BUG_TYPE_LABELS) as [BugType, string][]).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Feature</Label>
-                <select
-                  className={selectClass}
-                  value={formData.feature_id}
-                  onChange={(e) => handleFeatureChange(e.target.value)}
-                >
-                  <option value="">Select feature</option>
-                  {filteredFeatures.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-              {subModules.length > 0 && (
-                <div>
-                  <Label>Sub-module</Label>
-                  <select
-                    className={selectClass}
-                    value={formData.sub_module}
-                    onChange={(e) => setFormData(prev => ({ ...prev, sub_module: e.target.value }))}
-                  >
-                    <option value="">Select sub-module</option>
-                    {subModules.map(sm => (
-                      <option key={sm} value={sm}>{sm}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Section 2: Bug Details */}
-        <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Bug className="h-5 w-5 text-primary" />
-              Bug Details
+              <Bug className="h-4 w-4 text-primary" />
+              Bug Information
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Title - full width */}
             <div>
               <Label htmlFor="title">Title *</Label>
               <Input
@@ -258,21 +218,107 @@ export default function CreateBug() {
               />
             </div>
 
+            {/* Row 1: Login Type + Feature */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Severity *</Label>
-                <select
-                  className={selectClass}
-                  value={formData.severity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, severity: e.target.value as BugSeverity }))}
-                >
-                  {(Object.entries(BUG_SEVERITY_LABELS) as [BugSeverity, string][]).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
+                <Label>Login Type *</Label>
+                <SelectWrapper>
+                  <select
+                    className={selectClass}
+                    value={formData.login_type}
+                    onChange={(e) => handleLoginTypeChange(e.target.value)}
+                  >
+                    <option value="">Select login type</option>
+                    {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </SelectWrapper>
+              </div>
+              <div>
+                <Label>Feature</Label>
+                <SelectWrapper>
+                  <select
+                    className={selectClass}
+                    value={isOtherFeature ? "__other__" : formData.feature_id}
+                    onChange={(e) => handleFeatureChange(e.target.value)}
+                  >
+                    <option value="">Select feature</option>
+                    {filteredFeatures.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                    <option value="__other__">Others</option>
+                  </select>
+                </SelectWrapper>
               </div>
             </div>
 
+            {/* Other feature text input */}
+            {isOtherFeature && (
+              <div>
+                <Label>Custom Feature / Module Name</Label>
+                <Input
+                  value={customFeature}
+                  onChange={(e) => setCustomFeature(e.target.value)}
+                  placeholder="Enter the feature or module name"
+                />
+              </div>
+            )}
+
+            {/* Sub-module (only when a real feature is selected) */}
+            {!isOtherFeature && subModules.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Sub-module</Label>
+                  <SelectWrapper>
+                    <select
+                      className={selectClass}
+                      value={formData.sub_module}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sub_module: e.target.value }))}
+                    >
+                      <option value="">Select sub-module</option>
+                      {subModules.map(sm => (
+                        <option key={sm} value={sm}>{sm}</option>
+                      ))}
+                    </select>
+                  </SelectWrapper>
+                </div>
+              </div>
+            )}
+
+            {/* Row 2: Severity + Bug Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Severity *</Label>
+                <SelectWrapper>
+                  <select
+                    className={selectClass}
+                    value={formData.severity}
+                    onChange={(e) => setFormData(prev => ({ ...prev, severity: e.target.value as BugSeverity }))}
+                  >
+                    {(Object.entries(BUG_SEVERITY_LABELS) as [BugSeverity, string][]).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </SelectWrapper>
+              </div>
+              <div>
+                <Label>Bug Type *</Label>
+                <SelectWrapper>
+                  <select
+                    className={selectClass}
+                    value={formData.bug_type}
+                    onChange={(e) => setFormData(prev => ({ ...prev, bug_type: e.target.value as BugType }))}
+                  >
+                    {(Object.entries(BUG_TYPE_LABELS) as [BugType, string][]).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </SelectWrapper>
+              </div>
+            </div>
+
+            {/* Description */}
             <div>
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -280,10 +326,19 @@ export default function CreateBug() {
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Detailed description of the bug"
-                rows={3}
+                rows={2}
               />
             </div>
+          </CardContent>
+        </Card>
 
+        {/* Card 2: Reproduction, Attachments, Scenario Link */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Reproduction & Evidence</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Steps */}
             <div>
               <Label>Steps to Reproduce</Label>
               <div className="space-y-2">
@@ -308,6 +363,7 @@ export default function CreateBug() {
               </div>
             </div>
 
+            {/* Expected / Actual side by side */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="expected">Expected Behavior</Label>
@@ -331,6 +387,7 @@ export default function CreateBug() {
               </div>
             </div>
 
+            {/* Environment */}
             <div>
               <Label htmlFor="environment">Environment</Label>
               <Input
@@ -340,47 +397,49 @@ export default function CreateBug() {
                 placeholder="e.g., Chrome 120, Windows 11, Production"
               />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Section 3: Attachments */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Screenshots</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {user && (
-              <BugAttachmentUploader
-                bugId={tempBugId}
-                userId={user.id}
-                onUploadComplete={setAttachments}
-              />
+            {/* Attachments */}
+            <div>
+              <Label>Screenshots & Attachments</Label>
+              {user && (
+                <BugAttachmentUploader
+                  bugId={tempBugId}
+                  userId={user.id}
+                  onUploadComplete={setAttachments}
+                />
+              )}
+            </div>
+
+            {/* Collapsible: Link to Test Scenario */}
+            {scenarios.length > 0 && (
+              <Collapsible open={scenarioOpen} onOpenChange={setScenarioOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                    <Link2 className="h-4 w-4" />
+                    Link to Test Scenario
+                    <ChevronDown className={`h-3 w-3 transition-transform ${scenarioOpen ? "rotate-180" : ""}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <SelectWrapper>
+                    <select
+                      className={selectClass}
+                      value={formData.scenario_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, scenario_id: e.target.value }))}
+                    >
+                      <option value="">Select a test scenario</option>
+                      {scenarios.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.scenario_code} — {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </SelectWrapper>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </CardContent>
         </Card>
-
-        {/* Section 4: Link to Test Scenario (Optional) */}
-        {scenarios.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Link to Test Scenario (Optional)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <select
-                className={selectClass}
-                value={formData.scenario_id}
-                onChange={(e) => setFormData(prev => ({ ...prev, scenario_id: e.target.value }))}
-              >
-                <option value="">Select a test scenario</option>
-                {scenarios.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.scenario_code} — {s.name}
-                  </option>
-                ))}
-              </select>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="flex gap-3 justify-end">
           <Button type="button" variant="outline" onClick={() => navigate("/bugs")}>
