@@ -1,31 +1,34 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Bug, Download, Loader2, ChevronDown, ChevronRight, AlertTriangle, Eye } from "lucide-react";
+import { Plus, Bug, Download, Loader2, ChevronDown, ChevronRight, AlertTriangle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
-import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
-import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
+import { SeverityBadge, BugStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
 import { InlineFixAction } from "@/components/bugs/InlineFixAction";
+import { BugCard } from "@/components/bugs/BugCard";
+import { BugFilters } from "@/components/bugs/BugFilters";
+import { BugStatsBar } from "@/components/bugs/BugStatsBar";
 import { exportBugsToCSV } from "@/lib/export-utils";
-import type { Bug as BugType, BugSeverity, BugType as BugTypeEnum } from "@/types/bugs";
-import { BUG_TYPE_LABELS } from "@/types/bugs";
-import type { LoginType, Feature } from "@/types/qa";
-import { LOGIN_TYPE_LABELS } from "@/types/qa";
+import {
+  Pagination, PaginationContent, PaginationItem, PaginationLink,
+  PaginationNext, PaginationPrevious, PaginationEllipsis,
+} from "@/components/ui/pagination";
+import type { Bug as BugType } from "@/types/bugs";
+import type { Feature } from "@/types/qa";
+
+const PAGE_SIZE = 25;
 
 export default function BugList() {
   const { user } = useAuth();
   const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
@@ -34,28 +37,54 @@ export default function BugList() {
   const [assignedFilter, setAssignedFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (user && currentProject) {
       loadBugs();
       loadFeatures();
     }
-  }, [user, currentProject]);
+  }, [user, currentProject, page]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
+
+      let query = supabase
         .from("bugs")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("project_id", currentProject.id)
-        .in("status", ["open", "in_progress"])
-        .order("created_at", { ascending: false });
+        .in("status", ["open", "in_progress"]);
+
+      // Apply server-side filters
+      if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
+      if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
+      if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
+      if (assignedFilter === "mine" && user) query = query.eq("assigned_to", user.id);
+      if (assignedFilter === "unassigned") query = query.is("assigned_to", null);
+
+      // Search filter (ilike on title and bug_code)
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await query
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       const bugsData = (data || []) as BugType[];
       setBugs(bugsData);
+      setTotalCount(count || 0);
 
       // Fetch reporter names
       const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
@@ -85,46 +114,21 @@ export default function BugList() {
     setFeatures((data || []) as Feature[]);
   };
 
-  const matchesSearch = (bug: BugType) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      bug.title.toLowerCase().includes(q) ||
-      bug.bug_code.toLowerCase().includes(q) ||
-      (bug.description || "").toLowerCase().includes(q) ||
-      (bug.sub_module || "").toLowerCase().includes(q) ||
-      (bug.expected_behavior || "").toLowerCase().includes(q) ||
-      (bug.actual_behavior || "").toLowerCase().includes(q) ||
-      (bug.steps_to_reproduce || []).some(s => s.toLowerCase().includes(q))
-    );
-  };
-
-  const filteredBugs = bugs.filter(bug => {
-    return (
-      matchesSearch(bug) &&
-      (severityFilter === "all" || bug.severity === severityFilter) &&
-      (bugTypeFilter === "all" || bug.bug_type === bugTypeFilter) &&
-      (loginTypeFilter === "all" || bug.login_type === loginTypeFilter) &&
-      (assignedFilter === "all" ||
-        (assignedFilter === "mine" && bug.assigned_to === user?.id) ||
-        (assignedFilter === "unassigned" && !bug.assigned_to))
-    );
-  });
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Group by feature when a login type is selected
   const isGrouped = loginTypeFilter !== "all";
   const groupedBugs = useMemo(() => {
     if (!isGrouped) return null;
     const groups: Record<string, { feature: Feature | null; bugs: BugType[] }> = {};
-    
-    // Build feature groups for this login type
+
     const loginFeatures = features.filter(f => f.login_type === loginTypeFilter);
     loginFeatures.forEach(f => {
       groups[f.id] = { feature: f, bugs: [] };
     });
     groups["uncategorized"] = { feature: null, bugs: [] };
 
-    filteredBugs.forEach(bug => {
+    bugs.forEach(bug => {
       if (bug.feature_id && groups[bug.feature_id]) {
         groups[bug.feature_id].bugs.push(bug);
       } else {
@@ -132,7 +136,6 @@ export default function BugList() {
       }
     });
 
-    // Only return groups that have bugs or features with bugs
     return Object.entries(groups)
       .filter(([, g]) => g.bugs.length > 0)
       .sort((a, b) => {
@@ -140,7 +143,7 @@ export default function BugList() {
         if (!b[1].feature) return -1;
         return (a[1].feature.order_index || 0) - (b[1].feature.order_index || 0);
       });
-  }, [filteredBugs, features, isGrouped, loginTypeFilter]);
+  }, [bugs, features, isGrouped, loginTypeFilter]);
 
   const toggleFeature = (id: string) => {
     setExpandedFeatures(prev => {
@@ -151,14 +154,78 @@ export default function BugList() {
     });
   };
 
-  const severityStats = {
-    critical: bugs.filter(b => b.severity === "critical").length,
-    major: bugs.filter(b => b.severity === "major").length,
-    minor: bugs.filter(b => b.severity === "minor").length,
-    trivial: bugs.filter(b => b.severity === "trivial").length,
+  // Login type counts - use a quick count from server for accuracy
+  const [loginCounts, setLoginCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!currentProject) return;
+    const fetchCounts = async () => {
+      const { count: allCount } = await supabase
+        .from("bugs")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", currentProject.id)
+        .in("status", ["open", "in_progress"]);
+      setLoginCounts(prev => ({ ...prev, all: allCount || 0 }));
+    };
+    fetchCounts();
+  }, [currentProject, bugs]);
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getPageNumbers = () => {
+      const pages: (number | "ellipsis")[] = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (page > 3) pages.push("ellipsis");
+        for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+          pages.push(i);
+        }
+        if (page < totalPages - 2) pages.push("ellipsis");
+        pages.push(totalPages);
+      }
+      return pages;
+    };
+
+    return (
+      <Pagination className="mt-6">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className={cn(page === 1 && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+          {getPageNumbers().map((p, i) =>
+            p === "ellipsis" ? (
+              <PaginationItem key={`e-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={p}>
+                <PaginationLink
+                  isActive={page === p}
+                  onClick={() => setPage(p as number)}
+                  className="cursor-pointer"
+                >
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          <PaginationItem>
+            <PaginationNext
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className={cn(page === totalPages && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
   };
 
-  if (loading) {
+  if (loading && page === 1) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -166,48 +233,19 @@ export default function BugList() {
     );
   }
 
-  const BugCard = ({ bug }: { bug: BugType }) => (
-    <div className="flex items-start justify-between gap-3">
-      <Link to={`/bugs/${bug.id}`} className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-          <span className="text-xs font-mono text-muted-foreground">{bug.bug_code}</span>
-          <SeverityBadge severity={bug.severity} size="sm" />
-          {bug.bug_type && <BugTypeBadge bugType={bug.bug_type} size="sm" />}
-        </div>
-        <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
-        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-          {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
-          {bug.sub_module && (
-            <span className="text-xs text-muted-foreground">{bug.sub_module}</span>
-          )}
-          {bug.reported_by && reporterNames[bug.reported_by] && (
-            <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
-          )}
-        </div>
-      </Link>
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <div className="flex items-center gap-1">
-          <BugStatusBadge status={bug.status} size="sm" />
-          <InlineFixAction bug={bug} onFixed={loadBugs} />
-        </div>
-        {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
-          <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />
-        )}
-        <AgeBadge createdAt={bug.created_at} status={bug.status} />
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Bug Tracker</h1>
-          <p className="text-sm text-muted-foreground">{filteredBugs.length} active bugs</p>
+          <p className="text-sm text-muted-foreground">
+            {totalCount} active bug{totalCount !== 1 ? "s" : ""}
+            {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportBugsToCSV(filteredBugs)}>
+          <Button variant="outline" size="sm" onClick={() => exportBugsToCSV(bugs)}>
             <Download className="h-4 w-4 mr-1.5" />
             Export
           </Button>
@@ -220,27 +258,8 @@ export default function BugList() {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="flex flex-wrap gap-2">
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted-foreground font-medium">Total: {bugs.length}</span>
-          {severityStats.critical > 0 && (
-            <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-medium">
-              🔴 {severityStats.critical} Critical
-            </span>
-          )}
-          {severityStats.major > 0 && (
-            <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-xs font-medium">
-              🟠 {severityStats.major} Major
-            </span>
-          )}
-          {severityStats.minor > 0 && (
-            <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-medium">
-              🟡 {severityStats.minor} Minor
-            </span>
-          )}
-        </div>
-      </div>
+      {/* Stats */}
+      <BugStatsBar bugs={bugs} totalCount={totalCount} />
 
       {/* Login Type Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -251,7 +270,6 @@ export default function BugList() {
           { value: "teacher", label: "Teacher" },
           { value: "student", label: "Student" },
         ].map(tab => {
-          const count = tab.value === "all" ? bugs.length : bugs.filter(b => b.login_type === tab.value).length;
           const isActive = loginTypeFilter === tab.value;
           return (
             <button
@@ -268,77 +286,34 @@ export default function BugList() {
               )}
             >
               {tab.label}
-              <span className={cn(
-                "text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
-                isActive
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              )}>
-                {count}
-              </span>
             </button>
           );
         })}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search bugs by title, description, steps, expected/actual behavior..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-sm">
-              <SelectValue placeholder="Severity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Severities</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-              <SelectItem value="major">Major</SelectItem>
-              <SelectItem value="minor">Minor</SelectItem>
-              <SelectItem value="trivial">Trivial</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={bugTypeFilter} onValueChange={setBugTypeFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-sm">
-              <SelectValue placeholder="Bug Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {(Object.entries(BUG_TYPE_LABELS) as [BugTypeEnum, string][]).map(([val, label]) => (
-                <SelectItem key={val} value={val}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-sm">
-              <SelectValue placeholder="Assigned" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Bugs</SelectItem>
-              <SelectItem value="mine">My Bugs</SelectItem>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <BugFilters
+        search={search}
+        onSearchChange={setSearch}
+        severityFilter={severityFilter}
+        onSeverityChange={setSeverityFilter}
+        bugTypeFilter={bugTypeFilter}
+        onBugTypeChange={setBugTypeFilter}
+        assignedFilter={assignedFilter}
+        onAssignedChange={setAssignedFilter}
+        showAssignedFilter
+      />
 
       {/* Bug List */}
-      {filteredBugs.length === 0 ? (
+      {bugs.length === 0 && !loading ? (
         <Card className="glass">
           <CardContent className="py-12 text-center">
             <Bug className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="font-medium text-foreground mb-1">No active bugs found</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {bugs.length === 0 ? "No open bugs" : "Try adjusting your filters"}
+              {totalCount === 0 ? "No open bugs" : "Try adjusting your filters"}
             </p>
-            {bugs.length === 0 && (
+            {totalCount === 0 && (
               <Button asChild size="sm">
                 <Link to="/bugs/create">Report First Bug</Link>
               </Button>
@@ -346,9 +321,7 @@ export default function BugList() {
           </CardContent>
         </Card>
       ) : isGrouped && groupedBugs ? (
-        // Feature-wise grouped view (matching GroupedScenarioView pattern)
         <div className="space-y-2">
-          {/* Expand/Collapse Controls */}
           <div className="flex justify-end gap-2 mb-3">
             <Button variant="ghost" size="sm" onClick={() => {
               setExpandedFeatures(new Set(groupedBugs.map(([id]) => id)));
@@ -367,11 +340,7 @@ export default function BugList() {
             const minorCount = group.bugs.filter(b => b.severity === "minor").length;
 
             return (
-              <div
-                key={groupId}
-                className="border border-border rounded-lg bg-card overflow-hidden"
-              >
-                {/* Feature Header */}
+              <div key={groupId} className="border border-border rounded-lg bg-card overflow-hidden">
                 <button
                   onClick={() => toggleFeature(groupId)}
                   className="w-full flex items-start justify-between p-3 sm:p-4 hover:bg-muted/50 transition-colors text-left gap-3"
@@ -387,12 +356,10 @@ export default function BugList() {
                         {group.feature?.name || "Uncategorized"}
                       </h3>
                       <span className="text-xs text-muted-foreground">
-                        {group.bugs.length} bug{group.bugs.length !== 1 ? 's' : ''}
+                        {group.bugs.length} bug{group.bugs.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                   </div>
-
-                  {/* Severity Badges */}
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                     {critCount > 0 && (
                       <Badge variant="destructive" className="gap-1 text-xs h-6">
@@ -417,7 +384,6 @@ export default function BugList() {
                   </div>
                 </button>
 
-                {/* Bug Rows */}
                 {isExpanded && (
                   <div className="border-t border-border">
                     {group.bugs.map((bug, index) => (
@@ -464,17 +430,24 @@ export default function BugList() {
               </div>
             );
           })}
+
+          {renderPagination()}
         </div>
       ) : (
-        // Flat list view
         <div className="space-y-2">
-          {filteredBugs.map((bug) => (
+          {loading && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+          {!loading && bugs.map((bug) => (
             <Card key={bug.id} className="glass hover:border-primary/30 transition-all">
               <CardContent className="p-3">
-                <BugCard bug={bug} />
+                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} />
               </CardContent>
             </Card>
           ))}
+          {renderPagination()}
         </div>
       )}
     </div>

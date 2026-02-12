@@ -96,22 +96,23 @@ export default function Failures() {
     try {
       setLoading(true);
 
-      // Get all failed test results with test case and scenario info
+      // Get failed test results filtered by project via inner joins
       const { data: resultsData, error } = await supabase
         .from("test_results")
         .select(`
           *,
-          test_case:test_cases(
+          test_case:test_cases!inner(
             *,
-            scenario:test_scenarios(id, name, scenario_code)
+            scenario:test_scenarios!inner(id, name, scenario_code, project_id)
           )
         `)
         .eq("status", "fail")
+        .eq("test_case.scenario.project_id", currentProject.id)
         .order("executed_at", { ascending: false });
 
       if (error) throw error;
 
-      // Get tester names
+      // Get tester/fixer names
       const testerIds = [...new Set(resultsData?.map(r => r.executed_by).filter(Boolean) || [])];
       const fixerIds = [...new Set(resultsData?.map(r => r.fixed_by).filter(Boolean) || [])];
       const allUserIds = [...new Set([...testerIds, ...fixerIds])];
@@ -128,11 +129,7 @@ export default function Failures() {
         });
       }
 
-      // Filter by project - check if the test case's scenario belongs to current project
-      const projectScenarioIds = await getProjectScenarioIds(currentProject.id);
-      
       const failuresWithNames = (resultsData || [])
-        .filter(r => r.test_case?.scenario_id && projectScenarioIds.includes(r.test_case.scenario_id))
         .map(r => ({
           ...r,
           tester_name: r.executed_by ? userProfiles[r.executed_by] : undefined,
@@ -146,14 +143,6 @@ export default function Failures() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getProjectScenarioIds = async (projectId: string): Promise<string[]> => {
-    const { data } = await supabase
-      .from("test_scenarios")
-      .select("id")
-      .eq("project_id", projectId);
-    return data?.map(s => s.id) || [];
   };
 
   const getFilteredFailures = () => {

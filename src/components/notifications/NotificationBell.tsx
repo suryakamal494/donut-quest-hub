@@ -26,8 +26,86 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  // Load unread count on mount
+  useEffect(() => {
+    if (!user) return;
+
+    const loadUnreadCount = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false);
+      setUnreadCount(count || 0);
+    };
+
+    loadUnreadCount();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel("notifications-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newNotif = payload.new as Notification;
+          setNotifications((prev) => [newNotif, ...prev]);
+          if (!newNotif.is_read) {
+            setUnreadCount((prev) => prev + 1);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Notification;
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === updated.id ? updated : n))
+          );
+          // Recalculate unread count
+          setUnreadCount((prev) => {
+            const old = payload.old as Notification;
+            if (!old.is_read && updated.is_read) return Math.max(0, prev - 1);
+            if (old.is_read && !updated.is_read) return prev + 1;
+            return prev;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const deleted = payload.old as Notification;
+          setNotifications((prev) => prev.filter((n) => n.id !== deleted.id));
+          if (!deleted.is_read) {
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (user && open) {
@@ -48,6 +126,7 @@ export function NotificationBell() {
 
       if (error) throw error;
       setNotifications(data || []);
+      setUnreadCount((data || []).filter((n) => !n.is_read).length);
     } catch (error) {
       console.error("Error loading notifications:", error);
     } finally {
@@ -61,9 +140,10 @@ export function NotificationBell() {
         .from("notifications")
         .update({ is_read: true })
         .eq("id", id);
-      setNotifications(prev =>
-        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking as read:", error);
     }
@@ -77,7 +157,8 @@ export function NotificationBell() {
         .update({ is_read: true })
         .eq("user_id", user.id)
         .eq("is_read", false);
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error("Error marking all as read:", error);
     }
@@ -85,8 +166,12 @@ export function NotificationBell() {
 
   const deleteNotification = async (id: string) => {
     try {
+      const notif = notifications.find((n) => n.id === id);
       await supabase.from("notifications").delete().eq("id", id);
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      if (notif && !notif.is_read) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
     } catch (error) {
       console.error("Error deleting notification:", error);
     }
@@ -94,10 +179,14 @@ export function NotificationBell() {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "success": return "bg-emerald-500";
-      case "warning": return "bg-amber-500";
-      case "error": return "bg-red-500";
-      default: return "bg-blue-500";
+      case "success":
+        return "bg-emerald-500";
+      case "warning":
+        return "bg-amber-500";
+      case "error":
+        return "bg-red-500";
+      default:
+        return "bg-blue-500";
     }
   };
 
@@ -122,7 +211,7 @@ export function NotificationBell() {
             </Button>
           )}
         </div>
-        
+
         <ScrollArea className="h-[300px]">
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -143,7 +232,9 @@ export function NotificationBell() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${getTypeColor(notification.type)}`} />
+                    <div
+                      className={`w-2 h-2 rounded-full mt-2 ${getTypeColor(notification.type)}`}
+                    />
                     <div className="flex-1 min-w-0">
                       {notification.link ? (
                         <Link
