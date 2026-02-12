@@ -1,52 +1,112 @@
 
 
-# Display Reporter Name on Bug Cards and Assign Existing Bugs to Akshay
+# Bug Display Issue -- Root Cause Analysis and Fix Plan
 
-## What I Understood
+## Problem Summary
+The database contains **42 bugs** (41 open, 1 resolved). All bugs belong to **super_admin** (30 bugs) and **institute** (12 bugs) login types. Zero bugs exist for "teacher" or "student". Yet the UI is showing bugs under "Teacher / Uncategorized" incorrectly.
 
-1. **Show reporter name on every bug card** -- Each bug in the list should display who reported/created it (e.g., "Reported by: V. Akshay").
-2. **Assign all existing bugs to Akshay** -- All bugs currently in the platform were identified by Akshay (user: "V . Akshay", email: akshay.main263@gmail.com). There are 15 bugs with no reporter (NULL `reported_by`) that were imported via SQL, plus 27 bugs attributed to other admin accounts that should all be reassigned to Akshay.
-3. **Future bugs auto-capture reporter** -- This already works: when a user creates a bug via the form, their user ID is saved as `reported_by`. The missing piece is just displaying the name on the card.
+---
 
-## What Changes
+## Root Cause: Missing Filter Dependencies in useEffect
 
-| Area | Current State | After Change |
-|---|---|---|
-| Bug card (grouped view) | Shows bug code, title, severity, status, age | Adds "Reported by: Name" text below the title |
-| Bug card (flat view) | Shows bug code, title, badges | Adds reporter name |
-| Existing bugs in DB | 15 bugs have NULL reported_by, 27 have other admin IDs | All 42 bugs updated to Akshay's user ID |
-| Data fetching | `select("*")` -- no profile join | Join with profiles table to get reporter name |
+The critical bug is in `BugList.tsx` lines 42-47:
+
+```text
+useEffect(() => {
+  if (user && currentProject) {
+    loadBugs();
+    loadFeatures();
+  }
+}, [user, currentProject, page]);  // <-- MISSING: filter states
+```
+
+The `loadBugs` function builds server-side filters using `loginTypeFilter`, `severityFilter`, `bugTypeFilter`, `search`, and `assignedFilter` -- but **none of these are in the dependency array**. This means:
+
+1. On initial load, all 25 bugs (page 1, no filters) are fetched
+2. When the user clicks "Teacher" tab, `loginTypeFilter` changes to `"teacher"`
+3. The second useEffect resets `page` to 1, but page is already 1, so it's a no-op
+4. `loadBugs()` **never re-fires** -- the same 25 unfiltered bugs remain in state
+5. The client-side grouping logic then tries to group those 25 super_admin/institute bugs under "Teacher" features
+6. Since no bug matches any teacher feature, they all fall into "Uncategorized"
+
+The same bug exists in `ClosedBugs.tsx` (line 40-42).
+
+---
+
+## Secondary Issues Found
+
+1. **BugStatsBar uses page data, not totals**: The stats bar receives only the current page's 25 bugs, so severity counts are inaccurate for the full dataset
+2. **Login type tab counts are incomplete**: The tab count logic only fetches a single "all" count, not per-login-type counts
+3. **Export only exports current page**: The CSV export passes only the current page's bugs, not all bugs
+
+---
 
 ## Implementation Plan
 
-### Step 1: Update All Existing Bugs to Akshay
+### Step 1: Fix filter dependency bug (BugList.tsx)
 
-Run a SQL update to set `reported_by` to Akshay's user ID (`04694c92-745b-49e8-b8b3-2d699a0928f1`) for all existing bugs in the database.
+Add all filter states to the `loadBugs` useEffect dependency array so the query re-fires whenever any filter changes:
 
-### Step 2: Fetch Reporter Name with Bug Query
+```text
+useEffect(() => {
+  if (user && currentProject) {
+    loadBugs();
+    loadFeatures();
+  }
+}, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter]);
+```
 
-Modify the `loadBugs` query in `BugList.tsx` (and `ClosedBugs.tsx`) to join the `profiles` table:
-- Change `select("*")` to `select("*, reporter:profiles!bugs_reported_by_fkey(full_name)")`
-- Since there's no foreign key constraint, use a manual approach: fetch profiles separately and map by `reported_by` ID
+Remove the separate "reset page" useEffect since we can handle page reset inside the filter change handlers instead, avoiding double-renders.
 
-### Step 3: Display Reporter Name on Bug Cards
+### Step 2: Fix filter dependency bug (ClosedBugs.tsx)
 
-- In the **grouped view** (feature accordion rows): Add a small "by Name" text next to the bug code
-- In the **flat view** (BugCard component): Add "Reported by: Name" below the title
-- Style: subtle `text-xs text-muted-foreground` to not clutter the card
+Same fix -- add filter states to the dependency array:
 
-## Technical Details
+```text
+useEffect(() => {
+  if (user && currentProject) loadBugs();
+}, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter]);
+```
 
-### Database Update
-- SQL: `UPDATE bugs SET reported_by = '04694c92-745b-49e8-b8b3-2d699a0928f1'` for all existing bugs
+### Step 3: Fix BugStatsBar to use server-side counts
 
-### Files to Modify
-1. **`src/pages/bugs/BugList.tsx`** -- Fetch profiles for reporters, display name on both grouped rows and flat cards
-2. **`src/pages/bugs/ClosedBugs.tsx`** -- Same reporter name display
+Instead of calculating severity stats from the current page's 25 bugs, fetch aggregate counts from the server so the stats bar is always accurate regardless of pagination:
 
-### Data Flow
-Since `bugs.reported_by` has no foreign key to `profiles`, we will:
-1. Fetch bugs as before
-2. Collect unique `reported_by` IDs
-3. Fetch matching profiles in a second query
-4. Create a lookup map and render names on cards
+- Run a separate lightweight query: `select severity, count(*) from bugs where project_id=X and status in ('open','in_progress') group by severity`
+- Pass these server counts to `BugStatsBar` instead of the page-level `bugs` array
+
+### Step 4: Fix login type tab counts
+
+Fetch per-login-type counts from the server so each tab shows the correct number:
+
+- Query: `select login_type, count(*) from bugs where project_id=X and status in ('open','in_progress') group by login_type`
+- Display counts on each tab badge (e.g., "Super Admin (30)", "Institute (12)", "Teacher (0)")
+
+### Step 5: Verify data integrity
+
+After the fix, verify that:
+- "All" tab shows all 41 open bugs with correct pagination
+- "Super Admin" tab shows ~30 bugs grouped by their correct features
+- "Institute" tab shows ~12 bugs grouped by their correct features
+- "Teacher" and "Student" tabs show 0 bugs with an appropriate empty state
+
+---
+
+## Files to Modify
+
+| File | Change |
+|---|---|
+| `src/pages/bugs/BugList.tsx` | Fix useEffect deps, server-side stats, login tab counts |
+| `src/pages/bugs/ClosedBugs.tsx` | Fix useEffect deps |
+| `src/components/bugs/BugStatsBar.tsx` | Accept server counts instead of page-level bugs |
+
+---
+
+## Expected Outcome
+
+- All 41 open bugs display correctly, grouped by their actual login type and feature
+- Clicking any login type tab immediately fetches the correct filtered data from the server
+- Stats bar shows accurate totals across all pages
+- Teacher and Student tabs correctly show 0 bugs
+- Pagination works correctly with all filters
+
