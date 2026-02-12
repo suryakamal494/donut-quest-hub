@@ -1,0 +1,177 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Search, Bug, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/contexts/ProjectContext";
+import { supabase } from "@/integrations/supabase/client";
+import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge } from "@/components/bugs/BugBadges";
+import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
+import type { Bug as BugType, BugSeverity, BugType as BugTypeEnum } from "@/types/bugs";
+import { BUG_TYPE_LABELS } from "@/types/bugs";
+import type { LoginType } from "@/types/qa";
+import { LOGIN_TYPE_LABELS } from "@/types/qa";
+import { formatDistanceToNow } from "date-fns";
+
+export default function ClosedBugs() {
+  const { user } = useAuth();
+  const { currentProject } = useProject();
+  const [loading, setLoading] = useState(true);
+  const [bugs, setBugs] = useState<BugType[]>([]);
+  const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
+  const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (user && currentProject) loadBugs();
+  }, [user, currentProject]);
+
+  const loadBugs = async () => {
+    if (!currentProject) return;
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("bugs")
+        .select("*")
+        .eq("project_id", currentProject.id)
+        .in("status", ["resolved", "closed", "wont_fix"])
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      setBugs((data || []) as BugType[]);
+    } catch (error) {
+      console.error("Error loading closed bugs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const matchesSearch = (bug: BugType) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      bug.title.toLowerCase().includes(q) ||
+      bug.bug_code.toLowerCase().includes(q) ||
+      (bug.description || "").toLowerCase().includes(q) ||
+      (bug.sub_module || "").toLowerCase().includes(q) ||
+      (bug.expected_behavior || "").toLowerCase().includes(q) ||
+      (bug.actual_behavior || "").toLowerCase().includes(q) ||
+      (bug.steps_to_reproduce || []).some((s) => s.toLowerCase().includes(q))
+    );
+  };
+
+  const filteredBugs = bugs.filter((bug) => {
+    return (
+      matchesSearch(bug) &&
+      (severityFilter === "all" || bug.severity === severityFilter) &&
+      (bugTypeFilter === "all" || bug.bug_type === bugTypeFilter) &&
+      (loginTypeFilter === "all" || bug.login_type === loginTypeFilter)
+    );
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Closed Bugs</h1>
+        <p className="text-muted-foreground">Resolved, closed, and won't fix bugs</p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search closed bugs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Severity" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Severities</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="major">Major</SelectItem>
+              <SelectItem value="minor">Minor</SelectItem>
+              <SelectItem value="trivial">Trivial</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={bugTypeFilter} onValueChange={setBugTypeFilter}>
+            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Bug Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {(Object.entries(BUG_TYPE_LABELS) as [BugTypeEnum, string][]).map(([val, label]) => (
+                <SelectItem key={val} value={val}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={loginTypeFilter} onValueChange={setLoginTypeFilter}>
+            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Login Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Logins</SelectItem>
+              {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
+                <SelectItem key={val} value={val}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* List */}
+      {filteredBugs.length === 0 ? (
+        <Card className="glass">
+          <CardContent className="py-12 text-center">
+            <Bug className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="font-medium text-foreground mb-1">No closed bugs found</h3>
+            <p className="text-sm text-muted-foreground">
+              {bugs.length === 0 ? "No bugs have been resolved yet" : "Try adjusting your filters"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filteredBugs.map((bug) => (
+            <Link key={bug.id} to={`/bugs/${bug.id}`} className="block">
+              <Card className="glass hover:border-primary/30 transition-all opacity-80 hover:opacity-100">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span className="text-xs font-mono text-muted-foreground">{bug.bug_code}</span>
+                        <SeverityBadge severity={bug.severity} size="sm" />
+                        {bug.bug_type && <BugTypeBadge bugType={bug.bug_type} size="sm" />}
+                      </div>
+                      <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <BugStatusBadge status={bug.status} size="sm" />
+                      {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
+                        <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(bug.updated_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

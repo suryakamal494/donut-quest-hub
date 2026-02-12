@@ -46,6 +46,44 @@ export type Database = {
           },
         ]
       }
+      bug_history: {
+        Row: {
+          bug_id: string
+          changed_by: string
+          created_at: string
+          field_changed: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          bug_id: string
+          changed_by: string
+          created_at?: string
+          field_changed: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          bug_id?: string
+          changed_by?: string
+          created_at?: string
+          field_changed?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_history_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bugs: {
         Row: {
           actual_behavior: string | null

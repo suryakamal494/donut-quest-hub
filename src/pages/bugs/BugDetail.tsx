@@ -2,25 +2,14 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
 import { BugFixActions } from "@/components/bugs/BugFixActions";
 import { BugComments } from "@/components/bugs/BugComments";
+import { BugHistoryTimeline } from "@/components/bugs/BugHistoryTimeline";
 import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import type { Bug as BugType, BugStatus } from "@/types/bugs";
@@ -77,22 +67,18 @@ export default function BugDetail() {
         const { data: fData } = await supabase.from("features").select("name").eq("id", bugData.feature_id).maybeSingle();
         setFeatureName(fData?.name || null);
       }
-
       if (bugData?.scenario_id) {
         const { data: sData } = await supabase.from("test_scenarios").select("scenario_code, name").eq("id", bugData.scenario_id).maybeSingle();
         setScenarioInfo(sData || null);
       }
-
       if (bugData?.reported_by) {
         const { data: rData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.reported_by).maybeSingle();
         setReporterName(rData?.full_name || null);
       }
-
       if (bugData?.assigned_to) {
         const { data: aData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.assigned_to).maybeSingle();
         setAssigneeName(aData?.full_name || null);
       }
-
       if (bugData?.verified_by) {
         const { data: vData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.verified_by).maybeSingle();
         setVerifierName(vData?.full_name || null);
@@ -110,7 +96,6 @@ export default function BugDetail() {
       .from("user_roles")
       .select("user_id, role")
       .in("role", ["developer", "admin"]);
-    
     if (roles && roles.length > 0) {
       const userIds = roles.map(r => r.user_id);
       const { data: profiles } = await supabase
@@ -125,18 +110,21 @@ export default function BugDetail() {
     if (!bug || !user) return;
     setUpdating(true);
     try {
+      // Record history
+      await supabase.from("bug_history").insert({
+        bug_id: bug.id,
+        changed_by: user.id,
+        field_changed: "status",
+        old_value: bug.status,
+        new_value: newStatus,
+      });
+
       const updateData: any = { status: newStatus };
-      
       if (newStatus === "resolved") {
         updateData.resolved_at = new Date().toISOString();
         updateData.resolved_by = user.id;
       }
-
-      const { error } = await supabase
-        .from("bugs")
-        .update(updateData)
-        .eq("id", bug.id);
-
+      const { error } = await supabase.from("bugs").update(updateData).eq("id", bug.id);
       if (error) throw error;
       setBug(prev => prev ? { ...prev, ...updateData } : null);
       toast({ title: "Status updated" });
@@ -148,14 +136,18 @@ export default function BugDetail() {
   };
 
   const assignBug = async (userId: string) => {
-    if (!bug) return;
+    if (!bug || !user) return;
     try {
-      const { error } = await supabase
-        .from("bugs")
-        .update({ assigned_to: userId })
-        .eq("id", bug.id);
+      await supabase.from("bug_history").insert({
+        bug_id: bug.id,
+        changed_by: user.id,
+        field_changed: "assigned_to",
+        old_value: bug.assigned_to || null,
+        new_value: userId,
+      });
+
+      const { error } = await supabase.from("bugs").update({ assigned_to: userId }).eq("id", bug.id);
       if (error) throw error;
-      
       const dev = developers.find(d => d.user_id === userId);
       setAssigneeName(dev?.full_name || null);
       setBug(prev => prev ? { ...prev, assigned_to: userId } : null);
@@ -209,18 +201,18 @@ export default function BugDetail() {
     );
   }
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === "admin";
   const fixStatus = bug.fix_status || "unfixed";
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/bugs")}>
+      <div className="flex items-start gap-3 mb-6">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/bugs")} className="shrink-0 mt-0.5">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <span className="text-sm font-mono text-muted-foreground">{bug.bug_code}</span>
             <SeverityBadge severity={bug.severity} size="sm" />
             <BugStatusBadge status={bug.status} size="sm" />
@@ -228,12 +220,12 @@ export default function BugDetail() {
             <FixStatusBadge fixStatus={fixStatus as any} size="sm" />
             <AgeBadge createdAt={bug.created_at} status={bug.status} />
           </div>
-          <h1 className="text-xl font-bold text-foreground">{bug.title}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-foreground">{bug.title}</h1>
         </div>
         {isAdmin && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="icon" className="text-destructive">
+              <Button variant="outline" size="icon" className="text-destructive shrink-0">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </AlertDialogTrigger>
@@ -246,234 +238,60 @@ export default function BugDetail() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                  Delete
-                </AlertDialogAction>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
       </div>
 
-      {/* Classification */}
-      <Card className="glass">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            {bug.login_type && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Login:</span>
-                <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />
-              </div>
-            )}
-            {featureName && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Feature:</span>
-                <span className="text-sm font-medium text-foreground">{featureName}</span>
-              </div>
-            )}
-            {bug.sub_module && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Sub-module:</span>
-                <span className="text-sm text-foreground">{bug.sub_module}</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Fix Workflow Actions — role-specific */}
-      <BugFixActions bug={bug} onUpdate={handleFixUpdate} />
-
-      {/* Fix Status Timeline */}
-      {fixStatus !== "unfixed" && (
-        <Card className="glass">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Fix Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-muted-foreground">Reported by {reporterName || "Unknown"}</span>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}
-                </span>
-              </div>
-              {bug.resolved_at && (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span className="text-muted-foreground">Marked as fixed</span>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
-                  </span>
-                </div>
-              )}
-              {bug.verified_at && (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-muted-foreground">Verified by {verifierName || "Unknown"}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {formatDistanceToNow(new Date(bug.verified_at), { addSuffix: true })}
-                  </span>
-                </div>
-              )}
-              {fixStatus === "reopened" && (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-muted-foreground">Bug reopened — verification failed</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Admin: Status & Assignment controls */}
-      {isAdmin && (
-        <Card className="glass">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-sm text-muted-foreground">Status:</span>
-                <BugStatusBadge status={bug.status} />
-              </div>
-              <Select value={bug.status} onValueChange={(v) => updateStatus(v as BugStatus)} disabled={updating}>
-                <SelectTrigger className="w-full sm:w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                  <SelectItem value="wont_fix">Won't Fix</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Assignment */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-border">
-              <div className="flex items-center gap-2 flex-1">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Assigned to: {assigneeName || "Unassigned"}
-                </span>
-              </div>
-              <Select
-                value={bug.assigned_to || ""}
-                onValueChange={assignBug}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Assign to..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {developers.map(d => (
-                    <SelectItem key={d.user_id} value={d.user_id}>
-                      {d.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Assignment for reporter (non-admin) */}
-      {!isAdmin && user?.id === bug.reported_by && (
-        <Card className="glass">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Assigned to: {assigneeName || "Unassigned"}
-                </span>
-              </div>
-              <Select
-                value={bug.assigned_to || ""}
-                onValueChange={assignBug}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Assign to..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {developers.map(d => (
-                    <SelectItem key={d.user_id} value={d.user_id}>
-                      {d.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Linked Scenario */}
-      {scenarioInfo && bug.scenario_id && (
-        <Card className="glass">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Linked Test Scenario</p>
-                <p className="text-sm font-medium text-foreground">
-                  {scenarioInfo.scenario_code} — {scenarioInfo.name}
-                </p>
-              </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to={`/qa/scenarios/${bug.scenario_id}`}>
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Bug Details */}
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="text-lg">Bug Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+        {/* LEFT — Main content */}
+        <div className="space-y-5 min-w-0">
+          {/* Description */}
           {bug.description && (
             <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
+              <h4 className="text-sm font-medium text-muted-foreground mb-1.5">Description</h4>
               <p className="text-foreground whitespace-pre-wrap">{bug.description}</p>
             </div>
           )}
 
+          {/* Steps */}
           {bug.steps_to_reproduce && bug.steps_to_reproduce.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Steps to Reproduce</h4>
               <ol className="list-decimal list-inside space-y-1">
                 {bug.steps_to_reproduce.map((step, i) => (
-                  <li key={i} className="text-foreground">{step}</li>
+                  <li key={i} className="text-foreground text-sm">{step}</li>
                 ))}
               </ol>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {bug.expected_behavior && (
-              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
-                <h4 className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">Expected Behavior</h4>
-                <p className="text-foreground text-sm">{bug.expected_behavior}</p>
-              </div>
-            )}
-            {bug.actual_behavior && (
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
-                <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">Actual Behavior</h4>
-                <p className="text-foreground text-sm">{bug.actual_behavior}</p>
-              </div>
-            )}
-          </div>
+          {/* Expected vs Actual */}
+          {(bug.expected_behavior || bug.actual_behavior) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {bug.expected_behavior && (
+                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                  <h4 className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">Expected</h4>
+                  <p className="text-foreground text-sm">{bug.expected_behavior}</p>
+                </div>
+              )}
+              {bug.actual_behavior && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
+                  <h4 className="text-xs font-medium text-red-700 dark:text-red-400 mb-1">Actual</h4>
+                  <p className="text-foreground text-sm">{bug.actual_behavior}</p>
+                </div>
+              )}
+            </div>
+          )}
 
+          {/* Environment */}
           {bug.environment && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Environment</h4>
-              <p className="text-foreground">{bug.environment}</p>
+              <p className="text-foreground text-sm">{bug.environment}</p>
             </div>
           )}
 
@@ -482,15 +300,12 @@ export default function BugDetail() {
             <AttachmentGallery attachments={bug.attachments} />
           )}
 
-          {/* Developer response */}
+          {/* Developer fix notes */}
           {bug.developer_response && (
-            <>
-              <Separator />
-              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-                <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Developer Fix Notes</h4>
-                <p className="text-foreground text-sm">{bug.developer_response}</p>
-              </div>
-            </>
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+              <h4 className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Developer Fix Notes</h4>
+              <p className="text-foreground text-sm">{bug.developer_response}</p>
+            </div>
           )}
 
           {/* Resolution notes */}
@@ -501,29 +316,139 @@ export default function BugDetail() {
             </div>
           )}
 
-          <div className="pt-4 border-t border-border flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            {reporterName && (
-              <div className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                Reported by {reporterName}
-              </div>
-            )}
-            {assigneeName && (
-              <div className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                Assigned to {assigneeName}
-              </div>
-            )}
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Separator />
 
-      {/* Activity / Comments */}
-      <BugComments bugId={bug.id} />
+          {/* History Timeline */}
+          <BugHistoryTimeline bugId={bug.id} />
+
+          {/* Comments */}
+          <BugComments bugId={bug.id} />
+        </div>
+
+        {/* RIGHT — Sidebar */}
+        <div className="space-y-4">
+          {/* Status & Fix Actions */}
+          <Card className="glass">
+            <CardContent className="p-4 space-y-4">
+              {/* Status */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Status</p>
+                {isAdmin ? (
+                  <Select value={bug.status} onValueChange={(v) => updateStatus(v as BugStatus)} disabled={updating}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                      <SelectItem value="wont_fix">Won't Fix</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <BugStatusBadge status={bug.status} />
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Fix Actions */}
+              <BugFixActions bug={bug} onUpdate={handleFixUpdate} compact />
+
+              <Separator />
+
+              {/* Assignment */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Assigned To</p>
+                {(isAdmin || user?.id === bug.reported_by) ? (
+                  <Select value={bug.assigned_to || ""} onValueChange={assignBug}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {developers.map(d => (
+                        <SelectItem key={d.user_id} value={d.user_id}>{d.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-foreground">{assigneeName || "Unassigned"}</p>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Classification */}
+              <div className="space-y-2">
+                {bug.login_type && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Login Type</p>
+                    <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />
+                  </div>
+                )}
+                {featureName && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Feature</p>
+                    <p className="text-sm font-medium text-foreground">{featureName}</p>
+                  </div>
+                )}
+                {bug.sub_module && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Sub-module</p>
+                    <p className="text-sm text-foreground">{bug.sub_module}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Scenario */}
+              {scenarioInfo && bug.scenario_id && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Linked Scenario</p>
+                    <Link
+                      to={`/qa/scenarios/${bug.scenario_id}`}
+                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                    >
+                      {scenarioInfo.scenario_code} — {scenarioInfo.name}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                </>
+              )}
+
+              <Separator />
+
+              {/* Meta */}
+              <div className="space-y-1.5 text-xs text-muted-foreground">
+                {reporterName && (
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Reported by {reporterName}
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}
+                </div>
+                {bug.resolved_at && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Resolved {formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
+                  </div>
+                )}
+                {verifierName && bug.verified_at && (
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Verified by {verifierName}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

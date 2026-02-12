@@ -27,7 +27,7 @@ import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
 import Failures from "./pages/qa/Failures";
 
 // Bug Module
-import { BugList, CreateBug, BugDetail } from "./pages/bugs";
+import { BugList, CreateBug, BugDetail, ClosedBugs } from "./pages/bugs";
 
 const queryClient = new QueryClient();
 
@@ -95,6 +95,7 @@ const App = () => (
               }
             >
               <Route index element={<BugList />} />
+              <Route path="closed" element={<ClosedBugs />} />
               <Route path="create" element={<CreateBug />} />
               <Route path=":id" element={<BugDetail />} />
             </Route>
