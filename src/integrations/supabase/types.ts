@@ -55,9 +55,11 @@ export type Database = {
           bug_type: Database["public"]["Enums"]["bug_type"] | null
           created_at: string
           description: string | null
+          developer_response: string | null
           environment: string | null
           expected_behavior: string | null
           feature_id: string | null
+          fix_status: string | null
           id: string
           login_type: Database["public"]["Enums"]["login_type"] | null
           project_id: string | null
@@ -73,6 +75,8 @@ export type Database = {
           test_result_id: string | null
           title: string
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           actual_behavior?: string | null
@@ -82,9 +86,11 @@ export type Database = {
           bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
           description?: string | null
+          developer_response?: string | null
           environment?: string | null
           expected_behavior?: string | null
           feature_id?: string | null
+          fix_status?: string | null
           id?: string
           login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
@@ -100,6 +106,8 @@ export type Database = {
           test_result_id?: string | null
           title: string
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           actual_behavior?: string | null
@@ -109,9 +117,11 @@ export type Database = {
           bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
           description?: string | null
+          developer_response?: string | null
           environment?: string | null
           expected_behavior?: string | null
           feature_id?: string | null
+          fix_status?: string | null
           id?: string
           login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
@@ -127,6 +137,8 @@ export type Database = {
           test_result_id?: string | null
           title?: string
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {

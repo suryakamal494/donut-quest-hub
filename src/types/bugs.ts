@@ -4,6 +4,7 @@ import type { LoginType } from "./qa";
 export type BugSeverity = 'critical' | 'major' | 'minor' | 'trivial';
 export type BugStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'wont_fix';
 export type BugType = 'ui' | 'functional' | 'performance' | 'data' | 'security' | 'other';
+export type BugFixStatus = 'unfixed' | 'fixed' | 'verified' | 'reopened';
 
 export interface Bug {
   id: string;
@@ -31,6 +32,11 @@ export interface Bug {
   project_id: string | null;
   created_at: string;
   updated_at: string;
+  // Fix workflow columns
+  fix_status: BugFixStatus | null;
+  developer_response: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
   // Joined data
   feature?: { id: string; name: string };
   scenario?: { id: string; scenario_code: string; name: string };
@@ -120,4 +126,18 @@ export const BUG_TYPE_COLORS: Record<BugType, string> = {
   data: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   security: 'bg-red-100 text-red-700 border-red-200',
   other: 'bg-gray-100 text-gray-600 border-gray-200',
+};
+
+export const BUG_FIX_STATUS_LABELS: Record<BugFixStatus, string> = {
+  unfixed: 'Unfixed',
+  fixed: 'Fixed',
+  verified: 'Verified',
+  reopened: 'Reopened',
+};
+
+export const BUG_FIX_STATUS_COLORS: Record<BugFixStatus, string> = {
+  unfixed: 'bg-red-100 text-red-700 border-red-200',
+  fixed: 'bg-blue-100 text-blue-700 border-blue-200',
+  verified: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  reopened: 'bg-orange-100 text-orange-700 border-orange-200',
 };

@@ -3,8 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -26,7 +25,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { SeverityBadge, BugStatusBadge, BugTypeBadge } from "@/components/bugs/BugBadges";
+import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
+import { BugFixActions } from "@/components/bugs/BugFixActions";
 import { BugComments } from "@/components/bugs/BugComments";
 import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
@@ -52,8 +52,8 @@ export default function BugDetail() {
   const [scenarioInfo, setScenarioInfo] = useState<{ scenario_code: string; name: string } | null>(null);
   const [reporterName, setReporterName] = useState<string | null>(null);
   const [assigneeName, setAssigneeName] = useState<string | null>(null);
+  const [verifierName, setVerifierName] = useState<string | null>(null);
   const [developers, setDevelopers] = useState<Profile[]>([]);
-  const [resolutionNotes, setResolutionNotes] = useState("");
 
   useEffect(() => {
     if (id) loadBug();
@@ -72,9 +72,6 @@ export default function BugDetail() {
       if (error) throw error;
       const bugData = data as BugType;
       setBug(bugData);
-
-      // Load related data in parallel
-      const promises: Promise<void>[] = [];
 
       if (bugData?.feature_id) {
         const { data: fData } = await supabase.from("features").select("name").eq("id", bugData.feature_id).maybeSingle();
@@ -95,6 +92,11 @@ export default function BugDetail() {
         const { data: aData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.assigned_to).maybeSingle();
         setAssigneeName(aData?.full_name || null);
       }
+
+      if (bugData?.verified_by) {
+        const { data: vData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.verified_by).maybeSingle();
+        setVerifierName(vData?.full_name || null);
+      }
     } catch (error) {
       console.error("Error loading bug:", error);
       toast({ variant: "destructive", title: "Error loading bug" });
@@ -104,7 +106,6 @@ export default function BugDetail() {
   };
 
   const loadDevelopers = async () => {
-    // Get all users with developer or admin role
     const { data: roles } = await supabase
       .from("user_roles")
       .select("user_id, role")
@@ -129,7 +130,6 @@ export default function BugDetail() {
       if (newStatus === "resolved") {
         updateData.resolved_at = new Date().toISOString();
         updateData.resolved_by = user.id;
-        updateData.resolution_notes = resolutionNotes || null;
       }
 
       const { error } = await supabase
@@ -161,7 +161,6 @@ export default function BugDetail() {
       setBug(prev => prev ? { ...prev, assigned_to: userId } : null);
       toast({ title: "Bug assigned" });
 
-      // Send notification to assignee
       await supabase.from("notifications").insert({
         user_id: userId,
         title: "Bug Assigned",
@@ -186,6 +185,10 @@ export default function BugDetail() {
     }
   };
 
+  const handleFixUpdate = (updates: Partial<BugType>) => {
+    setBug(prev => prev ? { ...prev, ...updates } : null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -207,8 +210,7 @@ export default function BugDetail() {
   }
 
   const isAdmin = role === 'admin';
-  const isDeveloper = role === 'developer';
-  const canEdit = user?.id === bug.reported_by || user?.id === bug.assigned_to || isAdmin;
+  const fixStatus = bug.fix_status || "unfixed";
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -223,6 +225,8 @@ export default function BugDetail() {
             <SeverityBadge severity={bug.severity} size="sm" />
             <BugStatusBadge status={bug.status} size="sm" />
             {bug.bug_type && <BugTypeBadge bugType={bug.bug_type} size="sm" />}
+            <FixStatusBadge fixStatus={fixStatus as any} size="sm" />
+            <AgeBadge createdAt={bug.created_at} status={bug.status} />
           </div>
           <h1 className="text-xl font-bold text-foreground">{bug.title}</h1>
         </div>
@@ -277,8 +281,55 @@ export default function BugDetail() {
         </CardContent>
       </Card>
 
-      {/* Status & Assignment */}
-      {canEdit && (
+      {/* Fix Workflow Actions — role-specific */}
+      <BugFixActions bug={bug} onUpdate={handleFixUpdate} />
+
+      {/* Fix Status Timeline */}
+      {fixStatus !== "unfixed" && (
+        <Card className="glass">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Fix Timeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                <span className="text-muted-foreground">Reported by {reporterName || "Unknown"}</span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}
+                </span>
+              </div>
+              {bug.resolved_at && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-muted-foreground">Marked as fixed</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
+                  </span>
+                </div>
+              )}
+              {bug.verified_at && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-muted-foreground">Verified by {verifierName || "Unknown"}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {formatDistanceToNow(new Date(bug.verified_at), { addSuffix: true })}
+                  </span>
+                </div>
+              )}
+              {fixStatus === "reopened" && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-muted-foreground">Bug reopened — verification failed</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin: Status & Assignment controls */}
+      {isAdmin && (
         <Card className="glass">
           <CardContent className="p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -295,57 +346,66 @@ export default function BugDetail() {
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
                   <SelectItem value="closed">Closed</SelectItem>
-                  {isAdmin && <SelectItem value="wont_fix">Won't Fix</SelectItem>}
+                  <SelectItem value="wont_fix">Won't Fix</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Resolution notes (show when resolving) */}
-            {bug.status !== "resolved" && bug.status !== "closed" && (isDeveloper || isAdmin) && (
-              <div>
-                <Label className="text-sm">Resolution Notes (for when resolving)</Label>
-                <Textarea
-                  value={resolutionNotes}
-                  onChange={(e) => setResolutionNotes(e.target.value)}
-                  placeholder="Describe what was fixed..."
-                  rows={2}
-                />
-              </div>
-            )}
-
-            {bug.resolution_notes && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">Resolution Notes</p>
-                <p className="text-sm text-foreground">{bug.resolution_notes}</p>
-              </div>
-            )}
-
             {/* Assignment */}
-            {(isAdmin || user?.id === bug.reported_by) && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-border">
-                <div className="flex items-center gap-2 flex-1">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Assigned to: {assigneeName || "Unassigned"}
-                  </span>
-                </div>
-                <Select
-                  value={bug.assigned_to || ""}
-                  onValueChange={assignBug}
-                >
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Assign to..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {developers.map(d => (
-                      <SelectItem key={d.user_id} value={d.user_id}>
-                        {d.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-border">
+              <div className="flex items-center gap-2 flex-1">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Assigned to: {assigneeName || "Unassigned"}
+                </span>
               </div>
-            )}
+              <Select
+                value={bug.assigned_to || ""}
+                onValueChange={assignBug}
+              >
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Assign to..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {developers.map(d => (
+                    <SelectItem key={d.user_id} value={d.user_id}>
+                      {d.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Assignment for reporter (non-admin) */}
+      {!isAdmin && user?.id === bug.reported_by && (
+        <Card className="glass">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Assigned to: {assigneeName || "Unassigned"}
+                </span>
+              </div>
+              <Select
+                value={bug.assigned_to || ""}
+                onValueChange={assignBug}
+              >
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Assign to..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {developers.map(d => (
+                    <SelectItem key={d.user_id} value={d.user_id}>
+                      {d.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -397,15 +457,15 @@ export default function BugDetail() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {bug.expected_behavior && (
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Expected Behavior</h4>
-                <p className="text-foreground">{bug.expected_behavior}</p>
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                <h4 className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">Expected Behavior</h4>
+                <p className="text-foreground text-sm">{bug.expected_behavior}</p>
               </div>
             )}
             {bug.actual_behavior && (
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Actual Behavior</h4>
-                <p className="text-foreground">{bug.actual_behavior}</p>
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
+                <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">Actual Behavior</h4>
+                <p className="text-foreground text-sm">{bug.actual_behavior}</p>
               </div>
             )}
           </div>
@@ -422,11 +482,36 @@ export default function BugDetail() {
             <AttachmentGallery attachments={bug.attachments} />
           )}
 
+          {/* Developer response */}
+          {bug.developer_response && (
+            <>
+              <Separator />
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Developer Fix Notes</h4>
+                <p className="text-foreground text-sm">{bug.developer_response}</p>
+              </div>
+            </>
+          )}
+
+          {/* Resolution notes */}
+          {bug.resolution_notes && (
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">Resolution Notes</p>
+              <p className="text-sm text-foreground">{bug.resolution_notes}</p>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-border flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {reporterName && (
               <div className="flex items-center gap-1">
                 <User className="h-4 w-4" />
                 Reported by {reporterName}
+              </div>
+            )}
+            {assigneeName && (
+              <div className="flex items-center gap-1">
+                <User className="h-4 w-4" />
+                Assigned to {assigneeName}
               </div>
             )}
             <div className="flex items-center gap-1">
