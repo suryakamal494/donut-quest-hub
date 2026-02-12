@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +15,9 @@ import type { BugSeverity, BugType } from "@/types/bugs";
 import type { Feature, LoginType, TestScenario } from "@/types/qa";
 import { LOGIN_TYPE_LABELS } from "@/types/qa";
 import { BUG_TYPE_LABELS, BUG_SEVERITY_LABELS } from "@/types/bugs";
+
+const selectClass =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none";
 
 export default function CreateBug() {
   const navigate = useNavigate();
@@ -40,7 +36,7 @@ export default function CreateBug() {
     description: "",
     severity: "minor" as BugSeverity,
     bug_type: "functional" as BugType,
-    login_type: "" as string,
+    login_type: "",
     feature_id: "",
     sub_module: "",
     scenario_id: "",
@@ -54,7 +50,6 @@ export default function CreateBug() {
     if (currentProject) loadFeatures();
   }, [currentProject]);
 
-  // Update sub_modules when feature changes
   const handleFeatureChange = (featureId: string) => {
     setFormData(prev => ({ ...prev, feature_id: featureId, sub_module: "", scenario_id: "" }));
     if (featureId) {
@@ -67,7 +62,12 @@ export default function CreateBug() {
     }
   };
 
-  // Filter features by login_type
+  const handleLoginTypeChange = (loginType: string) => {
+    setFormData(prev => ({ ...prev, login_type: loginType, feature_id: "", sub_module: "", scenario_id: "" }));
+    setSubModules([]);
+    setScenarios([]);
+  };
+
   const filteredFeatures = formData.login_type
     ? features.filter(f => f.login_type === formData.login_type)
     : features;
@@ -159,10 +159,6 @@ export default function CreateBug() {
     }));
   };
 
-  const update = (key: string, value: string) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-  };
-
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
@@ -177,7 +173,7 @@ export default function CreateBug() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Classification */}
-        <Card className="glass">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Classification</CardTitle>
           </CardHeader>
@@ -185,51 +181,58 @@ export default function CreateBug() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Login Type *</Label>
-                <Select value={formData.login_type} onValueChange={(v) => update("login_type", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select login type" /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  className={selectClass}
+                  value={formData.login_type}
+                  onChange={(e) => handleLoginTypeChange(e.target.value)}
+                >
+                  <option value="">Select login type</option>
+                  {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label>Bug Type *</Label>
-                <Select value={formData.bug_type} onValueChange={(v) => update("bug_type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(BUG_TYPE_LABELS) as [BugType, string][]).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  className={selectClass}
+                  value={formData.bug_type}
+                  onChange={(e) => setFormData(prev => ({ ...prev, bug_type: e.target.value as BugType }))}
+                >
+                  {(Object.entries(BUG_TYPE_LABELS) as [BugType, string][]).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Feature</Label>
-                <Select value={formData.feature_id} onValueChange={handleFeatureChange}>
-                  <SelectTrigger><SelectValue placeholder="Select feature" /></SelectTrigger>
-                  <SelectContent>
-                    {filteredFeatures.map(f => (
-                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  className={selectClass}
+                  value={formData.feature_id}
+                  onChange={(e) => handleFeatureChange(e.target.value)}
+                >
+                  <option value="">Select feature</option>
+                  {filteredFeatures.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
               </div>
               {subModules.length > 0 && (
                 <div>
                   <Label>Sub-module</Label>
-                  <Select value={formData.sub_module} onValueChange={(v) => update("sub_module", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select sub-module" /></SelectTrigger>
-                    <SelectContent>
-                      {subModules.map(sm => (
-                        <SelectItem key={sm} value={sm}>{sm}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    className={selectClass}
+                    value={formData.sub_module}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sub_module: e.target.value }))}
+                  >
+                    <option value="">Select sub-module</option>
+                    {subModules.map(sm => (
+                      <option key={sm} value={sm}>{sm}</option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>
@@ -237,7 +240,7 @@ export default function CreateBug() {
         </Card>
 
         {/* Section 2: Bug Details */}
-        <Card className="glass">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Bug className="h-5 w-5 text-primary" />
@@ -250,7 +253,7 @@ export default function CreateBug() {
               <Input
                 id="title"
                 value={formData.title}
-                onChange={(e) => update("title", e.target.value)}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="Brief description of the bug"
               />
             </div>
@@ -258,14 +261,15 @@ export default function CreateBug() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Severity *</Label>
-                <Select value={formData.severity} onValueChange={(v) => update("severity", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(BUG_SEVERITY_LABELS) as [BugSeverity, string][]).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  className={selectClass}
+                  value={formData.severity}
+                  onChange={(e) => setFormData(prev => ({ ...prev, severity: e.target.value as BugSeverity }))}
+                >
+                  {(Object.entries(BUG_SEVERITY_LABELS) as [BugSeverity, string][]).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -274,7 +278,7 @@ export default function CreateBug() {
               <Textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => update("description", e.target.value)}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Detailed description of the bug"
                 rows={3}
               />
@@ -310,7 +314,7 @@ export default function CreateBug() {
                 <Textarea
                   id="expected"
                   value={formData.expected_behavior}
-                  onChange={(e) => update("expected_behavior", e.target.value)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expected_behavior: e.target.value }))}
                   placeholder="What should happen?"
                   rows={2}
                 />
@@ -320,7 +324,7 @@ export default function CreateBug() {
                 <Textarea
                   id="actual"
                   value={formData.actual_behavior}
-                  onChange={(e) => update("actual_behavior", e.target.value)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, actual_behavior: e.target.value }))}
                   placeholder="What actually happened?"
                   rows={2}
                 />
@@ -332,7 +336,7 @@ export default function CreateBug() {
               <Input
                 id="environment"
                 value={formData.environment}
-                onChange={(e) => update("environment", e.target.value)}
+                onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value }))}
                 placeholder="e.g., Chrome 120, Windows 11, Production"
               />
             </div>
@@ -340,7 +344,7 @@ export default function CreateBug() {
         </Card>
 
         {/* Section 3: Attachments */}
-        <Card className="glass">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Screenshots</CardTitle>
           </CardHeader>
@@ -357,21 +361,23 @@ export default function CreateBug() {
 
         {/* Section 4: Link to Test Scenario (Optional) */}
         {scenarios.length > 0 && (
-          <Card className="glass">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Link to Test Scenario (Optional)</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={formData.scenario_id} onValueChange={(v) => update("scenario_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Select a test scenario" /></SelectTrigger>
-                <SelectContent>
-                  {scenarios.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.scenario_code} — {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                className={selectClass}
+                value={formData.scenario_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, scenario_id: e.target.value }))}
+              >
+                <option value="">Select a test scenario</option>
+                {scenarios.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.scenario_code} — {s.name}
+                  </option>
+                ))}
+              </select>
             </CardContent>
           </Card>
         )}
