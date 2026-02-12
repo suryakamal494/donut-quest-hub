@@ -14,23 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      bug_comments: {
+        Row: {
+          bug_id: string
+          comment: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          bug_id: string
+          comment: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          bug_id?: string
+          comment?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_comments_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bugs: {
         Row: {
           actual_behavior: string | null
           assigned_to: string | null
           attachments: string[] | null
           bug_code: string
+          bug_type: Database["public"]["Enums"]["bug_type"] | null
           created_at: string
           description: string | null
           environment: string | null
           expected_behavior: string | null
           feature_id: string | null
           id: string
+          login_type: Database["public"]["Enums"]["login_type"] | null
           project_id: string | null
           reported_by: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          scenario_id: string | null
           severity: Database["public"]["Enums"]["bug_severity"]
           status: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce: string[] | null
+          sub_module: string | null
           test_result_id: string | null
           title: string
           updated_at: string
@@ -40,17 +79,24 @@ export type Database = {
           assigned_to?: string | null
           attachments?: string[] | null
           bug_code: string
+          bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
           description?: string | null
           environment?: string | null
           expected_behavior?: string | null
           feature_id?: string | null
           id?: string
+          login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
           reported_by?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scenario_id?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
           status?: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce?: string[] | null
+          sub_module?: string | null
           test_result_id?: string | null
           title: string
           updated_at?: string
@@ -60,17 +106,24 @@ export type Database = {
           assigned_to?: string | null
           attachments?: string[] | null
           bug_code?: string
+          bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
           description?: string | null
           environment?: string | null
           expected_behavior?: string | null
           feature_id?: string | null
           id?: string
+          login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
           reported_by?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scenario_id?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
           status?: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce?: string[] | null
+          sub_module?: string | null
           test_result_id?: string | null
           title?: string
           updated_at?: string
@@ -88,6 +141,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "test_scenarios"
             referencedColumns: ["id"]
           },
           {
@@ -650,6 +710,13 @@ export type Database = {
       approval_status: "pending" | "approved" | "rejected"
       bug_severity: "critical" | "major" | "minor" | "trivial"
       bug_status: "open" | "in_progress" | "resolved" | "closed" | "wont_fix"
+      bug_type:
+        | "ui"
+        | "functional"
+        | "performance"
+        | "data"
+        | "security"
+        | "other"
       login_type: "super_admin" | "institute" | "teacher" | "student"
       priority_level: "critical" | "high" | "medium" | "low"
       run_status: "in_progress" | "completed" | "aborted"
@@ -787,6 +854,14 @@ export const Constants = {
       approval_status: ["pending", "approved", "rejected"],
       bug_severity: ["critical", "major", "minor", "trivial"],
       bug_status: ["open", "in_progress", "resolved", "closed", "wont_fix"],
+      bug_type: [
+        "ui",
+        "functional",
+        "performance",
+        "data",
+        "security",
+        "other",
+      ],
       login_type: ["super_admin", "institute", "teacher", "student"],
       priority_level: ["critical", "high", "medium", "low"],
       run_status: ["in_progress", "completed", "aborted"],
