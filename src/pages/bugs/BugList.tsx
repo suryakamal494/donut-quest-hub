@@ -16,7 +16,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
-import { SeverityBadge, BugStatusBadge, BugTypeBadge } from "@/components/bugs/BugBadges";
+import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import { exportBugsToCSV } from "@/lib/export-utils";
 import type { Bug as BugType, BugSeverity, BugStatus, BugType as BugTypeEnum } from "@/types/bugs";
@@ -274,7 +274,7 @@ export default function BugList() {
             <Link key={bug.id} to={`/bugs/${bug.id}`} className="block">
               <Card className="glass hover:border-primary/30 transition-all">
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
                         <span className="text-xs font-mono text-muted-foreground">{bug.bug_code}</span>
@@ -291,9 +291,10 @@ export default function BugList() {
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <BugStatusBadge status={bug.status} size="sm" />
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(bug.created_at).toLocaleDateString()}
-                      </span>
+                      {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
+                        <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />
+                      )}
+                      <AgeBadge createdAt={bug.created_at} status={bug.status} />
                     </div>
                   </div>
                 </CardContent>
