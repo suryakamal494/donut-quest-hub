@@ -1,136 +1,124 @@
 
 
-# Bug Tracker Enhancement: Role-Based Workflow and Excel Data Import
+# Bug Tracker UI Overhaul and Feature-Wise Display
 
-## Your Pain Points
+## Your Pain Points (What I Understood)
 
-1. **No role distinction** -- Currently, anyone who can edit a bug can change its status to anything. There is no separation between what a QA person does vs. what a Developer does.
-2. **No fix-verify loop** -- When a developer fixes a bug, the QA person who reported it should be notified to re-test. This "Mark as Fixed" then "Verify / Reopen" cycle does not exist today.
-3. **No bug aging visibility** -- You cannot see how long a bug has been sitting unresolved.
-4. **Excel bugs need to be imported** -- The 20+ bugs from the Super Admin testing report need to be added into the platform, mapped to the correct features and sub-modules.
-5. **Admin module redundancy** -- The Bug Tracker is already inside the QA layout sidebar, which is correct. No separate admin-only bug module exists, so this is already fine.
+1. **Bug Detail Page -- Poor space utilization**: The "Mark as Fixed" button is too large, and admin controls (status/assignment) take up 80% of the page, pushing actual bug details below the fold.
+2. **No inline "Mark as Fixed" on bug cards**: Developers must open each bug to act on it -- you want a quick action right on the list card.
+3. **Login type filter is buried in a dropdown**: You want prominent, top-level filter tabs/chips for login types instead of a small dropdown.
+4. **Closed/resolved bugs clutter the main list**: Only active bugs should show on the main page; resolved/closed bugs should be on a separate "Closed Bugs" page.
+5. **Search is weak**: Partial keyword matching on description, steps, expected/actual behavior is missing -- only title and bug code are searched today.
+6. **Feature-wise grouping missing**: When a login type is selected, bugs should display grouped by feature (collapsible accordion), with severity indicators per feature, so developers can focus on their area.
+7. **Reopen history not tracked**: When a bug is reopened, there is no history entry -- you want to see how many times the same bug was reopened.
 
-## What Exists Today
+## What Exists vs. What Changes
 
-- Bug creation form with login type, feature, sub-module, severity, bug type, attachments, steps to reproduce
-- Bug list with filters (severity, status, bug type, login type, assigned)
-- Bug detail page with status dropdown (open/in_progress/resolved/closed/wont_fix), assignment to developers, resolution notes, comment thread
-- Status changes are allowed by reporter, assignee, or admin -- no role-specific restrictions on which statuses are available
-- No fix/verify workflow (unlike the Failures tab which has fix_status, developer_response, SLA tracking)
-
-## What Changes
-
-### 1. Database: Add fix workflow columns to `bugs` table
-
-Add columns to track the developer-fix and QA-verify cycle:
-- `fix_status` (text): "unfixed", "fixed", "verified", "reopened" -- mirrors the test_results pattern
-- `developer_response` (text): Developer's notes when marking as fixed
-- `verified_at` (timestamp): When QA verified the fix
-- `verified_by` (uuid): Who verified
-
-### 2. Role-Based Actions on Bug Detail Page
-
-Replace the current "anyone can change status" dropdown with role-specific action buttons:
-
-**QA / Reporter sees:**
-- Bug info in read-only view with all details, attachments, comments
-- Can add comments
-- When bug is in "fixed" state: sees a "Verify Fix" button and a "Reopen" button
-- After clicking "Verify Fix", bug status moves to "closed" and fix_status to "verified"
-- After clicking "Reopen", fix_status goes to "reopened" and status goes back to "open"
-
-**Developer / Assignee sees:**
-- Bug info in clear read-only view
-- A "Mark as Fixed" button (with a text field for developer response/fix notes)
-- Clicking "Mark as Fixed" sets fix_status to "fixed", status to "resolved", and sends a notification to the reporter
-- Can add comments
-
-**Admin sees:**
-- All actions available (assign, status change, mark fixed, verify, delete)
-
-### 3. Notification Flow
-
-When developer clicks "Mark as Fixed":
-- An in-app notification is sent to the bug reporter: "Bug BUG-XXX has been marked as fixed. Please re-test."
-- The notification links to the bug detail page
-
-When QA clicks "Reopen":
-- A notification is sent to the assigned developer: "Bug BUG-XXX has been reopened after verification failed."
-
-### 4. Bug Aging Display
-
-On the bug list and detail page, show how long the bug has been open:
-- "Open for 3 days" or "Open for 2 weeks"
-- Color-coded: green (less than 3 days), yellow (3-7 days), red (7+ days)
-
-### 5. Enhanced Bug Detail "View" Page
-
-Reorganize the detail page for clarity:
-- Top: Bug code, title, severity/status/type badges, age indicator
-- Classification card: Login type, Feature, Sub-module
-- Description section with full text
-- Steps to Reproduce (numbered list)
-- Expected vs Actual Behavior (side by side)
-- Environment info
-- Attachments gallery
-- Fix Status timeline (Reporter created -> Developer fixed -> QA verified)
-- Role-specific action buttons (at bottom, prominent)
-- Activity/Comments thread
-
-### 6. Import Excel Bugs into the Platform
-
-Map the 20 bugs from the Excel sheet to the existing features database and insert them. The mapping:
-
-| Excel Feature | Database Feature | Sub-module |
+| Area | Current State | After Change |
 |---|---|---|
-| Institutes > All Institutes (5 bugs) | Institutes | View, Edit, Assign Curriculum, Delete, Wizard |
-| Institutes > Tier Management (1 bug) | Tier Management | Feature Toggles |
-| Users > View User (1 bug) | Roles & Access | Team Members |
-| Master Data > Curriculum (4 bugs) | Master Data - Curriculum | View, Create, Edit |
-| Master Data > Courses (1 bug) | Master Data - Courses | Delete |
-| Roles & Access > Team Members (2 bugs) | Roles & Access | Team Members, Add Member |
-| Exams > Previous Year Papers (5 bugs) | Exams | PYP, PYP Wizard |
-| Exams > Grand Tests (2 bugs) | Exams | GT Wizard |
-| Exams > Exam Patterns (1 bug) | Exams | Patterns |
-| Content Library > AI Generator (1 bug) | Content Library | AI Generator |
-| Content Library > Preview (1 bug) | Content Library | Preview |
-| Global UI > Header (1 bug) | UI & Responsiveness | -- |
+| Bug Detail layout | Fix Actions card with large button at top, admin controls in separate card, bug details pushed down | Compact sidebar-style info panel (status, assignee, fix actions as icons) on the right; bug details (description, steps, expected/actual) prominent on the left |
+| Mark as Fixed button | Full-width button in a card | Small icon button with wrench icon; expands inline for fix notes |
+| Bug list -- inline actions | No actions on cards | "Mark as Fixed" icon button on each card (for developers/assignees); clicking it flags bug for QA re-test |
+| Login type filter | Small dropdown among other dropdowns | Horizontal chip/tab bar at the top of the page (All, Super Admin, Institute, Teacher, Student) |
+| Active vs. closed bugs | All bugs on one page | Main page shows only open/in_progress bugs; new "/bugs/closed" route for resolved/closed/wont_fix bugs with a sidebar link |
+| Search | Matches title and bug_code only | Also matches description, steps_to_reproduce, expected_behavior, actual_behavior, sub_module |
+| Feature-wise grouping | Flat list of bug cards | When a login type is selected, bugs are grouped under collapsible feature sections with bug count and critical/major severity indicators |
+| Reopen history | No tracking | New `bug_history` table logs every status/fix_status change with timestamp and user; displayed as a timeline on the detail page |
 
-All bugs will be set to:
-- login_type: super_admin
-- severity: mapped based on impact (critical for white-page crashes, major for broken functionality, minor for UI issues)
-- bug_type: mapped (functional, ui, data as appropriate)
-- status: open
-- reported_by: current logged-in user
-- project_id: current project
+## Implementation Plan
+
+### Step 1: Database -- Bug History Table
+
+Create a `bug_history` table to track every status change (especially reopens):
+- Columns: `id`, `bug_id`, `changed_by`, `field_changed`, `old_value`, `new_value`, `created_at`
+- RLS: viewable by anyone with project access, insertable by authenticated users
+- This enables tracking how many times a bug was reopened and the full lifecycle
+
+### Step 2: Redesign Bug Detail Page Layout
+
+Restructure into a two-column layout (stacked on mobile):
+
+**Left column (main content -- 65%)**:
+- Bug code, title, badges (severity, type, age) at the top
+- Description
+- Steps to Reproduce (numbered)
+- Expected vs Actual Behavior (side by side on desktop, stacked on mobile)
+- Attachments gallery
+- Bug History Timeline (new -- shows all status changes, reopens, fixes)
+- Comments thread
+
+**Right column (sidebar -- 35%)**:
+- Status indicator with compact dropdown (admin only)
+- Fix status with small action icons:
+  - Wrench icon for "Mark as Fixed" (developer)
+  - Checkmark icon for "Verify" (QA)
+  - Rotate icon for "Reopen" (QA)
+- Assigned to (compact)
+- Login type, Feature, Sub-module
+- Linked scenario
+- Reporter info and date
+- Developer fix notes (if any)
+
+On mobile, the sidebar collapses below the title/badges area.
+
+### Step 3: Inline "Mark as Fixed" on Bug List Cards
+
+Add a small wrench icon button on each bug card (visible only to developers/assignees). Clicking it:
+- Opens a small popover for fix notes
+- On confirm: sets fix_status to "fixed", status to "resolved", sends notification to reporter
+- The card visually updates without page reload
+
+### Step 4: Login Type Filter as Top-Level Tabs
+
+Replace the login type dropdown with horizontal chip buttons at the top of the page:
+- "All" | "Super Admin" | "Institute Admin" | "Teacher" | "Student"
+- Active chip is highlighted; selecting a login type filters bugs and enables feature grouping
+
+### Step 5: Feature-Wise Grouped View
+
+When a specific login type is selected (not "All"):
+- Fetch features for that login type from the `features` table
+- Group bugs by `feature_id`
+- Display as collapsible accordion sections:
+  - Feature name + bug count + severity indicators (red dot for critical, orange for major)
+  - Expanding shows the bug cards for that feature
+- Bugs with no feature assigned show under "Uncategorized"
+
+### Step 6: Separate Closed Bugs Page
+
+- New route: `/bugs/closed`
+- New sidebar menu item: "Closed Bugs" under the existing "Bug Tracker" menu
+- The main `/bugs` page filters to show only status in ("open", "in_progress")
+- The `/bugs/closed` page shows status in ("resolved", "closed", "wont_fix") with the same filters and search
+
+### Step 7: Enhanced Search
+
+Expand search to match against:
+- `title`, `bug_code` (existing)
+- `description`, `sub_module`, `expected_behavior`, `actual_behavior` (new)
+- `steps_to_reproduce` array elements (joined as text for matching)
+
+---
 
 ## Technical Details
 
-### Files to Modify
-1. **Database migration** -- Add `fix_status`, `developer_response`, `verified_at`, `verified_by` columns to `bugs` table
-2. **`src/types/bugs.ts`** -- Add fix_status type and constants
-3. **`src/pages/bugs/BugDetail.tsx`** -- Major rewrite for role-based actions, fix/verify workflow, age display, enhanced layout
-4. **`src/pages/bugs/BugList.tsx`** -- Add age column, fix_status filter
-5. **`src/components/bugs/BugBadges.tsx`** -- Add FixStatusBadge and AgeBadge components
+### Database Migration
+- New table `bug_history` with columns: `id` (uuid), `bug_id` (uuid ref bugs), `changed_by` (uuid), `field_changed` (text), `old_value` (text), `new_value` (text), `created_at` (timestamptz)
+- RLS: SELECT for project access, INSERT for authenticated users
 
 ### Files to Create
-6. **`src/components/bugs/BugFixActions.tsx`** -- Role-specific action buttons (Mark as Fixed, Verify, Reopen)
+1. `src/pages/bugs/ClosedBugs.tsx` -- Closed/resolved bugs page
+2. `src/components/bugs/BugHistoryTimeline.tsx` -- Status change history display
+3. `src/components/bugs/InlineFixAction.tsx` -- Popover for inline "Mark as Fixed" on cards
 
-### Data Import
-7. Insert ~20 bugs via database insert tool, mapped to correct feature IDs and sub-modules
+### Files to Modify
+1. `src/pages/bugs/BugDetail.tsx` -- Two-column layout, compact sidebar, history timeline
+2. `src/pages/bugs/BugList.tsx` -- Login type tabs, feature grouping, enhanced search, hide closed bugs, inline fix action
+3. `src/components/bugs/BugFixActions.tsx` -- Compact icon-based actions instead of full-width buttons
+4. `src/components/qa/layout/QASidebar.tsx` -- Add "Closed Bugs" menu item
+5. `src/App.tsx` -- Add `/bugs/closed` route
+6. `src/pages/bugs/index.ts` -- Export ClosedBugs
 
-### Workflow Diagram
-
-```text
-  QA Reports Bug          Developer Sees Bug        QA Re-tests
-  +------------+          +----------------+        +----------------+
-  | status:    |          | Clicks "Mark   |        | Clicks "Verify"|
-  | open       | -------> | as Fixed"      | -----> | or "Reopen"    |
-  | fix_status:|          | fix_status:    |        | fix_status:    |
-  | unfixed    |          | fixed          |        | verified/reopen|
-  +------------+          +----------------+        +----------------+
-       ^                                                   |
-       |                   (if reopened)                    |
-       +---------------------------------------------------+
-```
+### Recording History
+- In `BugFixActions.tsx` and `BugDetail.tsx`, every status/fix_status change will insert a row into `bug_history` before updating the bug
 
