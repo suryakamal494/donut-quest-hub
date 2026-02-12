@@ -12,6 +12,8 @@ interface HistoryEntry {
   new_value: string | null;
   created_at: string;
   profile?: { full_name: string };
+  _resolvedOld?: string | null;
+  _resolvedNew?: string | null;
 }
 
 interface BugHistoryTimelineProps {
@@ -62,24 +64,35 @@ export function BugHistoryTimeline({ bugId }: BugHistoryTimelineProps) {
 
       if (error) throw error;
 
-      const userIds = [...new Set((data || []).map((h: any) => h.changed_by))];
-      let profilesMap: Record<string, { full_name: string }> = {};
+      // Collect all user IDs: changed_by + UUIDs in assigned_to old/new values
+      const entries = data || [];
+      const userIds = new Set<string>();
+      entries.forEach((h: any) => {
+        userIds.add(h.changed_by);
+        if (h.field_changed === "assigned_to") {
+          if (h.old_value && h.old_value.match(/^[0-9a-f-]{36}$/)) userIds.add(h.old_value);
+          if (h.new_value && h.new_value.match(/^[0-9a-f-]{36}$/)) userIds.add(h.new_value);
+        }
+      });
 
-      if (userIds.length > 0) {
+      let profilesMap: Record<string, string> = {};
+      if (userIds.size > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", userIds);
+          .in("user_id", [...userIds]);
 
         (profiles || []).forEach((p: any) => {
-          profilesMap[p.user_id] = { full_name: p.full_name };
+          profilesMap[p.user_id] = p.full_name;
         });
       }
 
       setHistory(
-        (data || []).map((h: any) => ({
+        entries.map((h: any) => ({
           ...h,
-          profile: profilesMap[h.changed_by],
+          profile: profilesMap[h.changed_by] ? { full_name: profilesMap[h.changed_by] } : undefined,
+          _resolvedOld: h.field_changed === "assigned_to" && h.old_value ? profilesMap[h.old_value] : null,
+          _resolvedNew: h.field_changed === "assigned_to" && h.new_value ? profilesMap[h.new_value] : null,
         }))
       );
     } catch (error) {
@@ -119,8 +132,8 @@ export function BugHistoryTimeline({ bugId }: BugHistoryTimelineProps) {
           {history.map((entry) => {
             const Icon = fieldIcons[entry.field_changed] || ArrowRight;
             const label = fieldLabels[entry.field_changed] || entry.field_changed;
-            const oldLabel = entry.old_value ? (valueLabels[entry.old_value] || entry.old_value) : "—";
-            const newLabel = entry.new_value ? (valueLabels[entry.new_value] || entry.new_value) : "—";
+            const oldLabel = entry._resolvedOld || (entry.old_value ? (valueLabels[entry.old_value] || entry.old_value) : "—");
+            const newLabel = entry._resolvedNew || (entry.new_value ? (valueLabels[entry.new_value] || entry.new_value) : "—");
 
             return (
               <div key={entry.id} className="flex items-start gap-3 relative">

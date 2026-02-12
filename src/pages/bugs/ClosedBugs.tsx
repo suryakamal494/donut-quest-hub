@@ -6,46 +6,75 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge } from "@/components/bugs/BugBadges";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
-import type { Bug as BugType, BugSeverity, BugType as BugTypeEnum } from "@/types/bugs";
+import {
+  Pagination, PaginationContent, PaginationItem, PaginationLink,
+  PaginationNext, PaginationPrevious, PaginationEllipsis,
+} from "@/components/ui/pagination";
+import type { Bug as BugType, BugType as BugTypeEnum } from "@/types/bugs";
 import { BUG_TYPE_LABELS } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 import { LOGIN_TYPE_LABELS } from "@/types/qa";
 import { formatDistanceToNow } from "date-fns";
+
+const PAGE_SIZE = 25;
 
 export default function ClosedBugs() {
   const { user } = useAuth();
   const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
-  }, [user, currentProject]);
+  }, [user, currentProject, page]);
+
+  // Reset page on filter change
+  useEffect(() => {
+    setPage(1);
+  }, [search, severityFilter, bugTypeFilter, loginTypeFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
+
+      let query = supabase
         .from("bugs")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("project_id", currentProject.id)
-        .in("status", ["resolved", "closed", "wont_fix"])
-        .order("updated_at", { ascending: false });
+        .in("status", ["resolved", "closed", "wont_fix"]);
+
+      if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
+      if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
+      if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%`);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await query
+        .order("updated_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       const bugsData = (data || []) as BugType[];
       setBugs(bugsData);
+      setTotalCount(count || 0);
 
       const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
       if (reporterIds.length > 0) {
@@ -64,30 +93,65 @@ export default function ClosedBugs() {
     }
   };
 
-  const matchesSearch = (bug: BugType) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getPageNumbers = () => {
+      const pages: (number | "ellipsis")[] = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (page > 3) pages.push("ellipsis");
+        for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+          pages.push(i);
+        }
+        if (page < totalPages - 2) pages.push("ellipsis");
+        pages.push(totalPages);
+      }
+      return pages;
+    };
+
     return (
-      bug.title.toLowerCase().includes(q) ||
-      bug.bug_code.toLowerCase().includes(q) ||
-      (bug.description || "").toLowerCase().includes(q) ||
-      (bug.sub_module || "").toLowerCase().includes(q) ||
-      (bug.expected_behavior || "").toLowerCase().includes(q) ||
-      (bug.actual_behavior || "").toLowerCase().includes(q) ||
-      (bug.steps_to_reproduce || []).some((s) => s.toLowerCase().includes(q))
+      <Pagination className="mt-6">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className={cn(page === 1 && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+          {getPageNumbers().map((p, i) =>
+            p === "ellipsis" ? (
+              <PaginationItem key={`e-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={p}>
+                <PaginationLink
+                  isActive={page === p}
+                  onClick={() => setPage(p as number)}
+                  className="cursor-pointer"
+                >
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          <PaginationItem>
+            <PaginationNext
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className={cn(page === totalPages && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     );
   };
 
-  const filteredBugs = bugs.filter((bug) => {
-    return (
-      matchesSearch(bug) &&
-      (severityFilter === "all" || bug.severity === severityFilter) &&
-      (bugTypeFilter === "all" || bug.bug_type === bugTypeFilter) &&
-      (loginTypeFilter === "all" || bug.login_type === loginTypeFilter)
-    );
-  });
-
-  if (loading) {
+  if (loading && page === 1) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -99,7 +163,10 @@ export default function ClosedBugs() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Closed Bugs</h1>
-        <p className="text-muted-foreground">Resolved, closed, and won't fix bugs</p>
+        <p className="text-muted-foreground">
+          Resolved, closed, and won't fix bugs
+          {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
+        </p>
       </div>
 
       {/* Filters */}
@@ -141,19 +208,24 @@ export default function ClosedBugs() {
       </div>
 
       {/* List */}
-      {filteredBugs.length === 0 ? (
+      {bugs.length === 0 && !loading ? (
         <Card className="glass">
           <CardContent className="py-12 text-center">
             <Bug className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="font-medium text-foreground mb-1">No closed bugs found</h3>
             <p className="text-sm text-muted-foreground">
-              {bugs.length === 0 ? "No bugs have been resolved yet" : "Try adjusting your filters"}
+              {totalCount === 0 ? "No bugs have been resolved yet" : "Try adjusting your filters"}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredBugs.map((bug) => (
+          {loading && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+          {!loading && bugs.map((bug) => (
             <Link key={bug.id} to={`/bugs/${bug.id}`} className="block">
               <Card className="glass hover:border-primary/30 transition-all opacity-80 hover:opacity-100">
                 <CardContent className="p-4">
@@ -186,6 +258,7 @@ export default function ClosedBugs() {
               </Card>
             </Link>
           ))}
+          {renderPagination()}
         </div>
       )}
     </div>
