@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Bug, Download, Loader2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Plus, Search, Bug, Download, Loader2, ChevronDown, ChevronRight, AlertTriangle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -225,34 +226,42 @@ export default function BugList() {
       </div>
 
       {/* Login Type Tabs */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {[
           { value: "all", label: "All" },
           { value: "super_admin", label: "Super Admin" },
           { value: "institute", label: "Institute" },
           { value: "teacher", label: "Teacher" },
           { value: "student", label: "Student" },
-        ].map(tab => (
-          <button
-            key={tab.value}
-            onClick={() => {
-              setLoginTypeFilter(tab.value);
-              setExpandedFeatures(new Set());
-            }}
-            className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-              loginTypeFilter === tab.value
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background text-muted-foreground border-border hover:border-primary/50"
-            }`}
-          >
-            {tab.label}
-            {tab.value !== "all" && (
-              <span className="ml-1.5 text-xs opacity-75">
-                {bugs.filter(b => b.login_type === tab.value).length}
+        ].map(tab => {
+          const count = tab.value === "all" ? bugs.length : bugs.filter(b => b.login_type === tab.value).length;
+          const isActive = loginTypeFilter === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => {
+                setLoginTypeFilter(tab.value);
+                setExpandedFeatures(new Set());
+              }}
+              className={cn(
+                "px-3.5 py-1.5 text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1.5",
+                isActive
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-card text-foreground border-border hover:border-primary/50"
+              )}
+            >
+              {tab.label}
+              <span className={cn(
+                "text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
+                isActive
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}>
+                {count}
               </span>
-            )}
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -320,56 +329,117 @@ export default function BugList() {
           </CardContent>
         </Card>
       ) : isGrouped && groupedBugs ? (
-        // Feature-wise grouped view
+        // Feature-wise grouped view (matching GroupedScenarioView pattern)
         <div className="space-y-2">
+          {/* Expand/Collapse Controls */}
+          <div className="flex justify-end gap-2 mb-3">
+            <Button variant="ghost" size="sm" onClick={() => {
+              setExpandedFeatures(new Set(groupedBugs.map(([id]) => id)));
+            }}>
+              Expand All
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setExpandedFeatures(new Set())}>
+              Collapse All
+            </Button>
+          </div>
+
           {groupedBugs.map(([groupId, group]) => {
             const isExpanded = expandedFeatures.has(groupId);
             const critCount = group.bugs.filter(b => b.severity === "critical").length;
             const majorCount = group.bugs.filter(b => b.severity === "major").length;
+            const minorCount = group.bugs.filter(b => b.severity === "minor").length;
 
             return (
-              <Collapsible key={groupId} open={isExpanded} onOpenChange={() => toggleFeature(groupId)}>
-                <CollapsibleTrigger asChild>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
+              <div
+                key={groupId}
+                className="border border-border rounded-lg bg-card overflow-hidden"
+              >
+                {/* Feature Header */}
+                <button
+                  onClick={() => toggleFeature(groupId)}
+                  className="w-full flex items-start justify-between p-3 sm:p-4 hover:bg-muted/50 transition-colors text-left gap-3"
+                >
+                  <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
                     {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                     )}
-                    <span className="font-medium text-foreground flex-1">
-                      {group.feature?.name || "Uncategorized"}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {critCount > 0 && (
-                        <span className="flex items-center gap-0.5 text-xs text-red-600">
-                          <AlertTriangle className="h-3 w-3" />
-                          {critCount}
-                        </span>
-                      )}
-                      {majorCount > 0 && (
-                        <span className="flex items-center gap-0.5 text-xs text-orange-600">
-                          <Bug className="h-3 w-3" />
-                          {majorCount}
-                        </span>
-                      )}
-                      <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full">
-                        {group.bugs.length}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-foreground truncate">
+                        {group.feature?.name || "Uncategorized"}
+                      </h3>
+                      <span className="text-xs text-muted-foreground">
+                        {group.bugs.length} bug{group.bugs.length !== 1 ? 's' : ''}
                       </span>
                     </div>
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-2 mt-2 ml-7">
-                    {group.bugs.map(bug => (
-                      <Card key={bug.id} className="glass hover:border-primary/30 transition-all">
-                        <CardContent className="p-3">
-                          <BugCard bug={bug} />
-                        </CardContent>
-                      </Card>
+                  </div>
+
+                  {/* Severity Badges */}
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                    {critCount > 0 && (
+                      <Badge variant="destructive" className="gap-1 text-xs h-6">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="hidden sm:inline">{critCount} critical</span>
+                        <span className="sm:hidden">{critCount}</span>
+                      </Badge>
+                    )}
+                    {majorCount > 0 && (
+                      <Badge className="gap-1 text-xs h-6 bg-orange-100 text-orange-700 hover:bg-orange-100 border-0">
+                        <Bug className="h-3 w-3" />
+                        <span className="hidden sm:inline">{majorCount} major</span>
+                        <span className="sm:hidden">{majorCount}</span>
+                      </Badge>
+                    )}
+                    {minorCount > 0 && (
+                      <Badge className="gap-1 text-xs h-6 bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-0">
+                        <span className="hidden sm:inline">{minorCount} minor</span>
+                        <span className="sm:hidden">{minorCount}</span>
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+
+                {/* Bug Rows */}
+                {isExpanded && (
+                  <div className="border-t border-border">
+                    {group.bugs.map((bug, index) => (
+                      <div
+                        key={bug.id}
+                        className={cn(
+                          "flex items-center justify-between p-2.5 sm:p-3 pl-8 sm:pl-12 hover:bg-muted/30 transition-colors gap-2",
+                          index !== group.bugs.length - 1 && "border-b border-border/50"
+                        )}
+                      >
+                        <Link to={`/bugs/${bug.id}`} className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                              <span className="text-xs font-mono text-muted-foreground shrink-0">
+                                {bug.bug_code}
+                              </span>
+                              <span className="font-medium text-foreground text-sm truncate">
+                                {bug.title}
+                              </span>
+                            </div>
+                            {bug.sub_module && (
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                {bug.sub_module}
+                              </p>
+                            )}
+                          </div>
+                        </Link>
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                          <SeverityBadge severity={bug.severity} size="sm" />
+                          <BugStatusBadge status={bug.status} size="sm" />
+                          <InlineFixAction bug={bug} onFixed={loadBugs} />
+                          <AgeBadge createdAt={bug.created_at} status={bug.status} />
+                          <Eye className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
+                )}
+              </div>
             );
           })}
         </div>
