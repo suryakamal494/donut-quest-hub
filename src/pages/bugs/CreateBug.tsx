@@ -55,18 +55,17 @@ export default function CreateBug() {
   }, [currentProject]);
 
   // Update sub_modules when feature changes
-  useEffect(() => {
-    if (formData.feature_id) {
-      const feature = features.find(f => f.id === formData.feature_id);
+  const handleFeatureChange = (featureId: string) => {
+    setFormData(prev => ({ ...prev, feature_id: featureId, sub_module: "", scenario_id: "" }));
+    if (featureId) {
+      const feature = features.find(f => f.id === featureId);
       setSubModules(feature?.sub_modules || []);
-      // Load scenarios for selected feature
-      loadScenarios(formData.feature_id);
+      loadScenarios(featureId);
     } else {
       setSubModules([]);
       setScenarios([]);
     }
-    setFormData(prev => ({ ...prev, sub_module: "", scenario_id: "" }));
-  }, [formData.feature_id, features]);
+  };
 
   // Filter features by login_type
   const filteredFeatures = formData.login_type
@@ -211,7 +210,7 @@ export default function CreateBug() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Feature</Label>
-                <Select value={formData.feature_id} onValueChange={(v) => update("feature_id", v)}>
+                <Select value={formData.feature_id} onValueChange={handleFeatureChange}>
                   <SelectTrigger><SelectValue placeholder="Select feature" /></SelectTrigger>
                   <SelectContent>
                     {filteredFeatures.map(f => (
