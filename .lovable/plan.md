@@ -1,80 +1,52 @@
 
 
-# Excel Bug Import and Create Bug Form Enhancement
+# Display Reporter Name on Bug Cards and Assign Existing Bugs to Akshay
 
-## What You Told Me
+## What I Understood
 
-1. **Excel bugs need importing** -- Extract bugs from the new Excel sheet, check if each already exists in the platform, link duplicates, and only create truly new ones.
-2. **Create Bug form is too lengthy** -- Optimize the layout so it is more compact without losing functionality.
-3. **Feature dropdown needs an "Others" option** -- For cases where the bug does not belong to any listed feature.
-4. **Dropdowns lack visible down arrows** -- Users cannot tell they are dropdowns. Add a clear chevron/arrow indicator.
+1. **Show reporter name on every bug card** -- Each bug in the list should display who reported/created it (e.g., "Reported by: V. Akshay").
+2. **Assign all existing bugs to Akshay** -- All bugs currently in the platform were identified by Akshay (user: "V . Akshay", email: akshay.main263@gmail.com). There are 15 bugs with no reporter (NULL `reported_by`) that were imported via SQL, plus 27 bugs attributed to other admin accounts that should all be reassigned to Akshay.
+3. **Future bugs auto-capture reporter** -- This already works: when a user creates a bug via the form, their user ID is saved as `reported_by`. The missing piece is just displaying the name on the card.
 
-## Excel Bug Analysis: Existing vs. New
+## What Changes
 
-I compared all 19 FAIL entries from the Excel sheet against the 27 existing super_admin bugs in the database.
+| Area | Current State | After Change |
+|---|---|---|
+| Bug card (grouped view) | Shows bug code, title, severity, status, age | Adds "Reported by: Name" text below the title |
+| Bug card (flat view) | Shows bug code, title, badges | Adds reporter name |
+| Existing bugs in DB | 15 bugs have NULL reported_by, 27 have other admin IDs | All 42 bugs updated to Akshay's user ID |
+| Data fetching | `select("*")` -- no profile join | Join with profiles table to get reporter name |
 
-**16 bugs already exist (will be linked, not duplicated):**
+## Implementation Plan
 
-| Excel Bug | Existing Match |
-|---|---|
-| Tier Management > Add Feature fails | BUG-008 |
-| Users > View User Details not loading | BUG-009 |
-| Curriculum List UI wrapping | BUG-010 |
-| Quick Add Chapter not saved | BUG-012 |
-| Delete Course not working | BUG-014 |
-| Add/Save Member fails | BUG-016 |
-| PYP > View triggers error | BUG-017 |
-| PYP > Edit triggers error | BUG-018 |
-| PYP > Stats blank page | BUG-019 |
-| PYP > Create save JSON error | BUG-020 |
-| PYP > Search not working | BUG-021 |
-| GT > View/Edit triggers error | BUG-022 |
-| GT > Delete shows "undefined" | BUG-023 |
-| Exam Pattern save JSON error | BUG-024 |
-| Content Library Preview actions | BUG-026 |
-| Profile hover state white text | BUG-027 |
+### Step 1: Update All Existing Bugs to Akshay
 
-**3 genuinely new bugs to create:**
+Run a SQL update to set `reported_by` to Akshay's user ID (`04694c92-745b-49e8-b8b3-2d699a0928f1`) for all existing bugs in the database.
 
-| New Bug | Feature | Sub-module | Severity | Type |
-|---|---|---|---|---|
-| Remove Chapter from Course -- chapter not removed | Master Data - Courses | Edit | major | functional |
-| Question Bank Upload PDF -- no questions added | Question Bank | Upload | major | functional |
-| Question Bank Topic dropdown empty after selections | Question Bank | Create | major | functional |
+### Step 2: Fetch Reporter Name with Bug Query
 
-## Create Bug Form Optimization
+Modify the `loadBugs` query in `BugList.tsx` (and `ClosedBugs.tsx`) to join the `profiles` table:
+- Change `select("*")` to `select("*, reporter:profiles!bugs_reported_by_fkey(full_name)")`
+- Since there's no foreign key constraint, use a manual approach: fetch profiles separately and map by `reported_by` ID
 
-### Current Issues
-- Form spans 4 separate Cards stacked vertically, making it very long
-- Dropdowns use native `<select>` with no visible arrow indicator (browser default is hidden by `appearance-none`)
-- No "Others" option in the Feature dropdown
-- Single-column layout wastes horizontal space on desktop
+### Step 3: Display Reporter Name on Bug Cards
 
-### Changes
-
-**Layout Optimization:**
-- Merge the "Classification" and "Bug Details" cards into a single compact card with a 2-column grid layout on desktop
-- Move Severity and Bug Type into the same row as Login Type and Feature (4 fields in 2 rows instead of spread across 2 cards)
-- Keep Steps to Reproduce, Expected/Actual Behavior, and Attachments in a second card
-- Remove the separate "Link to Test Scenario" card -- make it a collapsible row inside the second card
-- This reduces the form from 4 cards to 2 compact cards
-
-**Dropdown Arrow Indicators:**
-- Add a ChevronDown icon overlay to all `<select>` elements using a wrapper div with `relative` positioning and an absolutely-positioned icon on the right
-- Update the `selectClass` to add right padding for the icon
-
-**Feature "Others" Option:**
-- Add an "Others" option at the bottom of the Feature dropdown
-- When "Others" is selected, show a text input for the user to type a custom feature/module name
-- Store this in the `sub_module` field as a free-text entry
+- In the **grouped view** (feature accordion rows): Add a small "by Name" text next to the bug code
+- In the **flat view** (BugCard component): Add "Reported by: Name" below the title
+- Style: subtle `text-xs text-muted-foreground` to not clutter the card
 
 ## Technical Details
 
+### Database Update
+- SQL: `UPDATE bugs SET reported_by = '04694c92-745b-49e8-b8b3-2d699a0928f1'` for all existing bugs
+
 ### Files to Modify
-1. **`src/pages/bugs/CreateBug.tsx`** -- Compact 2-card layout, dropdown arrow wrappers, "Others" feature option
+1. **`src/pages/bugs/BugList.tsx`** -- Fetch profiles for reporters, display name on both grouped rows and flat cards
+2. **`src/pages/bugs/ClosedBugs.tsx`** -- Same reporter name display
 
-### Database
-- SQL insert for 3 new bugs (BUG-028, BUG-029, BUG-030) mapped to existing feature IDs
-
-### No New Files Needed
-
+### Data Flow
+Since `bugs.reported_by` has no foreign key to `profiles`, we will:
+1. Fetch bugs as before
+2. Collect unique `reported_by` IDs
+3. Fetch matching profiles in a second query
+4. Create a lookup map and render names on cards
