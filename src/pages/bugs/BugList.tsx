@@ -33,6 +33,7 @@ export default function BugList() {
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
   const [assignedFilter, setAssignedFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
+  const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (user && currentProject) {
@@ -53,7 +54,20 @@ export default function BugList() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setBugs((data || []) as BugType[]);
+      const bugsData = (data || []) as BugType[];
+      setBugs(bugsData);
+
+      // Fetch reporter names
+      const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
+      if (reporterIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", reporterIds);
+        const nameMap: Record<string, string> = {};
+        (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
+        setReporterNames(nameMap);
+      }
     } catch (error) {
       console.error("Error loading bugs:", error);
     } finally {
@@ -165,6 +179,9 @@ export default function BugList() {
           {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
           {bug.sub_module && (
             <span className="text-xs text-muted-foreground">{bug.sub_module}</span>
+          )}
+          {bug.reported_by && reporterNames[bug.reported_by] && (
+            <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
           )}
         </div>
       </Link>
@@ -424,6 +441,11 @@ export default function BugList() {
                             {bug.sub_module && (
                               <p className="text-xs text-muted-foreground mt-0.5 truncate">
                                 {bug.sub_module}
+                              </p>
+                            )}
+                            {bug.reported_by && reporterNames[bug.reported_by] && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Reported by: {reporterNames[bug.reported_by]}
                               </p>
                             )}
                           </div>

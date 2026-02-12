@@ -26,6 +26,7 @@ export default function ClosedBugs() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
+  const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
@@ -43,7 +44,19 @@ export default function ClosedBugs() {
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setBugs((data || []) as BugType[]);
+      const bugsData = (data || []) as BugType[];
+      setBugs(bugsData);
+
+      const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
+      if (reporterIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", reporterIds);
+        const nameMap: Record<string, string> = {};
+        (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
+        setReporterNames(nameMap);
+      }
     } catch (error) {
       console.error("Error loading closed bugs:", error);
     } finally {
@@ -154,6 +167,9 @@ export default function ClosedBugs() {
                       <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
+                        {bug.reported_by && reporterNames[bug.reported_by] && (
+                          <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
