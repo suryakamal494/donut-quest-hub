@@ -1,124 +1,72 @@
 
 
-# Bug Tracker UI Overhaul and Feature-Wise Display
+# Bug Tracker: UI Enhancement, Attachment Support & Institute Bug Import
 
-## Your Pain Points (What I Understood)
+## Your Pain Points
 
-1. **Bug Detail Page -- Poor space utilization**: The "Mark as Fixed" button is too large, and admin controls (status/assignment) take up 80% of the page, pushing actual bug details below the fold.
-2. **No inline "Mark as Fixed" on bug cards**: Developers must open each bug to act on it -- you want a quick action right on the list card.
-3. **Login type filter is buried in a dropdown**: You want prominent, top-level filter tabs/chips for login types instead of a small dropdown.
-4. **Closed/resolved bugs clutter the main list**: Only active bugs should show on the main page; resolved/closed bugs should be on a separate "Closed Bugs" page.
-5. **Search is weak**: Partial keyword matching on description, steps, expected/actual behavior is missing -- only title and bug code are searched today.
-6. **Feature-wise grouping missing**: When a login type is selected, bugs should display grouped by feature (collapsible accordion), with severity indicators per feature, so developers can focus on their area.
-7. **Reopen history not tracked**: When a bug is reopened, there is no history entry -- you want to see how many times the same bug was reopened.
+1. **Bug list UI is flat and blends with background** -- The feature-grouped accordion cards have no border/background contrast, the login type chips are hard to distinguish, and there is no "Expand All / Collapse All" control like the test scenarios page has.
+2. **Bug reporting needs image/attachment uploads** -- Already exists in CreateBug.tsx (BugAttachmentUploader using the `bug-attachments` storage bucket). This is already functional. The user may not have noticed it, but I will verify and enhance visibility.
+3. **Institute Testing Report bugs need importing** -- 12 new bugs from the Excel sheet need to be mapped to institute-level features (Batches, Teachers, Students, Question Bank, Exams, Master Data, Global UI) and inserted.
 
 ## What Exists vs. What Changes
 
 | Area | Current State | After Change |
 |---|---|---|
-| Bug Detail layout | Fix Actions card with large button at top, admin controls in separate card, bug details pushed down | Compact sidebar-style info panel (status, assignee, fix actions as icons) on the right; bug details (description, steps, expected/actual) prominent on the left |
-| Mark as Fixed button | Full-width button in a card | Small icon button with wrench icon; expands inline for fix notes |
-| Bug list -- inline actions | No actions on cards | "Mark as Fixed" icon button on each card (for developers/assignees); clicking it flags bug for QA re-test |
-| Login type filter | Small dropdown among other dropdowns | Horizontal chip/tab bar at the top of the page (All, Super Admin, Institute, Teacher, Student) |
-| Active vs. closed bugs | All bugs on one page | Main page shows only open/in_progress bugs; new "/bugs/closed" route for resolved/closed/wont_fix bugs with a sidebar link |
-| Search | Matches title and bug_code only | Also matches description, steps_to_reproduce, expected_behavior, actual_behavior, sub_module |
-| Feature-wise grouping | Flat list of bug cards | When a login type is selected, bugs are grouped under collapsible feature sections with bug count and critical/major severity indicators |
-| Reopen history | No tracking | New `bug_history` table logs every status/fix_status change with timestamp and user; displayed as a timeline on the detail page |
+| Feature accordion cards | `bg-muted/50` with no border -- blends into the cream background | Bordered cards with `bg-card` and distinct left-accent on expand, matching GroupedScenarioView pattern |
+| Login type chips | Simple rounded buttons with subtle border | Bolder styling: active chip has solid orange fill with count badge; inactive chips have visible border and background |
+| Expand/Collapse All | Not available on bug list | Add "Expand All" / "Collapse All" buttons (matching test scenarios page) |
+| Severity indicators on accordion | Small inline text icons | Use proper Badge components (red for critical, orange for major) matching the test scenarios pattern |
+| Bug count per feature | Plain number in a circle | Badge-styled count with "X bugs" label |
+| Bug cards inside accordion | `ml-7` indentation with glass card | Proper bordered rows with hover state (matching GroupedScenarioView inner rows) |
+| Attachments in bug creation | Already exists (BugAttachmentUploader) | No change needed -- already functional |
+| Institute bugs | None imported | 12 bugs from Excel imported |
 
 ## Implementation Plan
 
-### Step 1: Database -- Bug History Table
+### Step 1: Enhance Bug List Grouped View UI
 
-Create a `bug_history` table to track every status change (especially reopens):
-- Columns: `id`, `bug_id`, `changed_by`, `field_changed`, `old_value`, `new_value`, `created_at`
-- RLS: viewable by anyone with project access, insertable by authenticated users
-- This enables tracking how many times a bug was reopened and the full lifecycle
+Restyle the feature accordion in BugList.tsx to match the GroupedScenarioView pattern:
+- Feature headers: Use `border border-border rounded-lg bg-card` instead of `bg-muted/50`
+- Feature header content: Bold feature name, "X bugs" subtitle, scenario-type-style stat badges for Critical (red), Major (orange), Minor (yellow) counts
+- Inner bug cards: Use border-separated rows inside the accordion (like GroupedScenarioView) instead of separate floating cards
+- Add "Expand All" / "Collapse All" buttons above the grouped list
+- Login type chips: Make active chip more prominent with badge count, ensure inactive chips have visible borders
 
-### Step 2: Redesign Bug Detail Page Layout
+### Step 2: Import 12 Institute Bugs from Excel
 
-Restructure into a two-column layout (stacked on mobile):
+Map Excel data to existing institute features:
 
-**Left column (main content -- 65%)**:
-- Bug code, title, badges (severity, type, age) at the top
-- Description
-- Steps to Reproduce (numbered)
-- Expected vs Actual Behavior (side by side on desktop, stacked on mobile)
-- Attachments gallery
-- Bug History Timeline (new -- shows all status changes, reopens, fixes)
-- Comments thread
+| Excel Bug | Feature | Sub-module | Severity | Bug Type |
+|---|---|---|---|---|
+| Batches > Create Test -- "Failed to load data" | Batches | Create | major | functional |
+| Teachers > Edit Teacher -- blank white page | Teachers | Edit | critical | functional |
+| Teachers > Bulk Upload -- teachers don't appear | Teachers | Create | major | functional |
+| Students > Assign Batch -- slug validation blocks | Students | Assign Batch | major | functional |
+| Question Bank > Create Question -- Topic dropdown empty | Institute Question Bank | Create | major | functional |
+| Question Bank > AI Generator -- Subject dropdown fails | Institute Question Bank | Create | major | functional |
+| Exams > Create Exam -- "Unexpected end of JSON input" | Institute Exams | Create | critical | functional |
+| Exams > Navigation -- redirects to Super Admin | Institute Exams | Create | major | functional |
+| Exams > View/Edit/Actions not working | Institute Exams | Results | critical | functional |
+| Exams > Exam Pattern -- JSON error on save | Institute Exams | Create | major | functional |
+| Master Data > Topic Management -- empty dropdown | (no institute Master Data feature -- use Batches or create note) | -- | major | functional |
+| Global UI > Settings -- 404 error | (no institute UI feature -- tag uncategorized) | -- | minor | functional |
 
-**Right column (sidebar -- 35%)**:
-- Status indicator with compact dropdown (admin only)
-- Fix status with small action icons:
-  - Wrench icon for "Mark as Fixed" (developer)
-  - Checkmark icon for "Verify" (QA)
-  - Rotate icon for "Reopen" (QA)
-- Assigned to (compact)
-- Login type, Feature, Sub-module
-- Linked scenario
-- Reporter info and date
-- Developer fix notes (if any)
+All set to login_type: institute, status: open, fix_status: unfixed.
 
-On mobile, the sidebar collapses below the title/badges area.
+### Step 3: Attachment Visibility Check
 
-### Step 3: Inline "Mark as Fixed" on Bug List Cards
-
-Add a small wrench icon button on each bug card (visible only to developers/assignees). Clicking it:
-- Opens a small popover for fix notes
-- On confirm: sets fix_status to "fixed", status to "resolved", sends notification to reporter
-- The card visually updates without page reload
-
-### Step 4: Login Type Filter as Top-Level Tabs
-
-Replace the login type dropdown with horizontal chip buttons at the top of the page:
-- "All" | "Super Admin" | "Institute Admin" | "Teacher" | "Student"
-- Active chip is highlighted; selecting a login type filters bugs and enables feature grouping
-
-### Step 5: Feature-Wise Grouped View
-
-When a specific login type is selected (not "All"):
-- Fetch features for that login type from the `features` table
-- Group bugs by `feature_id`
-- Display as collapsible accordion sections:
-  - Feature name + bug count + severity indicators (red dot for critical, orange for major)
-  - Expanding shows the bug cards for that feature
-- Bugs with no feature assigned show under "Uncategorized"
-
-### Step 6: Separate Closed Bugs Page
-
-- New route: `/bugs/closed`
-- New sidebar menu item: "Closed Bugs" under the existing "Bug Tracker" menu
-- The main `/bugs` page filters to show only status in ("open", "in_progress")
-- The `/bugs/closed` page shows status in ("resolved", "closed", "wont_fix") with the same filters and search
-
-### Step 7: Enhanced Search
-
-Expand search to match against:
-- `title`, `bug_code` (existing)
-- `description`, `sub_module`, `expected_behavior`, `actual_behavior` (new)
-- `steps_to_reproduce` array elements (joined as text for matching)
-
----
+The CreateBug page already has a "Screenshots" card with BugAttachmentUploader. This uses the existing `bug-attachments` public storage bucket. No changes needed -- it already supports drag-and-drop image upload, preview thumbnails, and removal. Images are stored in cloud file storage (not the database) and referenced by URL.
 
 ## Technical Details
 
-### Database Migration
-- New table `bug_history` with columns: `id` (uuid), `bug_id` (uuid ref bugs), `changed_by` (uuid), `field_changed` (text), `old_value` (text), `new_value` (text), `created_at` (timestamptz)
-- RLS: SELECT for project access, INSERT for authenticated users
-
-### Files to Create
-1. `src/pages/bugs/ClosedBugs.tsx` -- Closed/resolved bugs page
-2. `src/components/bugs/BugHistoryTimeline.tsx` -- Status change history display
-3. `src/components/bugs/InlineFixAction.tsx` -- Popover for inline "Mark as Fixed" on cards
-
 ### Files to Modify
-1. `src/pages/bugs/BugDetail.tsx` -- Two-column layout, compact sidebar, history timeline
-2. `src/pages/bugs/BugList.tsx` -- Login type tabs, feature grouping, enhanced search, hide closed bugs, inline fix action
-3. `src/components/bugs/BugFixActions.tsx` -- Compact icon-based actions instead of full-width buttons
-4. `src/components/qa/layout/QASidebar.tsx` -- Add "Closed Bugs" menu item
-5. `src/App.tsx` -- Add `/bugs/closed` route
-6. `src/pages/bugs/index.ts` -- Export ClosedBugs
+1. **`src/pages/bugs/BugList.tsx`** -- Restyle grouped accordion to match GroupedScenarioView pattern: bordered cards, proper badges, Expand/Collapse All, enhanced login type chips
+2. **Database insert** -- Import 12 institute bugs via SQL
 
-### Recording History
-- In `BugFixActions.tsx` and `BugDetail.tsx`, every status/fix_status change will insert a row into `bug_history` before updating the bug
+### No New Files Needed
+
+The changes are focused on restyling existing components and importing data.
+
+### Storage Clarification
+Screenshots uploaded during bug reporting are stored in the `bug-attachments` cloud storage bucket (file storage, not the database). Only the URL references are saved in the `attachments` column of the bugs table. This is already fully functional.
 
