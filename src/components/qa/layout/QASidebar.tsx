@@ -9,7 +9,8 @@ import {
   Plus,
   List,
   Bug,
-  AlertTriangle
+  AlertTriangle,
+  XCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,8 @@ const navItems = [
     href: "/bugs",
     icon: Bug,
     subItems: [
-      { title: "All Bugs", href: "/bugs", icon: List },
+      { title: "Active Bugs", href: "/bugs", icon: List },
+      { title: "Closed Bugs", href: "/bugs/closed", icon: XCircle },
       { title: "Report Bug", href: "/bugs/create", icon: Plus },
     ],
   },

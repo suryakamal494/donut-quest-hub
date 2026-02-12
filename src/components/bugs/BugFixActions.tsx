@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, RotateCcw, Wrench, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,9 +11,10 @@ import type { Bug as BugType } from "@/types/bugs";
 interface BugFixActionsProps {
   bug: BugType;
   onUpdate: (updates: Partial<BugType>) => void;
+  compact?: boolean;
 }
 
-export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
+export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsProps) {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -26,6 +26,24 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
   const isReporter = user?.id === bug.reported_by;
   const isAssignee = user?.id === bug.assigned_to;
 
+  const fixStatus = bug.fix_status || "unfixed";
+  const canMarkFixed = (isDeveloper || isAssignee || isAdmin) &&
+    (fixStatus === "unfixed" || fixStatus === "reopened") &&
+    bug.status !== "closed";
+  const canVerify = (isReporter || isAdmin) && fixStatus === "fixed";
+  const canReopen = (isReporter || isAdmin) && (fixStatus === "fixed" || fixStatus === "verified") && bug.status !== "open";
+
+  const recordHistory = async (field: string, oldVal: string | null, newVal: string) => {
+    if (!user) return;
+    await supabase.from("bug_history").insert({
+      bug_id: bug.id,
+      changed_by: user.id,
+      field_changed: field,
+      old_value: oldVal,
+      new_value: newVal,
+    });
+  };
+
   const handleMarkAsFixed = async () => {
     if (!user || !devResponse.trim()) {
       toast({ variant: "destructive", title: "Please add fix notes" });
@@ -33,6 +51,9 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
     }
     setLoading(true);
     try {
+      await recordHistory("fix_status", fixStatus, "fixed");
+      await recordHistory("status", bug.status, "resolved");
+
       const updates: any = {
         fix_status: "fixed",
         status: "resolved",
@@ -40,10 +61,7 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
         resolved_at: new Date().toISOString(),
         resolved_by: user.id,
       };
-      const { error } = await supabase
-        .from("bugs")
-        .update(updates)
-        .eq("id", bug.id);
+      const { error } = await supabase.from("bugs").update(updates).eq("id", bug.id);
       if (error) throw error;
 
       onUpdate(updates);
@@ -51,7 +69,6 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
       setDevResponse("");
       toast({ title: "Bug marked as fixed" });
 
-      // Notify reporter
       if (bug.reported_by && bug.reported_by !== user.id) {
         await supabase.from("notifications").insert({
           user_id: bug.reported_by,
@@ -72,22 +89,21 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
     if (!user) return;
     setLoading(true);
     try {
+      await recordHistory("fix_status", fixStatus, "verified");
+      await recordHistory("status", bug.status, "closed");
+
       const updates: any = {
         fix_status: "verified",
         status: "closed",
         verified_at: new Date().toISOString(),
         verified_by: user.id,
       };
-      const { error } = await supabase
-        .from("bugs")
-        .update(updates)
-        .eq("id", bug.id);
+      const { error } = await supabase.from("bugs").update(updates).eq("id", bug.id);
       if (error) throw error;
 
       onUpdate(updates);
       toast({ title: "Fix verified — Bug closed" });
 
-      // Notify assignee
       if (bug.assigned_to && bug.assigned_to !== user.id) {
         await supabase.from("notifications").insert({
           user_id: bug.assigned_to,
@@ -108,6 +124,9 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
     if (!user) return;
     setLoading(true);
     try {
+      await recordHistory("fix_status", fixStatus, "reopened");
+      await recordHistory("status", bug.status, "open");
+
       const updates: any = {
         fix_status: "reopened",
         status: "open",
@@ -116,16 +135,12 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
         verified_at: null,
         verified_by: null,
       };
-      const { error } = await supabase
-        .from("bugs")
-        .update(updates)
-        .eq("id", bug.id);
+      const { error } = await supabase.from("bugs").update(updates).eq("id", bug.id);
       if (error) throw error;
 
       onUpdate(updates);
       toast({ title: "Bug reopened" });
 
-      // Notify assignee
       if (bug.assigned_to && bug.assigned_to !== user.id) {
         await supabase.from("notifications").insert({
           user_id: bug.assigned_to,
@@ -142,89 +157,70 @@ export function BugFixActions({ bug, onUpdate }: BugFixActionsProps) {
     }
   };
 
-  // Determine which actions are available
-  const fixStatus = bug.fix_status || "unfixed";
-  const canMarkFixed = (isDeveloper || isAssignee || isAdmin) && 
-    (fixStatus === "unfixed" || fixStatus === "reopened") && 
-    bug.status !== "closed";
-  const canVerify = (isReporter || isAdmin) && fixStatus === "fixed";
-  const canReopen = (isReporter || isAdmin) && (fixStatus === "fixed" || fixStatus === "verified") && bug.status !== "open";
-
   if (!canMarkFixed && !canVerify && !canReopen) return null;
 
   return (
-    <Card className="glass border-primary/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Fix Workflow Actions</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Developer: Mark as Fixed */}
-        {canMarkFixed && !showFixForm && (
-          <Button
-            onClick={() => setShowFixForm(true)}
-            className="w-full"
-            variant="default"
-            disabled={loading}
-          >
-            <Wrench className="h-4 w-4 mr-2" />
-            Mark as Fixed
-          </Button>
-        )}
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fix Actions</p>
+      
+      {canMarkFixed && !showFixForm && (
+        <Button
+          onClick={() => setShowFixForm(true)}
+          size="sm"
+          className="w-full"
+          disabled={loading}
+        >
+          <Wrench className="h-3.5 w-3.5 mr-1.5" />
+          Mark as Fixed
+        </Button>
+      )}
 
-        {showFixForm && (
-          <div className="space-y-3 p-3 rounded-lg bg-muted/50">
-            <Label className="text-sm font-medium">Fix Notes (required)</Label>
-            <Textarea
-              value={devResponse}
-              onChange={(e) => setDevResponse(e.target.value)}
-              placeholder="Describe what was fixed and how..."
-              rows={3}
-            />
-            <div className="flex gap-2">
-              <Button onClick={handleMarkAsFixed} disabled={loading || !devResponse.trim()} className="flex-1">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
-                Confirm Fix
-              </Button>
-              <Button variant="outline" onClick={() => setShowFixForm(false)} disabled={loading}>
-                Cancel
-              </Button>
-            </div>
+      {showFixForm && (
+        <div className="space-y-2 p-2.5 rounded-lg bg-muted/50">
+          <Label className="text-xs">Fix Notes (required)</Label>
+          <Textarea
+            value={devResponse}
+            onChange={(e) => setDevResponse(e.target.value)}
+            placeholder="What was fixed..."
+            rows={2}
+            className="text-sm"
+          />
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={handleMarkAsFixed} disabled={loading || !devResponse.trim()} className="flex-1">
+              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Wrench className="h-3 w-3 mr-1" />}
+              Confirm
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowFixForm(false)} disabled={loading}>
+              Cancel
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* QA: Verify Fix */}
-        {canVerify && (
-          <Button
-            onClick={handleVerifyFix}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-            Verify Fix — Close Bug
-          </Button>
-        )}
+      {canVerify && (
+        <Button
+          onClick={handleVerifyFix}
+          size="sm"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle className="h-3.5 w-3.5 mr-1.5" />}
+          Verify Fix
+        </Button>
+      )}
 
-        {/* QA: Reopen */}
-        {canReopen && (
-          <Button
-            onClick={handleReopen}
-            variant="destructive"
-            className="w-full"
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-            Reopen Bug
-          </Button>
-        )}
-
-        {/* Developer response display */}
-        {bug.developer_response && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Developer Fix Notes</p>
-            <p className="text-sm text-foreground">{bug.developer_response}</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {canReopen && (
+        <Button
+          onClick={handleReopen}
+          variant="destructive"
+          size="sm"
+          className="w-full"
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <RotateCcw className="h-3.5 w-3.5 mr-1.5" />}
+          Reopen Bug
+        </Button>
+      )}
+    </div>
   );
 }
