@@ -101,17 +101,23 @@ export function exportBugsToCSV(bugs: any[]) {
     { key: "title", label: "Title" },
     { key: "severity", label: "Severity" },
     { key: "status", label: "Status" },
+    { key: "bug_type", label: "Bug Type" },
+    { key: "login_type", label: "Login Type" },
     { key: "description", label: "Description" },
     { key: "steps_to_reproduce", label: "Steps to Reproduce" },
     { key: "expected_behavior", label: "Expected Behavior" },
     { key: "actual_behavior", label: "Actual Behavior" },
     { key: "environment", label: "Environment" },
+    { key: "sub_module", label: "Sub-module" },
     { key: "created_at", label: "Reported On" },
   ];
 
   const data = bugs.map(b => ({
     ...b,
     steps_to_reproduce: b.steps_to_reproduce?.join("; ") || "",
+    bug_type: b.bug_type || "",
+    login_type: b.login_type || "",
+    sub_module: b.sub_module || "",
     created_at: new Date(b.created_at).toLocaleDateString(),
   }));
 
