@@ -1,182 +1,136 @@
 
 
-# Bug Tracking Module -- Comprehensive Enhancement
+# Bug Tracker Enhancement: Role-Based Workflow and Excel Data Import
 
-## Current State
+## Your Pain Points
 
-The bug tracker has basic scaffolding: a list page with filters, a simple create form, and a detail view with status updates. However, it is missing many features that would make it a production-quality bug tracking system.
+1. **No role distinction** -- Currently, anyone who can edit a bug can change its status to anything. There is no separation between what a QA person does vs. what a Developer does.
+2. **No fix-verify loop** -- When a developer fixes a bug, the QA person who reported it should be notified to re-test. This "Mark as Fixed" then "Verify / Reopen" cycle does not exist today.
+3. **No bug aging visibility** -- You cannot see how long a bug has been sitting unresolved.
+4. **Excel bugs need to be imported** -- The 20+ bugs from the Super Admin testing report need to be added into the platform, mapped to the correct features and sub-modules.
+5. **Admin module redundancy** -- The Bug Tracker is already inside the QA layout sidebar, which is correct. No separate admin-only bug module exists, so this is already fine.
 
-## What Needs to Be Added
+## What Exists Today
 
-### Database Changes
+- Bug creation form with login type, feature, sub-module, severity, bug type, attachments, steps to reproduce
+- Bug list with filters (severity, status, bug type, login type, assigned)
+- Bug detail page with status dropdown (open/in_progress/resolved/closed/wont_fix), assignment to developers, resolution notes, comment thread
+- Status changes are allowed by reporter, assignee, or admin -- no role-specific restrictions on which statuses are available
+- No fix/verify workflow (unlike the Failures tab which has fix_status, developer_response, SLA tracking)
 
-The `bugs` table needs new columns to support the richer workflow:
+## What Changes
 
-| New Column | Type | Purpose |
+### 1. Database: Add fix workflow columns to `bugs` table
+
+Add columns to track the developer-fix and QA-verify cycle:
+- `fix_status` (text): "unfixed", "fixed", "verified", "reopened" -- mirrors the test_results pattern
+- `developer_response` (text): Developer's notes when marking as fixed
+- `verified_at` (timestamp): When QA verified the fix
+- `verified_by` (uuid): Who verified
+
+### 2. Role-Based Actions on Bug Detail Page
+
+Replace the current "anyone can change status" dropdown with role-specific action buttons:
+
+**QA / Reporter sees:**
+- Bug info in read-only view with all details, attachments, comments
+- Can add comments
+- When bug is in "fixed" state: sees a "Verify Fix" button and a "Reopen" button
+- After clicking "Verify Fix", bug status moves to "closed" and fix_status to "verified"
+- After clicking "Reopen", fix_status goes to "reopened" and status goes back to "open"
+
+**Developer / Assignee sees:**
+- Bug info in clear read-only view
+- A "Mark as Fixed" button (with a text field for developer response/fix notes)
+- Clicking "Mark as Fixed" sets fix_status to "fixed", status to "resolved", and sends a notification to the reporter
+- Can add comments
+
+**Admin sees:**
+- All actions available (assign, status change, mark fixed, verify, delete)
+
+### 3. Notification Flow
+
+When developer clicks "Mark as Fixed":
+- An in-app notification is sent to the bug reporter: "Bug BUG-XXX has been marked as fixed. Please re-test."
+- The notification links to the bug detail page
+
+When QA clicks "Reopen":
+- A notification is sent to the assigned developer: "Bug BUG-XXX has been reopened after verification failed."
+
+### 4. Bug Aging Display
+
+On the bug list and detail page, show how long the bug has been open:
+- "Open for 3 days" or "Open for 2 weeks"
+- Color-coded: green (less than 3 days), yellow (3-7 days), red (7+ days)
+
+### 5. Enhanced Bug Detail "View" Page
+
+Reorganize the detail page for clarity:
+- Top: Bug code, title, severity/status/type badges, age indicator
+- Classification card: Login type, Feature, Sub-module
+- Description section with full text
+- Steps to Reproduce (numbered list)
+- Expected vs Actual Behavior (side by side)
+- Environment info
+- Attachments gallery
+- Fix Status timeline (Reporter created -> Developer fixed -> QA verified)
+- Role-specific action buttons (at bottom, prominent)
+- Activity/Comments thread
+
+### 6. Import Excel Bugs into the Platform
+
+Map the 20 bugs from the Excel sheet to the existing features database and insert them. The mapping:
+
+| Excel Feature | Database Feature | Sub-module |
 |---|---|---|
-| `login_type` | `login_type` enum (existing) | Which user role encountered the bug |
-| `bug_type` | new enum (`ui`, `functional`, `performance`, `data`, `security`, `other`) | Category of the issue |
-| `scenario_id` | uuid (nullable, FK to test_scenarios) | Optional link to a test scenario |
-| `resolution_notes` | text | Developer's explanation when resolving |
-| `resolved_at` | timestamp | When the bug was resolved |
-| `resolved_by` | uuid | Who resolved it |
+| Institutes > All Institutes (5 bugs) | Institutes | View, Edit, Assign Curriculum, Delete, Wizard |
+| Institutes > Tier Management (1 bug) | Tier Management | Feature Toggles |
+| Users > View User (1 bug) | Roles & Access | Team Members |
+| Master Data > Curriculum (4 bugs) | Master Data - Curriculum | View, Create, Edit |
+| Master Data > Courses (1 bug) | Master Data - Courses | Delete |
+| Roles & Access > Team Members (2 bugs) | Roles & Access | Team Members, Add Member |
+| Exams > Previous Year Papers (5 bugs) | Exams | PYP, PYP Wizard |
+| Exams > Grand Tests (2 bugs) | Exams | GT Wizard |
+| Exams > Exam Patterns (1 bug) | Exams | Patterns |
+| Content Library > AI Generator (1 bug) | Content Library | AI Generator |
+| Content Library > Preview (1 bug) | Content Library | Preview |
+| Global UI > Header (1 bug) | UI & Responsiveness | -- |
 
-A new `bug_comments` table for activity threads:
+All bugs will be set to:
+- login_type: super_admin
+- severity: mapped based on impact (critical for white-page crashes, major for broken functionality, minor for UI issues)
+- bug_type: mapped (functional, ui, data as appropriate)
+- status: open
+- reported_by: current logged-in user
+- project_id: current project
 
-| Column | Type |
-|---|---|
-| `id` | uuid (PK) |
-| `bug_id` | uuid (FK to bugs) |
-| `user_id` | uuid |
-| `comment` | text |
-| `created_at` | timestamp |
+## Technical Details
 
-Also need to create a storage bucket `bug-attachments` for screenshot uploads.
+### Files to Modify
+1. **Database migration** -- Add `fix_status`, `developer_response`, `verified_at`, `verified_by` columns to `bugs` table
+2. **`src/types/bugs.ts`** -- Add fix_status type and constants
+3. **`src/pages/bugs/BugDetail.tsx`** -- Major rewrite for role-based actions, fix/verify workflow, age display, enhanced layout
+4. **`src/pages/bugs/BugList.tsx`** -- Add age column, fix_status filter
+5. **`src/components/bugs/BugBadges.tsx`** -- Add FixStatusBadge and AgeBadge components
 
-### Change 1: Enhanced Create Bug Form
+### Files to Create
+6. **`src/components/bugs/BugFixActions.tsx`** -- Role-specific action buttons (Mark as Fixed, Verify, Reopen)
 
-**File**: `src/pages/qa/CreateBug.tsx`
+### Data Import
+7. Insert ~20 bugs via database insert tool, mapped to correct feature IDs and sub-modules
 
-The form will be restructured into a guided flow:
-
-**Section 1 -- Classification**
-- Login Type dropdown (Super Admin, Institute Admin, Teacher, Student) -- required
-- Feature dropdown (filtered by selected login type) -- required
-- Sub-module dropdown (populated from the selected feature's sub_modules) -- optional
-- Bug Type selector (UI, Functional, Performance, Data, Security, Other) -- required
-
-**Section 2 -- Bug Details**
-- Title (required)
-- Severity (Critical, Major, Minor, Trivial) -- required
-- Description (rich text area)
-- Steps to Reproduce (numbered list, add/remove steps)
-- Expected Behavior
-- Actual Behavior
-- Environment (browser, OS, device)
-
-**Section 3 -- Attachments**
-- Screenshot uploader (reuse the existing `AttachmentUploader` component pattern from test failures)
-- Multiple file support
-
-**Section 4 -- Link to Test Scenario (Optional)**
-- A searchable dropdown of test scenarios filtered by the selected feature
-- When selected, shows the scenario code and name
-- This creates traceability between bugs and test cases
-
-### Change 2: Enhanced Bug Detail Page
-
-**File**: `src/pages/bugs/BugDetail.tsx`
-
-The detail page will show:
-
-- **Header**: Bug code, title, severity badge, status badge, bug type badge
-- **Classification card**: Login type, Feature, Sub-module with colored badges
-- **Details card**: Description, Steps to Reproduce, Expected/Actual behavior, Environment
-- **Linked Scenario card** (if linked): Shows scenario code, name, clickable link to the scenario
-- **Attachments gallery**: Screenshots displayed using the existing gallery pattern
-- **Activity Thread**: Comments section where QA, developers, and admins can discuss
-  - Each comment shows user name, timestamp, and message
-  - "Add Comment" text area at the bottom
-- **Status Management**: 
-  - QA can: Open, Close, Reopen
-  - Developer can: Set to In Progress, Resolved (with resolution notes)
-  - Admin can: All actions + Won't Fix + Delete
-- **Assignment**: Admin/reporter can assign bug to a developer from a user dropdown
-- **Metadata footer**: Reporter name, created date, last updated, assigned to
-
-### Change 3: Enhanced Bug List Page
-
-**File**: `src/pages/bugs/BugList.tsx`
-
-Add these filters:
-- Login Type filter
-- Bug Type filter (UI, Functional, etc.)
-- Assigned To filter (My Bugs / All)
-- Feature filter
-
-Add these views:
-- Stats cards showing counts by severity (not just status)
-- Each bug card shows: login type badge, feature name, assignee avatar/name, comment count
-
-### Change 4: Bug Type System
-
-**New file**: `src/types/bugs.ts` (update existing)
-
-Add the `BugType` enum and associated labels/colors, plus update the `Bug` interface with the new fields (login_type, bug_type, scenario_id, resolution_notes, etc.).
-
-### Change 5: Bug Comments Component
-
-**New file**: `src/components/bugs/BugComments.tsx`
-
-A reusable comment thread component:
-- Displays all comments for a bug in chronological order
-- Each comment shows the commenter's name, role badge, and timestamp
-- Text area + "Post Comment" button at the bottom
-- Real-time updates (optional, can be added later)
-
-### Change 6: Bug Attachment Support
-
-**New file**: `src/components/bugs/BugAttachmentUploader.tsx`
-
-Reuses the pattern from `AttachmentUploader.tsx` but uploads to the `bug-attachments` storage bucket.
-
-### Change 7: Notifications Integration
-
-When a bug is:
-- **Assigned** to someone: Notify the assignee
-- **Status changed** to Resolved: Notify the reporter
-- **Commented on**: Notify the reporter and assignee
-
-Uses the existing `notifications` table and patterns.
-
----
-
-## How the Workflow Looks
+### Workflow Diagram
 
 ```text
-QA Tester Reports Bug:
-  → Selects Login Type, Feature, Bug Type
-  → Fills in details + screenshots
-  → Optionally links a test scenario
-  → Bug created with status "Open"
-
-Admin/Reporter Assigns Bug:
-  → Assigns to a developer
-  → Developer gets notification
-
-Developer Works on Bug:
-  → Changes status to "In Progress"
-  → Adds comments for clarification
-  → When fixed: changes to "Resolved" with resolution notes
-  → Reporter gets notification
-
-QA Verifies Fix:
-  → If fixed: changes to "Closed"
-  → If not fixed: changes back to "Open" with comment
+  QA Reports Bug          Developer Sees Bug        QA Re-tests
+  +------------+          +----------------+        +----------------+
+  | status:    |          | Clicks "Mark   |        | Clicks "Verify"|
+  | open       | -------> | as Fixed"      | -----> | or "Reopen"    |
+  | fix_status:|          | fix_status:    |        | fix_status:    |
+  | unfixed    |          | fixed          |        | verified/reopen|
+  +------------+          +----------------+        +----------------+
+       ^                                                   |
+       |                   (if reopened)                    |
+       +---------------------------------------------------+
 ```
-
----
-
-## Files to Create/Modify
-
-| File | Action | Purpose |
-|---|---|---|
-| Database migration | Create | Add columns to `bugs`, create `bug_comments` table, create `bug-attachments` bucket |
-| `src/types/bugs.ts` | Modify | Add BugType enum, update Bug interface |
-| `src/pages/bugs/CreateBug.tsx` | Modify | Add login type, bug type, sub-module, scenario link, attachments |
-| `src/pages/bugs/BugDetail.tsx` | Modify | Add classification display, comments thread, assignment, attachments gallery, linked scenario |
-| `src/pages/bugs/BugList.tsx` | Modify | Add login type/bug type/feature filters, enhanced cards |
-| `src/components/bugs/BugBadges.tsx` | Modify | Add BugTypeBadge, LoginTypeBadge for bugs |
-| `src/components/bugs/BugComments.tsx` | Create | Activity/comment thread component |
-| `src/components/bugs/BugAttachmentUploader.tsx` | Create | Screenshot upload for bugs |
-| `src/lib/export-utils.ts` | Modify | Update CSV export with new fields |
-
----
-
-## What Will NOT Change
-
-- Test scenario creation and execution -- completely untouched
-- Failures page and developer fix workflow -- separate from bug tracker
-- Navigation structure -- Bug Tracker already exists in sidebar and bottom nav
-- RLS on existing tables -- only new policies for new table
 
