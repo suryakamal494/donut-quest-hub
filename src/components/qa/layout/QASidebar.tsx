@@ -28,6 +28,16 @@ const navItems = [
     end: true,
   },
   {
+    title: "Bug Tracker",
+    href: "/bugs",
+    icon: Bug,
+    subItems: [
+      { title: "Active Bugs", href: "/bugs", icon: List },
+      { title: "Closed Bugs", href: "/bugs/closed", icon: XCircle },
+      { title: "Report Bug", href: "/bugs/create", icon: Plus },
+    ],
+  },
+  {
     title: "Test Scenarios",
     href: "/qa/scenarios",
     icon: FileText,
@@ -54,16 +64,6 @@ const navItems = [
     title: "Coverage",
     href: "/qa/coverage",
     icon: BarChart3,
-  },
-  {
-    title: "Bug Tracker",
-    href: "/bugs",
-    icon: Bug,
-    subItems: [
-      { title: "Active Bugs", href: "/bugs", icon: List },
-      { title: "Closed Bugs", href: "/bugs/closed", icon: XCircle },
-      { title: "Report Bug", href: "/bugs/create", icon: Plus },
-    ],
   },
 ];
 
