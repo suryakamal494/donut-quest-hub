@@ -244,6 +244,31 @@ export default function BugList() {
     );
   };
 
+  const handleExport = async () => {
+    if (!currentProject) return;
+    try {
+      let query = supabase
+        .from("bugs")
+        .select("*")
+        .eq("project_id", currentProject.id)
+        .in("status", ["open", "in_progress"]);
+
+      if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
+      if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
+      if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
+      if (assignedFilter === "mine" && user) query = query.eq("assigned_to", user.id);
+      if (assignedFilter === "unassigned") query = query.is("assigned_to", null);
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
+      }
+
+      const { data } = await query.order("created_at", { ascending: false });
+      exportBugsToCSV(data || []);
+    } catch (error) {
+      console.error("Export error:", error);
+    }
+  };
+
   if (loading && page === 1) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -264,7 +289,7 @@ export default function BugList() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportBugsToCSV(bugs)}>
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4 mr-1.5" />
             Export
           </Button>
