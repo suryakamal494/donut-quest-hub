@@ -44,12 +44,7 @@ export default function BugList() {
       loadBugs();
       loadFeatures();
     }
-  }, [user, currentProject, page]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter]);
+  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
@@ -154,19 +149,43 @@ export default function BugList() {
     });
   };
 
-  // Login type counts - use a quick count from server for accuracy
+  // Server-side severity stats for BugStatsBar
+  const [severityStats, setSeverityStats] = useState<Record<string, number>>({});
+  // Login type counts for tab badges
   const [loginCounts, setLoginCounts] = useState<Record<string, number>>({});
+
   useEffect(() => {
     if (!currentProject) return;
-    const fetchCounts = async () => {
-      const { count: allCount } = await supabase
+    const fetchAggregates = async () => {
+      // Fetch severity counts
+      const { data: sevData } = await supabase
         .from("bugs")
-        .select("*", { count: "exact", head: true })
+        .select("severity")
         .eq("project_id", currentProject.id)
         .in("status", ["open", "in_progress"]);
-      setLoginCounts(prev => ({ ...prev, all: allCount || 0 }));
+
+      const sevCounts: Record<string, number> = {};
+      (sevData || []).forEach((b: any) => {
+        sevCounts[b.severity] = (sevCounts[b.severity] || 0) + 1;
+      });
+      setSeverityStats(sevCounts);
+
+      // Fetch login type counts
+      const { data: ltData } = await supabase
+        .from("bugs")
+        .select("login_type")
+        .eq("project_id", currentProject.id)
+        .in("status", ["open", "in_progress"]);
+
+      const ltCounts: Record<string, number> = { all: 0 };
+      (ltData || []).forEach((b: any) => {
+        const lt = b.login_type || "unknown";
+        ltCounts[lt] = (ltCounts[lt] || 0) + 1;
+        ltCounts.all++;
+      });
+      setLoginCounts(ltCounts);
     };
-    fetchCounts();
+    fetchAggregates();
   }, [currentProject, bugs]);
 
   const renderPagination = () => {
@@ -259,7 +278,7 @@ export default function BugList() {
       </div>
 
       {/* Stats */}
-      <BugStatsBar bugs={bugs} totalCount={totalCount} />
+      <BugStatsBar severityStats={severityStats} totalCount={loginCounts.all || totalCount} />
 
       {/* Login Type Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -277,6 +296,7 @@ export default function BugList() {
               onClick={() => {
                 setLoginTypeFilter(tab.value);
                 setExpandedFeatures(new Set());
+                setPage(1);
               }}
               className={cn(
                 "px-3.5 py-1.5 text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1.5",
@@ -286,6 +306,9 @@ export default function BugList() {
               )}
             >
               {tab.label}
+              {loginCounts[tab.value] !== undefined && (
+                <span className="text-xs opacity-75">({loginCounts[tab.value]})</span>
+              )}
             </button>
           );
         })}
@@ -294,13 +317,13 @@ export default function BugList() {
       {/* Filters */}
       <BugFilters
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(v) => { setSearch(v); setPage(1); }}
         severityFilter={severityFilter}
-        onSeverityChange={setSeverityFilter}
+        onSeverityChange={(v) => { setSeverityFilter(v); setPage(1); }}
         bugTypeFilter={bugTypeFilter}
-        onBugTypeChange={setBugTypeFilter}
+        onBugTypeChange={(v) => { setBugTypeFilter(v); setPage(1); }}
         assignedFilter={assignedFilter}
-        onAssignedChange={setAssignedFilter}
+        onAssignedChange={(v) => { setAssignedFilter(v); setPage(1); }}
         showAssignedFilter
       />
 
