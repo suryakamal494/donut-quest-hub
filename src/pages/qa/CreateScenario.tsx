@@ -51,8 +51,10 @@ import {
   PRIORITY_LABELS, 
   FREQUENCY_LABELS 
 } from "@/types/qa";
+import { isWorkflowType } from "@/lib/workflow-utils";
 
-const STEPS = ["Classification", "Details", "Test Cases", "Review"];
+const SMOKE_STEPS = ["Classification", "Details", "Test Cases", "Review"];
+const WORKFLOW_STEPS = ["Classification", "Details", "Workflow Steps", "Review"];
 const DRAFT_STORAGE_KEY = "qa_scenario_draft";
 const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
 
@@ -94,6 +96,14 @@ export default function CreateScenario() {
   const [description, setDescription] = useState("");
   const [businessImpact, setBusinessImpact] = useState("");
   const [testCases, setTestCases] = useState<CreateTestCaseForm[]>([]);
+
+  // Workflow mode state (for intra/inter-login)
+  const [workflowPrecondition, setWorkflowPrecondition] = useState("");
+  const [workflowSteps, setWorkflowSteps] = useState<CreateTestStepForm[]>([{ action: "", expected_outcome: "" }]);
+  const [workflowExpectedResult, setWorkflowExpectedResult] = useState("");
+
+  const isWorkflow = isWorkflowType(scenarioType);
+  const STEPS = isWorkflow ? WORKFLOW_STEPS : SMOKE_STEPS;
 
   // Check for existing draft on mount
   useEffect(() => {
@@ -293,6 +303,11 @@ export default function CreateScenario() {
       case 1:
         return name.trim().length > 0;
       case 2:
+        if (isWorkflow) {
+          return workflowSteps.length > 0 && 
+            workflowSteps.every(s => s.action.trim() && s.expected_outcome.trim()) &&
+            workflowExpectedResult.trim().length > 0;
+        }
         return testCases.length > 0 && testCases.every(tc => 
           tc.title.trim() && 
           tc.expected_result.trim() && 
@@ -332,9 +347,24 @@ export default function CreateScenario() {
 
       if (scenarioError) throw scenarioError;
 
+      // For workflow types, build a single test case from workflow state
+      const casesToSave = isWorkflow 
+        ? [{
+            title: name, // Workflow uses the scenario name as the test case title
+            description: description || "",
+            login_type: loginTypes[0] || "super_admin",
+            preconditions: workflowPrecondition ? [workflowPrecondition] : [],
+            expected_result: workflowExpectedResult,
+            content_types: [],
+            is_regression: false,
+            dependencies: [],
+            steps: workflowSteps,
+          }]
+        : testCases;
+
       // Create test cases and steps
-      for (let i = 0; i < testCases.length; i++) {
-        const tc = testCases[i];
+      for (let i = 0; i < casesToSave.length; i++) {
+        const tc = casesToSave[i];
         
         const { data: testCase, error: tcError } = await supabase
           .from("test_cases")
@@ -691,142 +721,99 @@ export default function CreateScenario() {
             </div>
           )}
 
-          {/* Step 3: Test Cases */}
+          {/* Step 3: Test Cases / Workflow Steps */}
           {currentStep === 2 && (
             <div className="space-y-4">
-              {testCases.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">No test cases added yet</p>
-                  <Button onClick={addTestCase}>Add First Test Case</Button>
+              {isWorkflow ? (
+                <div className="space-y-6">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800">🔄 Workflow Mode</p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      Define the end-to-end steps below. The tester will see all steps on a single screen and give one Pass/Fail verdict.
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Precondition</Label>
+                    <Textarea value={workflowPrecondition} onChange={(e) => setWorkflowPrecondition(e.target.value)} placeholder="e.g., Curriculum with chapters exists" rows={2} className="mt-1.5" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Workflow Steps & Checkpoints</Label>
+                    <div className="space-y-3">
+                      {workflowSteps.map((step, si) => (
+                        <div key={si} className="flex gap-3 items-start p-3 border rounded-lg bg-muted/30">
+                          <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-semibold flex items-center justify-center flex-shrink-0 mt-1">{si + 1}</span>
+                          <div className="flex-1 space-y-2">
+                            <Input value={step.action} onChange={(e) => { setWorkflowSteps(prev => prev.map((s, i) => i === si ? { ...s, action: e.target.value } : s)); }} placeholder="Step instruction (e.g., Create a new course)" />
+                            <Input value={step.expected_outcome} onChange={(e) => { setWorkflowSteps(prev => prev.map((s, i) => i === si ? { ...s, expected_outcome: e.target.value } : s)); }} placeholder="Checkpoint (e.g., Verify all chapters are selectable)" />
+                          </div>
+                          <Button variant="ghost" size="icon" onClick={() => setWorkflowSteps(prev => prev.filter((_, i) => i !== si))} className="text-destructive flex-shrink-0" disabled={workflowSteps.length <= 1}>×</Button>
+                        </div>
+                      ))}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setWorkflowSteps(prev => [...prev, { action: "", expected_outcome: "" }])} className="mt-3">+ Add Step</Button>
+                  </div>
+                  <div>
+                    <FormTooltip label="Expected Result" tooltip="The overall expected outcome when the entire workflow completes successfully" required />
+                    <Textarea value={workflowExpectedResult} onChange={(e) => setWorkflowExpectedResult(e.target.value)} placeholder="e.g., Curriculum chapters are available for course mapping and name changes propagate" rows={3} className="mt-1.5" />
+                  </div>
                 </div>
               ) : (
                 <>
-                  {testCases.map((tc, tcIndex) => (
-                    <Card key={tcIndex} className="border-l-4 border-l-primary">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-base">Test Case {tcIndex + 1}</CardTitle>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeTestCase(tcIndex)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid sm:grid-cols-2 gap-4">
-                          <div>
-                            <FormTooltip 
-                              label="Title" 
-                              tooltip={FIELD_TOOLTIPS.testCaseTitle}
-                              required
-                            />
-                            <Input
-                              value={tc.title}
-                              onChange={(e) => updateTestCase(tcIndex, { title: e.target.value })}
-                              placeholder={FIELD_PLACEHOLDERS.testCaseTitle}
-                              className="mt-1.5"
-                            />
-                          </div>
-                          <div>
-                            <FormTooltip 
-                              label="Login Type" 
-                              tooltip={FIELD_TOOLTIPS.testCaseLoginType}
-                              required
-                            />
-                            <Select
-                              value={tc.login_type}
-                              onValueChange={(v) => updateTestCase(tcIndex, { login_type: v as LoginType })}
-                            >
-                              <SelectTrigger className="mt-1.5">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {loginTypes.map((lt) => (
-                                  <SelectItem key={lt} value={lt}>{LOGIN_TYPE_LABELS[lt]}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <FormTooltip 
-                            label="Expected Result" 
-                            tooltip={FIELD_TOOLTIPS.expectedResult}
-                            required
-                          />
-                          <Textarea
-                            value={tc.expected_result}
-                            onChange={(e) => updateTestCase(tcIndex, { expected_result: e.target.value })}
-                            placeholder={FIELD_PLACEHOLDERS.expectedResult}
-                            rows={2}
-                            className="mt-1.5"
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Label className="mb-0">Steps</Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="max-w-xs">
-                                  <p className="text-sm">Each step has an action and expected outcome. Actions describe what the tester does, outcomes describe what should happen.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="space-y-2">
-                            {tc.steps.map((step, stepIndex) => (
-                              <div key={stepIndex} className="flex gap-2 items-start">
-                                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center flex-shrink-0 mt-2">
-                                  {stepIndex + 1}
-                                </span>
-                                <div className="flex-1 grid sm:grid-cols-2 gap-2">
-                                  <Input
-                                    value={step.action}
-                                    onChange={(e) => updateStep(tcIndex, stepIndex, { action: e.target.value })}
-                                    placeholder={FIELD_PLACEHOLDERS.stepAction}
-                                  />
-                                  <Input
-                                    value={step.expected_outcome}
-                                    onChange={(e) => updateStep(tcIndex, stepIndex, { expected_outcome: e.target.value })}
-                                    placeholder={FIELD_PLACEHOLDERS.stepExpectedOutcome}
-                                  />
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeStep(tcIndex, stepIndex)}
-                                  className="text-red-600 flex-shrink-0"
-                                  disabled={tc.steps.length <= 1}
-                                >
-                                  ×
-                                </Button>
+                  {testCases.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground mb-4">No test cases added yet</p>
+                      <Button onClick={addTestCase}>Add First Test Case</Button>
+                    </div>
+                  ) : (
+                    <>
+                      {testCases.map((tc, tcIndex) => (
+                        <Card key={tcIndex} className="border-l-4 border-l-primary">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between">
+                              <CardTitle className="text-base">Test Case {tcIndex + 1}</CardTitle>
+                              <Button variant="ghost" size="sm" onClick={() => removeTestCase(tcIndex)} className="text-destructive">Remove</Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid sm:grid-cols-2 gap-4">
+                              <div>
+                                <FormTooltip label="Title" tooltip={FIELD_TOOLTIPS.testCaseTitle} required />
+                                <Input value={tc.title} onChange={(e) => updateTestCase(tcIndex, { title: e.target.value })} placeholder={FIELD_PLACEHOLDERS.testCaseTitle} className="mt-1.5" />
                               </div>
-                            ))}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addStep(tcIndex)}
-                            className="mt-2"
-                          >
-                            + Add Step
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  <Button onClick={addTestCase} variant="outline" className="w-full">
-                    + Add Another Test Case
-                  </Button>
+                              <div>
+                                <FormTooltip label="Login Type" tooltip={FIELD_TOOLTIPS.testCaseLoginType} required />
+                                <Select value={tc.login_type} onValueChange={(v) => updateTestCase(tcIndex, { login_type: v as LoginType })}>
+                                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{loginTypes.map((lt) => (<SelectItem key={lt} value={lt}>{LOGIN_TYPE_LABELS[lt]}</SelectItem>))}</SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div>
+                              <FormTooltip label="Expected Result" tooltip={FIELD_TOOLTIPS.expectedResult} required />
+                              <Textarea value={tc.expected_result} onChange={(e) => updateTestCase(tcIndex, { expected_result: e.target.value })} placeholder={FIELD_PLACEHOLDERS.expectedResult} rows={2} className="mt-1.5" />
+                            </div>
+                            <div>
+                              <Label className="mb-2 block">Steps</Label>
+                              <div className="space-y-2">
+                                {tc.steps.map((step, stepIndex) => (
+                                  <div key={stepIndex} className="flex gap-2 items-start">
+                                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center flex-shrink-0 mt-2">{stepIndex + 1}</span>
+                                    <div className="flex-1 grid sm:grid-cols-2 gap-2">
+                                      <Input value={step.action} onChange={(e) => updateStep(tcIndex, stepIndex, { action: e.target.value })} placeholder={FIELD_PLACEHOLDERS.stepAction} />
+                                      <Input value={step.expected_outcome} onChange={(e) => updateStep(tcIndex, stepIndex, { expected_outcome: e.target.value })} placeholder={FIELD_PLACEHOLDERS.stepExpectedOutcome} />
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={() => removeStep(tcIndex, stepIndex)} className="text-destructive flex-shrink-0" disabled={tc.steps.length <= 1}>×</Button>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => addStep(tcIndex)} className="mt-2">+ Add Step</Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      <Button onClick={addTestCase} variant="outline" className="w-full">+ Add Another Test Case</Button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -877,19 +864,46 @@ export default function CreateScenario() {
                 </div>
               </div>
               
-              <div>
-                <Label className="text-muted-foreground">Test Cases ({testCases.length})</Label>
-                <div className="mt-2 space-y-2">
-                  {testCases.map((tc, i) => (
-                    <div key={i} className="p-3 bg-muted/50 rounded-lg">
-                      <p className="font-medium">{i + 1}. {tc.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {LOGIN_TYPE_LABELS[tc.login_type]} • {tc.steps.length} steps
-                      </p>
+              {isWorkflow ? (
+                <div>
+                  <Label className="text-muted-foreground">Workflow ({workflowSteps.length} steps)</Label>
+                  <div className="mt-3 border rounded-lg overflow-hidden">
+                    {workflowPrecondition && (
+                      <div className="p-3 bg-blue-50 border-b">
+                        <p className="text-xs font-medium text-blue-700 mb-1">Precondition</p>
+                        <p className="text-sm text-blue-600">{workflowPrecondition}</p>
+                      </div>
+                    )}
+                    <div className="p-3 space-y-2">
+                      {workflowSteps.map((step, i) => (
+                        <div key={i} className="flex gap-3 p-2 bg-muted/50 rounded">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{step.action}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">✓ {step.expected_outcome}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    <div className="p-3 bg-emerald-50 border-t">
+                      <p className="text-xs font-medium text-emerald-700 mb-1">Expected Result</p>
+                      <p className="text-sm text-emerald-600">{workflowExpectedResult}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <Label className="text-muted-foreground">Test Cases ({testCases.length})</Label>
+                  <div className="mt-2 space-y-2">
+                    {testCases.map((tc, i) => (
+                      <div key={i} className="p-3 bg-muted/50 rounded-lg">
+                        <p className="font-medium">{i + 1}. {tc.title}</p>
+                        <p className="text-sm text-muted-foreground">{LOGIN_TYPE_LABELS[tc.login_type]} • {tc.steps.length} steps</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

@@ -29,7 +29,8 @@ import { LoginTypeBadge, StatusBadge } from "@/components/qa/badges";
 import { QuickExecutionTable } from "@/components/qa/QuickExecutionTable";
 import { CompactExecutionHeader } from "@/components/qa/CompactExecutionHeader";
 import { FIELD_PLACEHOLDERS } from "@/components/qa/FormTooltip";
-import type { TestRun, TestResult, TestCase, TestStep, TestStatus } from "@/types/qa";
+import { isWorkflowType } from "@/lib/workflow-utils";
+import type { TestRun, TestResult, TestCase, TestStep, TestStatus, ScenarioType } from "@/types/qa";
 
 interface TestResultWithCase extends TestResult {
   test_case: TestCase & { steps: TestStep[] };
@@ -48,7 +49,8 @@ export default function ExecuteTestRun() {
   const [notes, setNotes] = useState("");
   const [actualResult, setActualResult] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
-  const [quickMode, setQuickMode] = useState(true); // Default to quick mode for efficiency
+  const [quickMode, setQuickMode] = useState(true);
+  const [isWorkflow, setIsWorkflow] = useState(false);
   
   // Bulk selection state
   const [bulkMode, setBulkMode] = useState(false);
@@ -119,7 +121,17 @@ export default function ExecuteTestRun() {
 
       setRun(runData as TestRun);
 
-      // Load results with test cases and steps
+      // Detect workflow: check if scenario is intra/inter-login type
+      if (runData.scenario_ids && runData.scenario_ids.length === 1) {
+        const { data: scenarioData } = await supabase
+          .from("test_scenarios")
+          .select("scenario_type")
+          .eq("id", runData.scenario_ids[0])
+          .maybeSingle();
+        if (scenarioData && isWorkflowType(scenarioData.scenario_type as ScenarioType)) {
+          setIsWorkflow(true);
+        }
+      }
       const { data: resultsData } = await supabase
         .from("test_results")
         .select(`
@@ -398,6 +410,7 @@ export default function ExecuteTestRun() {
         <>
           <QuickExecutionTable 
             results={results}
+            isWorkflow={isWorkflow}
             onUpdateResult={async (resultId, status, notes, attachments) => {
               if (!user || saving) return;
               
