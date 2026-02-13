@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User } from "lucide-react";
+import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -213,6 +213,22 @@ export default function BugDetail() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={async () => {
+                const url = `${window.location.origin}/bugs/${id}`;
+                if (navigator.share) {
+                  try { await navigator.share({ title: `${bug.bug_code} — ${bug.title}`, url }); } catch {}
+                } else {
+                  await navigator.clipboard.writeText(url);
+                  toast({ title: "Link copied!", description: "Bug link copied to clipboard" });
+                }
+              }}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+            </Button>
             <span className="text-sm font-mono text-muted-foreground">{bug.bug_code}</span>
             <SeverityBadge severity={bug.severity} size="sm" />
             <BugStatusBadge status={bug.status} size="sm" />
