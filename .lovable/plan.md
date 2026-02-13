@@ -1,110 +1,115 @@
 
 
-# Import Bugs from Excel Sheet into QA Platform
+# Import Institute Bugs from Excel Sheet
 
 ## What You Asked
 
-Your team is tracking bugs in two places -- the QA platform and an Excel sheet. You want to consolidate everything into the platform by:
-
-1. Extracting all 83 bugs from the Excel sheet and importing them
-2. Renaming "Indira" (the QA tester in Excel) to **Harsha** as the reporter
-3. Bugs fixed by "Ramu" in Excel will be attributed to **Suhas**
-4. Maintaining the exact status from Excel -- if "Fixed + QA Done" then mark as **closed**; if "Open" then keep **open**; if "Reopen" then keep **open**
-5. For overlapping/similar bugs between the platform and Excel, prefer the Excel version and remove the platform duplicate
-6. Including screenshot links and issue text in the bug description field
+You want me to repeat the same process as the Super Admin bug import, but for the **Institute login** bugs from the new Excel sheet. Specifically:
+- Extract all 32 bugs from the Excel sheet
+- Map "Indira" to **Harsha** as the reporter
+- No developer fixes in this sheet (all bugs are Open)
+- Check for overlaps with existing platform Institute bugs
+- Add issue text and screenshot links into the description field
+- Mark all with the correct login type (Institute)
 
 ---
 
-## Data Mapping
+## Excel Data Summary
 
-### People Mapping
+The sheet contains **32 bugs**, all with:
+- Status: **Open** (Dev Status: Open, QA Status: Open)
+- Reporter: **Indira** (will be mapped to Harsha)
+- No developer assignments or fixes
+- All related to Institute panel modules
 
-| Excel Name | Platform User | Role |
+### Module Breakdown
+
+| Module | Bug Count | Platform Feature |
 |---|---|---|
-| Indira (QA) | **HarshaConq** (Harsha) | Reporter (created by) |
-| Suhas (Dev) | **Emmanuel Suhas** | Developer (resolved by) |
-| Adi Sir (Dev) | **Adi** | Developer (resolved by) |
-| Ramu (Dev) | **Emmanuel Suhas** (per your choice) | Developer (resolved by) |
-
-### Status Mapping
-
-| Excel Dev Status | Excel QA Status | Platform Status | Platform Fix Status |
-|---|---|---|---|
-| Fixed | QA Done | **closed** | **verified** |
-| Fixed | Open | **resolved** | **fixed** |
-| Open | Open | **open** | **unfixed** |
-| Reopen | Open | **open** | **reopened** |
-| Ignore | Open | **open** | **unfixed** |
-| Ignore | QA Done | **closed** | **verified** |
-| Ignore | Ignore | **wont_fix** | **unfixed** |
-
-### Module to Feature Mapping
-
-| Excel Module | Platform Feature |
-|---|---|
-| Curriculum | Master Data - Curriculum |
-| Courses | Master Data - Courses |
-| Institutes | Institutes |
-| Question Bank | Question Bank |
-| Exams | Exams |
-| Tier Management | Tier Management |
-| Users | Roles & Access |
-| Roles & Access | Roles & Access |
-| Content Library | Content Library |
-| Login / Signout / Dashboard / Notifications / Profile / Settings | (no feature, general platform bugs) |
-| All Pages > Global Search | (no feature, general) |
+| Batches | 14 | Batches |
+| Teachers | 7 | Teachers |
+| Students | 4 | Students |
+| Timetable | 5 | Timetable |
+| Dashboard | 2 | (no feature -- general) |
+| All Pages | 1 | (no feature -- general) |
+| Parents | 1 | (no feature -- not in platform features list) |
 
 ---
 
 ## Overlap Analysis
 
-I found **~12 bugs in the platform** that overlap with Excel entries. Here is how they will be handled:
+Comparing the 32 Excel bugs against the 12 existing Institute bugs (BUG-028 to BUG-039):
 
-| Platform Bug | Similar Excel Entry | Excel Status | Action |
-|---|---|---|---|
-| BUG-005 (Assign Curriculum blank page) | Row 51 (Institute assign curriculum blank page) | Fixed/QA Done | Update platform bug to **closed** |
-| BUG-007 (Delete Institute fails) | Row 52 (Delete institute fails) | Fixed/QA Done | Update to **closed** |
-| BUG-008 (Tier Mgmt feature fails) | Row 58 (Tier create feature fails) | Reopen | Keep **open**, update description |
-| BUG-011 (Quick Add Subject not appearing) | Row 17 (Subject color not showing) | Reopen | Keep **open**, update description |
-| BUG-012 (Quick Add Chapter not added) | Rows 11, 16 (Chapter not creating) | Fixed/QA Done | Update to **closed** |
-| BUG-014 (Delete Course not working) | Row 22 (Course delete not working) | Fixed/QA Done | Update to **closed** |
-| BUG-017 (View PYP error) | Row 71 (PYP view error) | Open | Already open, add screenshot |
-| BUG-018 (Edit PYP error) | Row 72 (PYP edit error) | Open | Already open, add screenshot |
-| BUG-021 (Search Papers not functional) | Row 67 (PYP search not working) | Open | Already open, add screenshot |
-| BUG-026 (Content Library Preview) | Row 82 (Preview Download/Share not working) | Open | Already open, add screenshot |
+| Platform Bug | Similar Excel Entry | Action |
+|---|---|---|
+| BUG-030 (Teachers > Bulk Upload not appearing) | Row 22 (uploaded teachers list not showing) | Update description with Excel screenshot, keep open |
 
-All other Excel bugs (~71) will be **inserted as new bugs** starting from BUG-046 onward.
+The remaining **11 platform bugs** (BUG-028, 029, 031-039) cover Question Bank, Exams, Master Data, and Global UI -- modules NOT present in this Excel sheet. They will be left untouched.
+
+All other **31 Excel bugs** will be inserted as new bugs.
+
+---
+
+## Data Mapping
+
+### People Mapping (same as before)
+
+| Excel Name | Platform User | User ID |
+|---|---|---|
+| Indira (QA) | HarshaConq (Harsha) | 1f182e51-... |
+
+### Status Mapping
+
+All 32 bugs are Open/Open, so all will be:
+- Platform Status: **open**
+- Fix Status: **unfixed**
+
+### Feature ID Mapping
+
+| Excel Module | Platform Feature ID |
+|---|---|
+| Batches | 7123698a-6665-4a32-8694-d7faee13e769 |
+| Teachers | 0d818488-68c4-41d6-b945-e46ca74438c5 |
+| Students | 4f1eaddf-9194-4015-901c-82693a12e186 |
+| Timetable | cb5942b7-5f07-401e-b641-5a0b0540965c |
+| Dashboard / All Pages / Parents | NULL (general platform bugs) |
+
+### Priority Mapping
+
+| Excel Priority | Platform Severity |
+|---|---|
+| High | major |
+| Medium | minor |
+| Low | trivial |
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Update overlapping platform bugs
-- Update ~6 bugs to **closed/verified** status (where Excel shows Fixed + QA Done)
-- Update ~6 bugs with enriched descriptions (add screenshot links from Excel)
-- Set resolved_by to the correct developer from the Excel
+### Step 1: Update the 1 overlapping bug
+- Update BUG-030 description with Excel issue text and screenshot link
 
-### Step 2: Insert new bugs from Excel
-- Insert ~71 new bugs with:
-  - Auto-generated bug codes (BUG-046+)
-  - reported_by = Harsha
-  - Correct status and fix_status per the mapping table above
-  - Description = Excel "Issue" text + screenshot link(s)
-  - Severity mapped from Excel Priority (High = major, Medium = minor, Low = trivial, Critical = critical)
-  - Sub-module from Excel "Sub Module" column
-  - Feature ID mapped from the module mapping table
-  - Project ID = The Donut AI
+### Step 2: Insert 31 new bugs
+- All with login_type = 'institute'
+- reported_by = Harsha
+- status = 'open', fix_status = 'unfixed'
+- Description = Issue text + screenshot link(s)
+- Severity mapped from Priority column
+- Sub-module from Excel "Sub Module" column
+- Feature ID mapped per table above
+- Project ID = 11111111-1111-1111-1111-111111111111
 
-### Step 3: Verify no duplicates
-- After import, run a verification query to confirm no duplicate titles or overlapping entries
+### Step 3: Verify
+- Confirm no duplicate titles across Institute bugs
+- Confirm total bug count is correct
 
 ---
 
 ## Technical Notes
 
-- All data operations will use direct SQL (INSERT/UPDATE) via the database tool, which bypasses RLS policies
-- The `generate_bug_code()` trigger will auto-assign sequential bug codes
-- Priority mapping: High = **major**, Medium = **minor**, Low = **trivial** (no "critical" in the Excel data)
-- Screenshot links (prnt.sc URLs) will be embedded in the bug description field since the platform doesn't have a dedicated screenshot URL field
-- Bugs with "Ignore" from both Dev and QA will be marked as **wont_fix**
+- All operations via direct SQL INSERT/UPDATE (bypasses RLS)
+- The generate_bug_code() trigger will auto-assign sequential codes (continuing from current max)
+- Login type will be set to 'institute' (the existing enum value)
+- Screenshot links (prnt.sc URLs) embedded in description field
+- Some rows have multiple screenshot links -- all will be included
 
