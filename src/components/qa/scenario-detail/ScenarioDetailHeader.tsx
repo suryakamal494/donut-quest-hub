@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2, Share2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -30,6 +31,20 @@ export function ScenarioDetailHeader({
   scenario, feature, id, canEdit, role, cloning, deleting, startingRun,
   currentClaimer, onBack, onClone, onDelete, onStartRun, onClaimUpdate,
 }: Props) {
+  const { toast } = useToast();
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/qa/scenarios/${id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${scenario.scenario_code} — ${scenario.name}`, url });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copied!", description: "Scenario link copied to clipboard" });
+    }
+  };
+
   return (
     <div className="flex items-start gap-4">
       <Button variant="ghost" size="icon" onClick={onBack}>
@@ -49,6 +64,9 @@ export function ScenarioDetailHeader({
         )}
       </div>
       <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={handleShare}>
+          <Share2 className="h-4 w-4 mr-2" />Share
+        </Button>
         <Button variant="outline" size="sm" onClick={onClone} disabled={cloning}>
           {cloning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Copy className="h-4 w-4 mr-2" />}
           Clone
