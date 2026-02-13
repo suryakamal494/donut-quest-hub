@@ -50,7 +50,9 @@ export default function ClosedBugs() {
         .from("bugs")
         .select("*", { count: "exact" })
         .eq("project_id", currentProject.id)
-        .in("status", ["resolved", "closed", "wont_fix"]);
+        .in("status", ["resolved", "closed", "wont_fix"])
+        // Exclude resolved+fixed bugs that are pending retest (not yet verified)
+        .not("fix_status", "eq", "fixed");
 
       if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
       if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
