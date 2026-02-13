@@ -29,7 +29,7 @@ import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
 import Failures from "./pages/qa/Failures";
 
 // Bug Module
-import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport } from "./pages/bugs";
+import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport, PendingRetest } from "./pages/bugs";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +99,7 @@ const App = () => (
               }
             >
               <Route index element={<BugList />} />
+              <Route path="retest" element={<PendingRetest />} />
               <Route path="closed" element={<ClosedBugs />} />
               <Route path="report" element={<BugReport />} />
               <Route path="create" element={<CreateBug />} />

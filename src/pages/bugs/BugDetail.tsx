@@ -377,7 +377,7 @@ export default function BugDetail() {
               {/* Assignment */}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Assigned To</p>
-                {(isAdmin || user?.id === bug.reported_by) ? (
+                {isAdmin ? (
                   <Select value={bug.assigned_to || ""} onValueChange={assignBug}>
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Unassigned" />
