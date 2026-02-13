@@ -1,47 +1,69 @@
 
 
-# Fix Social Share Preview (OG Tags)
+# 1. Password Reset & 2. Share Links for Scenarios and Bugs
 
-## Problem
-WhatsApp and Google show "Lovable App / Lovable Generated Project" instead of the correct QA Platform branding because:
-- The `og:image` uses a **relative path** (`/og-image.png`) which social crawlers cannot resolve
-- Missing `og:url` tag
-- Missing Twitter description tag
-- WhatsApp/Google have **cached** the old preview data
+---
 
-## Solution
+## Feature 1: Password Reset
 
-### Step 1: Update `index.html` meta tags with absolute URLs
+### The Situation
+Your platform uses Lovable Cloud's built-in authentication with email auto-confirm (no email verification). This matters because the standard "forgot password" flow sends a reset link via email.
 
-Replace the current OG/Twitter meta tags with **absolute URLs** pointing to your custom domain:
+### Your Options
 
-```text
-og:url        -> https://qa.thedonutai.com
-og:image      -> https://qa.thedonutai.com/og-image.png
-twitter:image -> https://qa.thedonutai.com/og-image.png
-```
+| Option | How It Works | Pros | Cons |
+|--------|-------------|------|------|
+| **A. Admin Reset (Recommended)** | Admin goes to Admin Dashboard, clicks "Reset Password" next to a user. The system sets a temporary password and the admin shares it with the user directly. | No email setup needed. Works today. Simple. | Requires admin involvement each time. |
+| **B. Built-in Email Reset** | Add a "Forgot Password?" link on the login page. Uses the authentication system's built-in `resetPasswordForEmail()` which sends a magic link to the user's email. | Self-service. Industry standard. | Requires email delivery to actually work -- your current setup has auto-confirm enabled, so transactional emails should already be functional via the built-in email provider. |
 
-Also add the missing `og:description` for Twitter.
+**My recommendation**: Go with **Option B** (email-based reset). Since your platform already has email auto-confirm working, the built-in email sender can deliver password reset links too. It requires no third-party email service -- it works out of the box. We just need to add:
+- A "Forgot Password?" link on the Login page
+- A simple Reset Password page where users enter their email
+- An Update Password page that handles the reset link callback
 
-**File:** `index.html`
+### How Option B Works (user flow)
 
-### Step 2: Force cache refresh
+1. User clicks "Forgot Password?" on login page
+2. Enters their email on the reset page
+3. Receives an email with a reset link
+4. Clicks the link, lands on the "Set New Password" page
+5. Enters new password, done
 
-After publishing, you will need to:
+---
 
-1. **Facebook/WhatsApp**: Go to [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) and enter `https://qa.thedonutai.com` then click "Scrape Again". This clears WhatsApp's cache too since WhatsApp uses Facebook's crawler.
+## Feature 2: Share Links for Scenarios and Bugs
 
-2. **Google**: Google re-crawls on its own schedule (can take days). To speed it up, use [Google Search Console](https://search.google.com/search-console) and request URL inspection + re-indexing.
+### How It Works
+Add a **Share button** to both the Scenario Detail page and the Bug Detail page. When clicked, it copies the direct URL to the clipboard (e.g., `https://qa.thedonutai.com/qa/scenarios/abc-123` or `https://qa.thedonutai.com/bugs/xyz-456`).
 
-3. **Quick WhatsApp trick**: If WhatsApp still shows old data, try sharing the URL with a query parameter like `https://qa.thedonutai.com?v=2` to bypass cache.
+The routing already exists -- `/qa/scenarios/:id` and `/bugs/:id` are already defined routes. So the links will just work. If the recipient is logged in, they see the page directly. If not, the `ProtectedRoute` wrapper redirects them to login first.
 
-## Files to Modify
+---
 
+## Technical Details
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `src/pages/ForgotPassword.tsx` | Email input form that triggers password reset email |
+| `src/pages/ResetPassword.tsx` | New password form (shown after clicking the email link) |
+
+### Files to Modify
 | File | Change |
-|---|---|
-| `index.html` | Change og:image and twitter:image to absolute URLs, add og:url, add twitter:description |
+|------|--------|
+| `src/pages/Login.tsx` | Add "Forgot Password?" link below the password field |
+| `src/App.tsx` | Add routes for `/forgot-password` and `/reset-password` |
+| `src/components/qa/scenario-detail/ScenarioDetailHeader.tsx` | Add Share button that copies scenario URL to clipboard |
+| `src/pages/bugs/BugDetail.tsx` | Add Share button that copies bug URL to clipboard |
 
-## Expected Outcome
-- WhatsApp preview shows: **"QA Platform - Test Smarter, Ship Confidently"** with the correct OG image and description
-- Google search results show the correct title and description
+### Share Button Behavior
+- Uses the `Share2` icon from lucide-react
+- On click: copies `window.location.origin + /qa/scenarios/{id}` or `/bugs/{id}` to clipboard
+- Shows a toast: "Link copied to clipboard"
+- On mobile: uses the native `navigator.share()` API if available for a better experience (share to WhatsApp, etc.)
+
+### Password Reset Flow
+- `ForgotPassword.tsx`: Calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: origin + '/reset-password' })`
+- `ResetPassword.tsx`: Listens for `PASSWORD_RECOVERY` auth event, then calls `supabase.auth.updateUser({ password })`
+- Both pages use the same warm branding/styling as the existing Login page
 
