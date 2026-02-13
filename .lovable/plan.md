@@ -1,69 +1,110 @@
 
 
-# 1. Password Reset & 2. Share Links for Scenarios and Bugs
+# Import Bugs from Excel Sheet into QA Platform
+
+## What You Asked
+
+Your team is tracking bugs in two places -- the QA platform and an Excel sheet. You want to consolidate everything into the platform by:
+
+1. Extracting all 83 bugs from the Excel sheet and importing them
+2. Renaming "Indira" (the QA tester in Excel) to **Harsha** as the reporter
+3. Bugs fixed by "Ramu" in Excel will be attributed to **Suhas**
+4. Maintaining the exact status from Excel -- if "Fixed + QA Done" then mark as **closed**; if "Open" then keep **open**; if "Reopen" then keep **open**
+5. For overlapping/similar bugs between the platform and Excel, prefer the Excel version and remove the platform duplicate
+6. Including screenshot links and issue text in the bug description field
 
 ---
 
-## Feature 1: Password Reset
+## Data Mapping
 
-### The Situation
-Your platform uses Lovable Cloud's built-in authentication with email auto-confirm (no email verification). This matters because the standard "forgot password" flow sends a reset link via email.
+### People Mapping
 
-### Your Options
+| Excel Name | Platform User | Role |
+|---|---|---|
+| Indira (QA) | **HarshaConq** (Harsha) | Reporter (created by) |
+| Suhas (Dev) | **Emmanuel Suhas** | Developer (resolved by) |
+| Adi Sir (Dev) | **Adi** | Developer (resolved by) |
+| Ramu (Dev) | **Emmanuel Suhas** (per your choice) | Developer (resolved by) |
 
-| Option | How It Works | Pros | Cons |
-|--------|-------------|------|------|
-| **A. Admin Reset (Recommended)** | Admin goes to Admin Dashboard, clicks "Reset Password" next to a user. The system sets a temporary password and the admin shares it with the user directly. | No email setup needed. Works today. Simple. | Requires admin involvement each time. |
-| **B. Built-in Email Reset** | Add a "Forgot Password?" link on the login page. Uses the authentication system's built-in `resetPasswordForEmail()` which sends a magic link to the user's email. | Self-service. Industry standard. | Requires email delivery to actually work -- your current setup has auto-confirm enabled, so transactional emails should already be functional via the built-in email provider. |
+### Status Mapping
 
-**My recommendation**: Go with **Option B** (email-based reset). Since your platform already has email auto-confirm working, the built-in email sender can deliver password reset links too. It requires no third-party email service -- it works out of the box. We just need to add:
-- A "Forgot Password?" link on the Login page
-- A simple Reset Password page where users enter their email
-- An Update Password page that handles the reset link callback
+| Excel Dev Status | Excel QA Status | Platform Status | Platform Fix Status |
+|---|---|---|---|
+| Fixed | QA Done | **closed** | **verified** |
+| Fixed | Open | **resolved** | **fixed** |
+| Open | Open | **open** | **unfixed** |
+| Reopen | Open | **open** | **reopened** |
+| Ignore | Open | **open** | **unfixed** |
+| Ignore | QA Done | **closed** | **verified** |
+| Ignore | Ignore | **wont_fix** | **unfixed** |
 
-### How Option B Works (user flow)
+### Module to Feature Mapping
 
-1. User clicks "Forgot Password?" on login page
-2. Enters their email on the reset page
-3. Receives an email with a reset link
-4. Clicks the link, lands on the "Set New Password" page
-5. Enters new password, done
+| Excel Module | Platform Feature |
+|---|---|
+| Curriculum | Master Data - Curriculum |
+| Courses | Master Data - Courses |
+| Institutes | Institutes |
+| Question Bank | Question Bank |
+| Exams | Exams |
+| Tier Management | Tier Management |
+| Users | Roles & Access |
+| Roles & Access | Roles & Access |
+| Content Library | Content Library |
+| Login / Signout / Dashboard / Notifications / Profile / Settings | (no feature, general platform bugs) |
+| All Pages > Global Search | (no feature, general) |
 
 ---
 
-## Feature 2: Share Links for Scenarios and Bugs
+## Overlap Analysis
 
-### How It Works
-Add a **Share button** to both the Scenario Detail page and the Bug Detail page. When clicked, it copies the direct URL to the clipboard (e.g., `https://qa.thedonutai.com/qa/scenarios/abc-123` or `https://qa.thedonutai.com/bugs/xyz-456`).
+I found **~12 bugs in the platform** that overlap with Excel entries. Here is how they will be handled:
 
-The routing already exists -- `/qa/scenarios/:id` and `/bugs/:id` are already defined routes. So the links will just work. If the recipient is logged in, they see the page directly. If not, the `ProtectedRoute` wrapper redirects them to login first.
+| Platform Bug | Similar Excel Entry | Excel Status | Action |
+|---|---|---|---|
+| BUG-005 (Assign Curriculum blank page) | Row 51 (Institute assign curriculum blank page) | Fixed/QA Done | Update platform bug to **closed** |
+| BUG-007 (Delete Institute fails) | Row 52 (Delete institute fails) | Fixed/QA Done | Update to **closed** |
+| BUG-008 (Tier Mgmt feature fails) | Row 58 (Tier create feature fails) | Reopen | Keep **open**, update description |
+| BUG-011 (Quick Add Subject not appearing) | Row 17 (Subject color not showing) | Reopen | Keep **open**, update description |
+| BUG-012 (Quick Add Chapter not added) | Rows 11, 16 (Chapter not creating) | Fixed/QA Done | Update to **closed** |
+| BUG-014 (Delete Course not working) | Row 22 (Course delete not working) | Fixed/QA Done | Update to **closed** |
+| BUG-017 (View PYP error) | Row 71 (PYP view error) | Open | Already open, add screenshot |
+| BUG-018 (Edit PYP error) | Row 72 (PYP edit error) | Open | Already open, add screenshot |
+| BUG-021 (Search Papers not functional) | Row 67 (PYP search not working) | Open | Already open, add screenshot |
+| BUG-026 (Content Library Preview) | Row 82 (Preview Download/Share not working) | Open | Already open, add screenshot |
+
+All other Excel bugs (~71) will be **inserted as new bugs** starting from BUG-046 onward.
 
 ---
 
-## Technical Details
+## Implementation Steps
 
-### Files to Create
-| File | Purpose |
-|------|---------|
-| `src/pages/ForgotPassword.tsx` | Email input form that triggers password reset email |
-| `src/pages/ResetPassword.tsx` | New password form (shown after clicking the email link) |
+### Step 1: Update overlapping platform bugs
+- Update ~6 bugs to **closed/verified** status (where Excel shows Fixed + QA Done)
+- Update ~6 bugs with enriched descriptions (add screenshot links from Excel)
+- Set resolved_by to the correct developer from the Excel
 
-### Files to Modify
-| File | Change |
-|------|--------|
-| `src/pages/Login.tsx` | Add "Forgot Password?" link below the password field |
-| `src/App.tsx` | Add routes for `/forgot-password` and `/reset-password` |
-| `src/components/qa/scenario-detail/ScenarioDetailHeader.tsx` | Add Share button that copies scenario URL to clipboard |
-| `src/pages/bugs/BugDetail.tsx` | Add Share button that copies bug URL to clipboard |
+### Step 2: Insert new bugs from Excel
+- Insert ~71 new bugs with:
+  - Auto-generated bug codes (BUG-046+)
+  - reported_by = Harsha
+  - Correct status and fix_status per the mapping table above
+  - Description = Excel "Issue" text + screenshot link(s)
+  - Severity mapped from Excel Priority (High = major, Medium = minor, Low = trivial, Critical = critical)
+  - Sub-module from Excel "Sub Module" column
+  - Feature ID mapped from the module mapping table
+  - Project ID = The Donut AI
 
-### Share Button Behavior
-- Uses the `Share2` icon from lucide-react
-- On click: copies `window.location.origin + /qa/scenarios/{id}` or `/bugs/{id}` to clipboard
-- Shows a toast: "Link copied to clipboard"
-- On mobile: uses the native `navigator.share()` API if available for a better experience (share to WhatsApp, etc.)
+### Step 3: Verify no duplicates
+- After import, run a verification query to confirm no duplicate titles or overlapping entries
 
-### Password Reset Flow
-- `ForgotPassword.tsx`: Calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: origin + '/reset-password' })`
-- `ResetPassword.tsx`: Listens for `PASSWORD_RECOVERY` auth event, then calls `supabase.auth.updateUser({ password })`
-- Both pages use the same warm branding/styling as the existing Login page
+---
+
+## Technical Notes
+
+- All data operations will use direct SQL (INSERT/UPDATE) via the database tool, which bypasses RLS policies
+- The `generate_bug_code()` trigger will auto-assign sequential bug codes
+- Priority mapping: High = **major**, Medium = **minor**, Low = **trivial** (no "critical" in the Excel data)
+- Screenshot links (prnt.sc URLs) will be embedded in the bug description field since the platform doesn't have a dedicated screenshot URL field
+- Bugs with "Ignore" from both Dev and QA will be marked as **wont_fix**
 
