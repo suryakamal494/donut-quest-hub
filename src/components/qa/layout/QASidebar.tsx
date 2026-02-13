@@ -38,10 +38,10 @@ const navItems = [
     href: "/bugs",
     icon: Bug,
     subItems: [
+      { title: "Bug Report", href: "/bugs/report", icon: ClipboardList },
       { title: "Active Bugs", href: "/bugs", icon: List },
       { title: "Pending Retest", href: "/bugs/retest", icon: RotateCcw },
       { title: "Closed Bugs", href: "/bugs/closed", icon: XCircle },
-      { title: "Bug Report", href: "/bugs/report", icon: ClipboardList },
       { title: "Report Bug", href: "/bugs/create", icon: Plus },
     ],
   },

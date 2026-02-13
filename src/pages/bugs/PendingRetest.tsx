@@ -13,6 +13,15 @@ import { SeverityBadge, FixStatusBadge } from "@/components/bugs/BugBadges";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import type { Bug as BugType } from "@/types/bugs";
+import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
+
+const LOGIN_FILTERS: Array<{ value: "all" | LoginType; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "super_admin", label: "Super Admin" },
+  { value: "institute", label: "Institute Admin" },
+  { value: "teacher", label: "Teacher" },
+  { value: "student", label: "Student" },
+];
 
 interface ProfileMap {
   [userId: string]: string;
@@ -29,6 +38,7 @@ export default function PendingRetest() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [reopenNotes, setReopenNotes] = useState<Record<string, string>>({});
   const [showReopenForm, setShowReopenForm] = useState<string | null>(null);
+  const [loginTypeFilter, setLoginTypeFilter] = useState<"all" | LoginType>("all");
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
@@ -176,6 +186,10 @@ export default function PendingRetest() {
 
   const isQAOrAdmin = role === "admin" || role === "user";
 
+  const filteredBugs = loginTypeFilter === "all"
+    ? bugs
+    : bugs.filter((b) => b.login_type === loginTypeFilter);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -189,11 +203,29 @@ export default function PendingRetest() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Pending Retest</h1>
         <p className="text-sm text-muted-foreground">
-          {bugs.length} bug{bugs.length !== 1 ? "s" : ""} awaiting QA verification after developer fix
+          {filteredBugs.length} of {bugs.length} bug{bugs.length !== 1 ? "s" : ""} awaiting QA verification
         </p>
       </div>
 
-      {bugs.length === 0 ? (
+      {/* Login Type Chip Filters */}
+      <div className="flex flex-wrap gap-2">
+        {LOGIN_FILTERS.map((f) => (
+          <Button
+            key={f.value}
+            size="sm"
+            variant={loginTypeFilter === f.value ? "default" : "outline"}
+            className={cn(
+              "rounded-full text-xs h-8 px-3",
+              loginTypeFilter === f.value && "shadow-sm"
+            )}
+            onClick={() => setLoginTypeFilter(f.value)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
+      {filteredBugs.length === 0 ? (
         <div className="text-center py-16">
           <CheckCircle className="h-12 w-12 mx-auto text-emerald-500/50 mb-4" />
           <h3 className="font-medium text-foreground">All clear!</h3>
@@ -201,7 +233,7 @@ export default function PendingRetest() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {bugs.map((bug) => {
+          {filteredBugs.map((bug) => {
             const isLoading = actionLoading === bug.id;
             const isReopening = showReopenForm === bug.id;
 
