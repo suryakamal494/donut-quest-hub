@@ -79,6 +79,7 @@ export default function BugReport() {
   const [statusView, setStatusView] = useState<"all" | "active" | "closed">("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
+  const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>("created_at");
@@ -105,7 +106,7 @@ export default function BugReport() {
     if (user && currentProject) {
       loadBugs();
     }
-  }, [user, currentProject, page, search, statusView, severityFilter, loginTypeFilter, sortField, sortDir]);
+  }, [user, currentProject, page, search, statusView, severityFilter, loginTypeFilter, bugTypeFilter, sortField, sortDir]);
 
   const loadFeatures = async () => {
     if (!currentProject) return;
@@ -154,6 +155,7 @@ export default function BugReport() {
 
       if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
       if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
+      if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
 
       if (search) {
         query = query.or(
@@ -381,6 +383,20 @@ export default function BugReport() {
             <SelectItem value="institute">Institute</SelectItem>
             <SelectItem value="teacher">Teacher</SelectItem>
             <SelectItem value="student">Student</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={bugTypeFilter} onValueChange={(v) => { setBugTypeFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-[130px] h-9 text-sm">
+            <SelectValue placeholder="Bug Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="ui">UI</SelectItem>
+            <SelectItem value="functional">Functional</SelectItem>
+            <SelectItem value="performance">Performance</SelectItem>
+            <SelectItem value="data">Data</SelectItem>
+            <SelectItem value="security">Security</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
           </SelectContent>
         </Select>
       </div>
