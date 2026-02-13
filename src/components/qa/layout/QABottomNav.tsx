@@ -46,6 +46,12 @@ const moreNavItems = [
     description: "View and manage bugs",
   },
   {
+    title: "Bug Report",
+    href: "/bugs/report",
+    icon: Bug,
+    description: "Comprehensive bug report view",
+  },
+  {
     title: "Failures",
     href: "/qa/failures",
     icon: AlertCircle,
