@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   AlertCircle,
   BarChart3,
+  RotateCcw,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,12 @@ const moreNavItems = [
     href: "/bugs",
     icon: Bug,
     description: "View and manage bugs",
+  },
+  {
+    title: "Pending Retest",
+    href: "/bugs/retest",
+    icon: RotateCcw,
+    description: "Bugs awaiting QA verification",
   },
   {
     title: "Bug Report",

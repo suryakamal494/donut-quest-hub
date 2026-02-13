@@ -27,7 +27,11 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
   const isAssignee = user?.id === bug.assigned_to;
 
   const fixStatus = bug.fix_status || "unfixed";
-  const canMarkFixed = (isDeveloper || isAssignee || isAdmin) &&
+  const isAssignedToSomeone = !!bug.assigned_to;
+  const canMarkFixed =
+    (isAssignedToSomeone
+      ? (isAssignee || isAdmin)
+      : (isDeveloper || isAdmin)) &&
     (fixStatus === "unfixed" || fixStatus === "reopened") &&
     bug.status !== "closed";
   const canVerify = (isReporter || isAdmin) && fixStatus === "fixed";

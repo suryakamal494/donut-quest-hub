@@ -24,9 +24,12 @@ export function InlineFixAction({ bug, onFixed }: InlineFixActionProps) {
   const isAdmin = role === "admin";
   const isAssignee = user?.id === bug.assigned_to;
   const fixStatus = (bug as any).fix_status || "unfixed";
+  const isAssignedToSomeone = !!bug.assigned_to;
 
   const canFix =
-    (isDeveloper || isAssignee || isAdmin) &&
+    (isAssignedToSomeone
+      ? (isAssignee || isAdmin)
+      : (isDeveloper || isAdmin)) &&
     (fixStatus === "unfixed" || fixStatus === "reopened") &&
     bug.status !== "closed";
 

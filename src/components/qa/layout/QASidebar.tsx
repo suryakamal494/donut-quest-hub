@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -11,10 +12,14 @@ import {
   Bug,
   AlertTriangle,
   XCircle,
-  ClipboardList
+  ClipboardList,
+  RotateCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useProject } from "@/contexts/ProjectContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface QASidebarProps {
   collapsed: boolean;
@@ -34,6 +39,7 @@ const navItems = [
     icon: Bug,
     subItems: [
       { title: "Active Bugs", href: "/bugs", icon: List },
+      { title: "Pending Retest", href: "/bugs/retest", icon: RotateCcw },
       { title: "Closed Bugs", href: "/bugs/closed", icon: XCircle },
       { title: "Bug Report", href: "/bugs/report", icon: ClipboardList },
       { title: "Report Bug", href: "/bugs/create", icon: Plus },
@@ -71,6 +77,20 @@ const navItems = [
 
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const location = useLocation();
+  const { currentProject } = useProject();
+  const [retestCount, setRetestCount] = useState(0);
+
+  useEffect(() => {
+    if (currentProject) {
+      supabase
+        .from("bugs")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", currentProject.id)
+        .eq("fix_status", "fixed")
+        .eq("status", "resolved")
+        .then(({ count }) => setRetestCount(count || 0));
+    }
+  }, [currentProject, location.pathname]);
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;
@@ -123,7 +143,12 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
                         )}
                       >
                         <SubIcon className="h-4 w-4" />
-                        <span>{subItem.title}</span>
+                        <span className="flex-1">{subItem.title}</span>
+                        {subItem.title === "Pending Retest" && retestCount > 0 && (
+                          <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold">
+                            {retestCount}
+                          </Badge>
+                        )}
                       </NavLink>
                     );
                   })}

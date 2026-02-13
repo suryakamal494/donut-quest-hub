@@ -386,7 +386,7 @@ export default function BugReport() {
       </div>
 
       {/* Bulk Action Bar */}
-      {selected.size > 0 && (role === "admin" || role === "developer") && (
+      {selected.size > 0 && role === "admin" && (
         <div className="flex items-center gap-3 p-3 rounded-lg bg-accent border border-border">
           <Users className="h-4 w-4 text-accent-foreground" />
           <span className="text-sm font-medium text-accent-foreground">
@@ -418,10 +418,12 @@ export default function BugReport() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="w-10 px-2">
-                  <Checkbox
-                    checked={bugs.length > 0 && selected.size === bugs.length}
-                    onCheckedChange={toggleSelectAll}
-                  />
+                  {role === "admin" ? (
+                    <Checkbox
+                      checked={bugs.length > 0 && selected.size === bugs.length}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  ) : null}
                 </TableHead>
                 <TableHead className="w-[90px] text-xs">Code</TableHead>
                 <TableHead className="min-w-[200px] text-xs">Title</TableHead>
@@ -474,10 +476,12 @@ export default function BugReport() {
                 bugs.map((bug) => (
                   <TableRow key={bug.id} className={cn(selected.has(bug.id) && "bg-accent/30")}>
                     <TableCell className="px-2">
-                      <Checkbox
-                        checked={selected.has(bug.id)}
-                        onCheckedChange={() => toggleSelect(bug.id)}
-                      />
+                      {role === "admin" ? (
+                        <Checkbox
+                          checked={selected.has(bug.id)}
+                          onCheckedChange={() => toggleSelect(bug.id)}
+                        />
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-xs font-mono">
                       <Link to={`/bugs/${bug.id}`} className="text-primary hover:underline font-medium">
@@ -568,7 +572,7 @@ export default function BugReport() {
                         <span className="text-xs text-muted-foreground truncate block max-w-[120px]">
                           {profileMap[bug.assigned_to] || "..."}
                         </span>
-                      ) : (role === "admin" || role === "developer") ? (
+                      ) : role === "admin" ? (
                         <Select onValueChange={(v) => handleInlineAssign(bug.id, v)}>
                           <SelectTrigger className="h-7 w-[110px] text-xs border-dashed">
                             <SelectValue placeholder="Assign" />
