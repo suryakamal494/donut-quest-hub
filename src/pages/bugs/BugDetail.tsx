@@ -202,6 +202,8 @@ export default function BugDetail() {
   }
 
   const isAdmin = role === "admin";
+  const isReporter = user?.id === bug.reported_by;
+  const canDelete = isAdmin || isReporter;
   const fixStatus = bug.fix_status || "unfixed";
 
   return (
@@ -238,7 +240,7 @@ export default function BugDetail() {
           </div>
           <h1 className="text-lg sm:text-xl font-bold text-foreground">{bug.title}</h1>
         </div>
-        {isAdmin && (
+        {canDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="icon" className="text-destructive shrink-0">

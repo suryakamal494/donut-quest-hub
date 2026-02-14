@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban } from "lucide-react";
+import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban, Trash2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +18,8 @@ import { RUN_STATUS_LABELS } from "@/types/qa";
 
 export default function TestRuns() {
   const { currentProject, isLoading: projectLoading } = useProject();
+  const { user, role } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [search, setSearch] = useState("");
@@ -174,63 +182,75 @@ export default function TestRuns() {
             const progressPercent = run.total_tests ? (completedCount / run.total_tests) * 100 : 0;
 
             return (
-              <Link
-                key={run.id}
-                to={run.status === "in_progress" ? `/qa/runs/${run.id}/execute` : `/qa/runs/${run.id}`}
-                className="block"
-              >
-                <Card className="glass hover:border-primary/30 transition-all">
-                  <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                      {/* Main Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            {run.run_code}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${getStatusClass(run.status)}`}>
-                            {getStatusIcon(run.status)}
-                            {RUN_STATUS_LABELS[run.status]}
-                          </span>
+              <div key={run.id} className="relative">
+                <Link
+                  to={run.status === "in_progress" ? `/qa/runs/${run.id}/execute` : `/qa/runs/${run.id}`}
+                  className="block"
+                >
+                  <Card className="glass hover:border-primary/30 transition-all">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-mono text-muted-foreground">{run.run_code}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${getStatusClass(run.status)}`}>
+                              {getStatusIcon(run.status)}
+                              {RUN_STATUS_LABELS[run.status]}
+                            </span>
+                          </div>
+                          <h3 className="font-semibold text-foreground line-clamp-1">{run.name}</h3>
+                          <p className="text-sm text-muted-foreground mt-0.5">Started {new Date(run.started_at).toLocaleString()}</p>
                         </div>
-                        <h3 className="font-semibold text-foreground line-clamp-1">
-                          {run.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          Started {new Date(run.started_at).toLocaleString()}
-                        </p>
+                        <div className="sm:w-64">
+                          {run.total_tests && run.total_tests > 0 ? (
+                            <>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="text-muted-foreground">{completedCount} / {run.total_tests} tests</span>
+                                <span className="font-medium">{Math.round(progressPercent)}%</span>
+                              </div>
+                              <Progress value={progressPercent} className="h-2 mb-2" />
+                              <div className="flex gap-3 text-xs">
+                                <span className="text-emerald-600">✓ {run.passed || 0}</span>
+                                <span className="text-red-600">✗ {run.failed || 0}</span>
+                                <span className="text-amber-600">⊘ {run.blocked || 0}</span>
+                                <span className="text-gray-500">⏭ {run.skipped || 0}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">No tests executed yet</span>
+                          )}
+                        </div>
                       </div>
-
-                      {/* Progress & Stats */}
-                      <div className="sm:w-64">
-                        {run.total_tests && run.total_tests > 0 ? (
-                          <>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-muted-foreground">
-                                {completedCount} / {run.total_tests} tests
-                              </span>
-                              <span className="font-medium">
-                                {Math.round(progressPercent)}%
-                              </span>
-                            </div>
-                            <Progress value={progressPercent} className="h-2 mb-2" />
-                            <div className="flex gap-3 text-xs">
-                              <span className="text-emerald-600">✓ {run.passed || 0}</span>
-                              <span className="text-red-600">✗ {run.failed || 0}</span>
-                              <span className="text-amber-600">⊘ {run.blocked || 0}</span>
-                              <span className="text-gray-500">⏭ {run.skipped || 0}</span>
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            No tests executed yet
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    </CardContent>
+                  </Card>
+                </Link>
+                {(role === "admin" || user?.id === run.executed_by) && (
+                  <div className="absolute top-3 right-3 z-10">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={e => e.preventDefault()}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent onClick={e => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Test Run?</AlertDialogTitle>
+                          <AlertDialogDescription>This will permanently delete {run.run_code} and all its results. This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={async (e) => {
+                            e.stopPropagation();
+                            const { error } = await supabase.from("test_runs").delete().eq("id", run.id);
+                            if (error) toast({ variant: "destructive", title: "Error", description: "Failed to delete run" });
+                            else { toast({ title: "Test run deleted" }); loadRuns(); }
+                          }}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

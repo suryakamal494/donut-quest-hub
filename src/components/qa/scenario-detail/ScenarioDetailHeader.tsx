@@ -34,8 +34,9 @@ export function ScenarioDetailHeader({
   currentClaimer, onBack, onClone, onDelete, onStartRun, onClaimUpdate,
 }: Props) {
   const { toast } = useToast();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const automationEnabled = profile?.automation_enabled === true;
+  const canDeleteScenario = role === "admin" || user?.id === scenario.created_by;
 
   const handleShare = async () => {
     const url = `${window.location.origin}/qa/scenarios/${id}`;
@@ -82,7 +83,7 @@ export function ScenarioDetailHeader({
             </Link>
           </Button>
         )}
-        {role === "admin" && (
+        {canDeleteScenario && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
