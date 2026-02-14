@@ -276,11 +276,42 @@ Return ONLY valid JSON, no markdown.`;
       }
     }
 
+    // Send payload to external Playwright runner
+    const runnerUrl = Deno.env.get("PLAYWRIGHT_RUNNER_URL");
+    let runnerDispatched = false;
+
+    if (runnerUrl) {
+      try {
+        const runnerResponse = await fetch(`https://${runnerUrl.replace(/^https?:\/\//, '')}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(runnerPayload),
+        });
+
+        if (runnerResponse.ok) {
+          runnerDispatched = true;
+          // Update status to running
+          await supabase
+            .from("automation_runs")
+            .update({ status: "running" })
+            .eq("id", automationRun.id);
+        } else {
+          const errText = await runnerResponse.text();
+          console.error(`Runner responded with ${runnerResponse.status}: ${errText}`);
+        }
+      } catch (runnerError) {
+        console.error("Failed to reach Playwright runner:", runnerError);
+      }
+    } else {
+      console.warn("PLAYWRIGHT_RUNNER_URL secret not set — payload prepared but not dispatched");
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         automation_run_id: automationRun.id,
         test_run_id: testRun.id,
+        runner_dispatched: runnerDispatched,
         runner_payload: runnerPayload,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
