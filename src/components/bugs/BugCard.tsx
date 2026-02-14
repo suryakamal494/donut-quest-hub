@@ -1,7 +1,17 @@
 import { Link } from "react-router-dom";
+import { Trash2, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { SeverityBadge, BugStatusBadge, BugTypeBadge, FixStatusBadge, AgeBadge } from "@/components/bugs/BugBadges";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import { InlineFixAction } from "@/components/bugs/InlineFixAction";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import type { Bug as BugType } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 
@@ -12,6 +22,25 @@ interface BugCardProps {
 }
 
 export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
+  const { user, role } = useAuth();
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = role === "admin" || user?.id === bug.reported_by;
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleting(true);
+    const { error } = await supabase.from("bugs").delete().eq("id", bug.id);
+    setDeleting(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to delete bug" });
+    } else {
+      toast({ title: "Bug deleted" });
+      onFixed(); // reload list
+    }
+  };
+
   return (
     <div className="flex items-start justify-between gap-3">
       <Link to={`/bugs/${bug.id}`} className="flex-1 min-w-0">
@@ -35,6 +64,25 @@ export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
         <div className="flex items-center gap-1">
           <BugStatusBadge status={bug.status} size="sm" />
           <InlineFixAction bug={bug} onFixed={onFixed} />
+          {canDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={e => e.stopPropagation()}>
+                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent onClick={e => e.stopPropagation()}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Bug?</AlertDialogTitle>
+                  <AlertDialogDescription>This will permanently delete {bug.bug_code}. This action cannot be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
         {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
           <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />

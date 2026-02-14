@@ -1,9 +1,15 @@
 import { Link } from "react-router-dom";
 import {
   AlertTriangle, Loader2, CheckCircle2, Clock, RefreshCw, Wrench,
-  ExternalLink, FolderKanban, ChevronDown, ChevronUp
+  ExternalLink, FolderKanban, ChevronDown, ChevronUp, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,13 +23,22 @@ import { useFailures, type FilterTab } from "@/hooks/useFailures";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
 
 export default function Failures() {
+  const { toast: toastFn } = useToast();
   const {
     loading, projectLoading, currentProject, failures, activeTab, setActiveTab,
     expandedThreads, toggleThread, fixDialogOpen, setFixDialogOpen,
-    selectedFailure, fixNote, setFixNote, submitting, role,
+    selectedFailure, fixNote, setFixNote, submitting, role, user,
     getFilteredFailures, openMarkFixedDialog, handleMarkFixed, handleMarkVerified,
     loadFailures, unfixedCount, fixedCount, staleCount, overdueCount,
   } = useFailures();
+
+  const canDeleteFailure = (failure: any) => role === "admin" || user?.id === failure.executed_by;
+
+  const handleDeleteFailure = async (failureId: string) => {
+    const { error } = await supabase.from("test_results").delete().eq("id", failureId);
+    if (error) toastFn({ variant: "destructive", title: "Error", description: "Failed to delete" });
+    else { toastFn({ title: "Failure deleted" }); loadFailures(); }
+  };
 
   const getFixStatusBadge = (fixStatus: string | null) => {
     switch (fixStatus) {
@@ -170,6 +185,25 @@ export default function Failures() {
                           )}
                           {scenario && (
                             <Button variant="ghost" size="sm" asChild><Link to={`/qa/scenarios/${scenario.id}`}>View Scenario</Link></Button>
+                          )}
+                          {canDeleteFailure(failure) && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                                  <Trash2 className="h-4 w-4 mr-2" />Delete
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Failure?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will permanently remove this failure record. This cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => handleDeleteFailure(failure.id)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                         </div>
                       </div>

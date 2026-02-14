@@ -165,7 +165,7 @@ export function useFailures() {
   return {
     loading, projectLoading, currentProject, failures, activeTab, setActiveTab,
     expandedThreads, toggleThread, fixDialogOpen, setFixDialogOpen,
-    selectedFailure, fixNote, setFixNote, submitting, role,
+    selectedFailure, fixNote, setFixNote, submitting, role, user,
     getFilteredFailures, openMarkFixedDialog, handleMarkFixed, handleMarkVerified,
     loadFailures, unfixedCount, fixedCount, staleCount, overdueCount,
   };
