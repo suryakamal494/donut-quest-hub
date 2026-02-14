@@ -47,8 +47,12 @@ export default function BugDetail() {
 
   useEffect(() => {
     if (id) loadBug();
-    loadDevelopers();
   }, [id]);
+
+  // Reload developers when bug data is available (need project_id)
+  useEffect(() => {
+    if (bug?.project_id) loadDevelopers();
+  }, [bug?.project_id]);
 
   const loadBug = async () => {
     try {
@@ -92,18 +96,26 @@ export default function BugDetail() {
   };
 
   const loadDevelopers = async () => {
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .in("role", ["developer", "admin"]);
-    if (roles && roles.length > 0) {
-      const userIds = roles.map(r => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email")
-        .in("user_id", userIds);
-      setDevelopers((profiles || []) as Profile[]);
-    }
+    // Wait for bug data to get project_id; if not yet loaded, will be re-called
+    const projectId = bug?.project_id;
+    const [{ data: roles }, { data: projectAccess }] = await Promise.all([
+      supabase.from("user_roles").select("user_id, role").in("role", ["developer", "admin"]),
+      projectId
+        ? supabase.from("user_project_access").select("user_id").eq("project_id", projectId)
+        : Promise.resolve({ data: null }),
+    ]);
+    if (!roles?.length) return;
+    const projectUserIds = new Set((projectAccess || []).map((a: any) => a.user_id));
+    // Keep users who have project access OR are admins
+    const filteredIds = roles
+      .filter((r) => r.role === "admin" || (projectId && projectUserIds.has(r.user_id)))
+      .map((r) => r.user_id);
+    if (filteredIds.length === 0) { setDevelopers([]); return; }
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, email")
+      .in("user_id", filteredIds);
+    setDevelopers((profiles || []) as Profile[]);
   };
 
   const updateStatus = async (newStatus: BugStatus) => {
