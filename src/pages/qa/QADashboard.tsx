@@ -18,6 +18,7 @@ import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
 import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
+import { AdminQADashboard } from "@/components/dashboard/AdminQADashboard";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
@@ -46,6 +47,11 @@ export default function QADashboard() {
   // Developer gets their own dashboard
   if (role === "developer") {
     return <DeveloperDashboard />;
+  }
+
+  // Admin gets team overview dashboard
+  if (role === "admin") {
+    return <AdminQADashboard />;
   }
 
   const loadDashboardData = async () => {
