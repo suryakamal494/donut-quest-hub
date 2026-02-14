@@ -35,6 +35,7 @@ export default function TestRuns() {
           test_results (id, status)
         `)
         .eq("project_id", currentProject.id)
+        .eq("run_type", "manual")
         .order("started_at", { ascending: false });
 
       // Calculate stats for each run

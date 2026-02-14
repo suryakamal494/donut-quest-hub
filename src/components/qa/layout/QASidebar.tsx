@@ -76,6 +76,7 @@ const navItems = [
     icon: Zap,
     subItems: [
       { title: "Runs", href: "/qa/automation", icon: Zap },
+      { title: "Test Runs", href: "/qa/automation/runs", icon: PlayCircle },
       { title: "Automation Bugs", href: "/qa/automation/bugs", icon: Bug },
     ],
   },

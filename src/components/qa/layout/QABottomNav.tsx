@@ -73,6 +73,12 @@ const moreNavItems = [
     description: "Automated browser testing",
   },
   {
+    title: "Auto Test Runs",
+    href: "/qa/automation/runs",
+    icon: PlayCircle,
+    description: "Automated test run results",
+  },
+  {
     title: "Automation Bugs",
     href: "/qa/automation/bugs",
     icon: Bug,
@@ -93,7 +99,7 @@ export function QABottomNav() {
   const automationEnabled = profile?.automation_enabled === true;
   
   const filteredMoreItems = moreNavItems.filter(item => 
-    !["Automation", "Automation Bugs"].includes(item.title) || automationEnabled
+    !["Automation", "Automation Bugs", "Auto Test Runs"].includes(item.title) || automationEnabled
   );
 
   const isActive = (href: string, end?: boolean) => {
