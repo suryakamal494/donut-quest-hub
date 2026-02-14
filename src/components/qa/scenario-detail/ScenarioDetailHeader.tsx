@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2, Share2, Zap } from "lucide-react";
-import { AutomationDialog, ScriptEnrichmentDialog } from "@/components/qa/automation";
+import { AutomationDialog, ScriptEnrichmentDialog, ViewEnrichedStepsDialog } from "@/components/qa/automation";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -126,6 +126,7 @@ export function ScenarioDetailHeader({
               scenarioId={id}
               scenarioName={scenario.name}
             />
+            <ViewEnrichedStepsDialog scenarioId={id} />
             <AutomationDialog
               scenarioId={id}
               scenarioName={scenario.name}
