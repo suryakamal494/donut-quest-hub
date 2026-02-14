@@ -184,34 +184,53 @@ serve(async (req) => {
       try {
         const aiPrompt = `You are a QA automation expert. Convert these plain-English test cases into structured Playwright-ready instructions.
 
+CRITICAL RULES FOR SELECTOR HINTS:
+- Each selector_hint string MUST use a prefix to indicate the selector strategy.
+- Supported prefixes: "text=", "placeholder=", "aria-label=", "data-testid=", "role="
+- Examples of CORRECT hints: ["text=Quick Add"], ["placeholder=Enter your username"], ["aria-label=Edit"], ["data-testid=submit-btn"], ["role=button"]
+- NEVER use bare text without a prefix. "Quick Add" is WRONG. "text=Quick Add" is CORRECT.
+- Prefer "text=" for buttons and links (visible text the user sees).
+- Prefer "placeholder=" for input fields.
+- Prefer "aria-label=" for icon buttons without visible text.
+- Prefer "role=" combined with text for semantic elements (e.g. "role=menuitem" with "text=Add Curriculum").
+- Provide 2-3 hints per step ordered by preference (most reliable first).
+
+CRITICAL RULES FOR ACTIONS:
+- Supported action_type values: click, fill, select, navigate, wait, assert, scroll, hover, press_key
+- Do NOT use "drag" -- it is not supported. For reorder operations, describe an alternative approach using click-based interactions.
+- For dropdowns: use "click" to open, then "click" on the option.
+- For typing: use "fill" with the input_value field.
+- For keyboard shortcuts: use "press_key" with input_value like "Enter", "Tab", "Escape".
+
 Target URL: ${target_url}
 Login Type: ${testPayload[0]?.login_type || "unknown"}
+
+${testPayload.some((tc: any) => (tc.steps || []).length === 0) ? `WARNING: Some test cases have NO granular steps defined. For those, you must infer reasonable steps from the title and description. Be conservative -- generate only the essential click/fill/assert steps. Do NOT guess at UI elements you are unsure about. Use generic selectors like "text=Save" or "text=Submit" rather than inventing specific data-testid values.` : ""}
 
 Test Cases:
 ${JSON.stringify(testPayload, null, 2)}
 
-For each test case, return a JSON array with structured instructions:
+For each test case, return a JSON object with structured instructions:
 {
   "test_cases": [
     {
-      "test_case_id": "...",
+      "test_case_id": "uuid-here",
       "playwright_steps": [
         {
           "step_number": 1,
-          "action_type": "click|fill|select|navigate|wait|assert|scroll|hover",
-          "selector_hints": ["text content", "aria-label", "data-testid", "placeholder"],
-          "input_value": "value to type (if fill action)",
-          "wait_for": "description of what to wait for after action",
-          "assertion": "what to verify (if assert action)",
-          "fallback_strategy": "description of alternative approach"
+          "action_type": "click",
+          "selector_hints": ["text=Quick Add", "aria-label=Quick Add"],
+          "input_value": null,
+          "wait_for": "Dropdown menu appears",
+          "assertion": null,
+          "fallback_strategy": "Look for a + button or add button near the top of the page"
         }
       ]
     }
   ]
 }
 
-Be precise with selector hints. Use visible text content as primary selector strategy.
-Return ONLY valid JSON, no markdown.`;
+Return ONLY valid JSON, no markdown or code blocks.`;
 
         const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
