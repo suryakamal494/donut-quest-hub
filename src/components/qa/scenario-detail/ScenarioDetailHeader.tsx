@@ -51,24 +51,32 @@ export function ScenarioDetailHeader({
   };
 
   return (
-    <div className="flex items-start gap-4">
-      <Button variant="ghost" size="icon" onClick={onBack}>
-        <ArrowLeft className="h-5 w-5" />
-      </Button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-mono text-muted-foreground">{scenario.scenario_code}</span>
-          <ScenarioTypeBadge type={scenario.scenario_type} size="sm" />
-          <PriorityBadge priority={scenario.priority} size="sm" />
+    <div className="space-y-3">
+      {/* Row 1: Back + Title + Run Test */}
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={onBack}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-sm font-mono text-muted-foreground">{scenario.scenario_code}</span>
+            <ScenarioTypeBadge type={scenario.scenario_type} size="sm" />
+            <PriorityBadge priority={scenario.priority} size="sm" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">{scenario.name}</h1>
+          {feature && (
+            <p className="text-muted-foreground mt-1 text-sm">
+              {feature.name} {scenario.sub_module && `› ${scenario.sub_module}`}
+            </p>
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-foreground">{scenario.name}</h1>
-        {feature && (
-          <p className="text-muted-foreground mt-1">
-            {feature.name} {scenario.sub_module && `› ${scenario.sub_module}`}
-          </p>
-        )}
+        <Button size="sm" disabled={startingRun} onClick={onStartRun} className="shrink-0">
+          {startingRun ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
+          Run Test
+        </Button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      {/* Row 2: Secondary actions */}
+      <div className="flex flex-wrap gap-2 ml-11">
         <Button variant="outline" size="sm" onClick={handleShare}>
           <Share2 className="h-4 w-4 mr-2" />Share
         </Button>
@@ -119,10 +127,6 @@ export function ScenarioDetailHeader({
             loginTypes={scenario.login_types}
           />
         )}
-        <Button size="sm" disabled={startingRun} onClick={onStartRun}>
-          {startingRun ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
-          Run Test
-        </Button>
       </div>
     </div>
   );
