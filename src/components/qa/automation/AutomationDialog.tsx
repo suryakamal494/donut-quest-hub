@@ -19,7 +19,7 @@ export function AutomationDialog({ scenarioId, scenarioName, loginTypes }: Props
   const { triggerAutomation, triggering } = useAutomation();
   const [open, setOpen] = useState(false);
   const [targetUrl, setTargetUrl] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const handleTrigger = async () => {
@@ -27,12 +27,12 @@ export function AutomationDialog({ scenarioId, scenarioName, loginTypes }: Props
     const result = await triggerAutomation(
       scenarioId,
       targetUrl,
-      email && password ? { email, password } : undefined
+      username && password ? { email: username, username, password } : undefined
     );
     if (result) {
       setOpen(false);
       setTargetUrl("");
-      setEmail("");
+      setUsername("");
       setPassword("");
     }
   };
@@ -58,20 +58,20 @@ export function AutomationDialog({ scenarioId, scenarioName, loginTypes }: Props
             <Label htmlFor="target-url">Target App URL *</Label>
             <Input
               id="target-url"
-              placeholder="https://your-lms-app.com"
+              placeholder="https://your-app.com"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">The URL of the application to test</p>
+            <p className="text-xs text-muted-foreground">Use the root URL only — do not include path suffixes like /auth/admin</p>
           </div>
 
           <div className="space-y-2">
             <Label>Login Credentials ({loginTypes.join(", ")})</Label>
             <Input
-              placeholder="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Username / Email"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
             <Input
               placeholder="Password"
