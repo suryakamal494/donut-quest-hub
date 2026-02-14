@@ -255,6 +255,9 @@ serve(async (req) => {
       return playwrightSteps;
     }
 
+    // Build AI instructions container
+    let aiInstructions: any = { test_cases: [] };
+
     // If manual_script provided, use it directly for all test cases
     if (manual_script) {
       try {
@@ -311,8 +314,8 @@ serve(async (req) => {
       }
     }
 
-    // Build AI instructions: start with directly-converted enriched cases
-    let aiInstructions: any = { test_cases: [] };
+
+    // 1) Programmatically convert enriched cases (no LLM needed)
 
     // 1) Programmatically convert enriched cases (no LLM needed)
     for (const tc of enrichedCases) {
