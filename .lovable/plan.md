@@ -1,89 +1,50 @@
 
 
-# Automation Integration Audit Report
+# Connect Playwright Runner to Your Platform
 
-## Status: Mostly Solid -- 3 Issues Found (1 Critical, 2 Minor)
+## What This Does
 
----
+Right now, when you click "Automate" on a scenario, the platform prepares everything (AI instructions, test data, webhook secret) but stops there -- it returns the payload without sending it anywhere. This update will make the platform **automatically send the payload to your Railway runner**, completing the full automation loop.
 
-## What Was Verified (All Passing)
+## What Changes
 
-| Component | Status | Details |
-|---|---|---|
-| Database: `automation_runs` table | OK | All 15 columns present with correct types and defaults |
-| Database: `automation_results` table | OK | All 12 columns present with correct types and defaults |
-| RLS: `automation_runs` | OK | 4 policies (SELECT, INSERT, UPDATE, DELETE) properly scoped |
-| RLS: `automation_results` | OK | 4 policies with project-level access control via JOIN to `automation_runs` |
-| Storage: `automation-screenshots` bucket | OK | Public bucket with upload/view policies |
-| Edge Function: `prepare-automation` | OK | Deployed, responds correctly, validates auth, fetches test data, calls OpenAI GPT-4o |
-| Edge Function: `automation-webhook` | OK | Deployed, validates webhook secret, processes results, auto-creates bugs, sends notifications |
-| UI: Automation Dashboard | OK | `/qa/automation` renders, empty state shown, Refresh button works |
-| UI: Automate button on Scenario Detail | OK | Button visible, dialog opens with correct scenario name |
-| UI: AutomationDialog | OK | Target URL, credentials fields, info note all display correctly |
-| UI: Sidebar navigation | OK | "Automation" link present in sidebar |
-| UI: Bottom nav (mobile) | OK | "Automation" in "More" sheet with description |
-| Route: `/qa/automation` | OK | Registered in App.tsx |
-| Types: `automation.ts` | OK | Complete type definitions for AutomationRun, AutomationResult, AutomationConfig |
-| Hook: `useAutomation` | OK | loadRuns, triggerAutomation, loadRunResults all implemented |
-| Enum compatibility | OK | `test_status` enum includes `blocked` and `skipped` as used by webhook |
-| Bug auto-creation | OK | `set_bug_code` trigger will auto-generate codes (webhook's manual generation is harmless -- trigger overrides) |
-| Test run code | OK | `generate_run_code_trigger` auto-generates run codes (the empty string in prepare-automation is fine) |
+### 1. Store the Runner URL as a secure secret
+- Save `https://qa-playwright-runner-production.up.railway.app` as a backend secret called `PLAYWRIGHT_RUNNER_URL`
+- This keeps the URL secure and easy to change later
 
----
+### 2. Update the `prepare-automation` function
+- After preparing the runner payload (line 279 in the current code), add a step that **sends the payload to your Railway runner's `/run` endpoint**
+- Update the automation run status from `queued` to `running` once the runner accepts the job
+- If the runner is unreachable, the function still returns success but logs the error (so you can retry manually)
 
-## Issues Found
+## The Complete Flow After This Change
 
-### Issue 1: CRITICAL -- Missing `verify_jwt = false` in config.toml
-
-**Problem**: Both edge functions (`prepare-automation` and `automation-webhook`) handle JWT validation in their own code, but `supabase/config.toml` does not set `verify_jwt = false` for them. The config only has `project_id`.
-
-- `prepare-automation` validates JWT via `getClaims()` in code -- this will work since Lovable Cloud uses signing-keys, but without `verify_jwt = false` the default deprecated verification may cause double-validation issues.
-- `automation-webhook` is designed to be called by an **external Playwright runner** (no JWT) using a webhook secret. Without `verify_jwt = false`, the external runner's requests will be rejected before the code even runs.
-
-**Fix**: Add to `supabase/config.toml`:
-```toml
-[functions.prepare-automation]
-verify_jwt = false
-
-[functions.automation-webhook]
-verify_jwt = false
+```text
+You click "Automate" on a scenario
+       |
+       v
+prepare-automation fetches test cases + generates AI instructions
+       |
+       v
+Payload automatically sent to Railway runner  <-- NEW
+       |
+       v
+Runner opens Chrome, executes steps, takes screenshots
+       |
+       v
+Results sent back to automation-webhook
+       |
+       v
+Dashboard updates, bugs auto-created for failures
 ```
 
-### Issue 2: MINOR -- Webhook bug_code generation is redundant
+## Impact
+- **Before**: You click Automate, payload is prepared but nothing happens externally
+- **After**: You click Automate, tests run automatically on your Railway server and results flow back in real-time
 
-**Problem**: The `automation-webhook` function manually generates bug codes (lines 127-137) by querying the last bug and incrementing. However, the `set_bug_code` trigger already auto-generates bug codes on INSERT.
+## Technical Details
 
-**Impact**: No functional bug -- the trigger runs BEFORE INSERT and overrides whatever value was set. But the extra query is wasted work.
-
-**Fix**: Remove the manual bug_code generation from the webhook and let the trigger handle it. Simply omit `bug_code` from the INSERT.
-
-### Issue 3: MINOR -- Credentials stored in plaintext in database
-
-**Problem**: The `automation_runs.credentials` column stores login credentials as plaintext JSONB. This is visible to anyone with SELECT access to the table.
-
-**Impact**: Low risk since RLS limits access to project members, and credentials are for the LMS being tested (not the QA platform itself). But it is not ideal.
-
-**Fix**: Consider encrypting credentials before storage or not storing them at all (only pass them through to the runner payload without persisting).
-
----
-
-## Recommended Fix Priority
-
-1. **config.toml** -- Must fix before the external Playwright runner can call the webhook (Critical)
-2. **Redundant bug_code** -- Clean up to avoid unnecessary DB queries (Minor)
-3. **Credentials storage** -- Address when hardening for production use (Minor)
-
----
-
-## Technical Summary
-
-The implementation is architecturally sound:
-- The two-function design (prepare + webhook) properly separates concerns
-- AI script generation with GPT-4o is well-structured with fallback parsing for markdown code blocks
-- Auto-bug creation includes scenario context, steps to reproduce, screenshots, and severity mapping
-- The webhook secret pattern is a good security choice for external service authentication
-- RLS policies are correctly scoped using the existing `has_project_access` function
-- The UI components follow the existing platform patterns (badges, collapsibles, progress bars)
-
-Only the config.toml fix is blocking -- the other two are improvements.
+Only two changes:
+1. Add secret `PLAYWRIGHT_RUNNER_URL` = `https://qa-playwright-runner-production.up.railway.app`
+2. Edit `supabase/functions/prepare-automation/index.ts` -- add ~20 lines after line 277 to POST the payload to the runner and update status to `running`
 
