@@ -42,6 +42,16 @@ export interface AutomationResult {
   };
 }
 
+export interface EnrichedStep {
+  step_number: number;
+  action: string;
+  target: string;
+  location: string;
+  notes: string;
+  selector_hint: string;
+  input_value?: string | null;
+}
+
 export interface AutomationConfig {
   target_url: string;
   credentials: {

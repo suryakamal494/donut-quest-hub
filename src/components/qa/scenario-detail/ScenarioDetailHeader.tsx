@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2, Share2, Zap } from "lucide-react";
-import { AutomationDialog } from "@/components/qa/automation";
+import { AutomationDialog, ScriptEnrichmentDialog } from "@/components/qa/automation";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,11 +121,17 @@ export function ScenarioDetailHeader({
           onRelease={onClaimUpdate}
         />
         {automationEnabled && (
-          <AutomationDialog
-            scenarioId={id}
-            scenarioName={scenario.name}
-            loginTypes={scenario.login_types}
-          />
+          <>
+            <ScriptEnrichmentDialog
+              scenarioId={id}
+              scenarioName={scenario.name}
+            />
+            <AutomationDialog
+              scenarioId={id}
+              scenarioName={scenario.name}
+              loginTypes={scenario.login_types}
+            />
+          </>
         )}
       </div>
     </div>
