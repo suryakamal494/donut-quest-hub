@@ -122,17 +122,23 @@ export default function BugReport() {
   };
 
   const loadDevelopers = async () => {
-    // Get all users with developer or admin role
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .in("role", ["developer", "admin"]);
+    if (!currentProject) return;
+    // Get all users with developer or admin role + project access
+    const [{ data: roles }, { data: projectAccess }] = await Promise.all([
+      supabase.from("user_roles").select("user_id, role").in("role", ["developer", "admin"]),
+      supabase.from("user_project_access").select("user_id").eq("project_id", currentProject.id),
+    ]);
     if (!roles?.length) return;
-    const ids = roles.map((r) => r.user_id);
+    const projectUserIds = new Set((projectAccess || []).map((a) => a.user_id));
+    // Keep users who have project access OR are admins
+    const filteredIds = roles
+      .filter((r) => r.role === "admin" || projectUserIds.has(r.user_id))
+      .map((r) => r.user_id);
+    if (filteredIds.length === 0) { setDevelopers([]); return; }
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name")
-      .in("user_id", ids);
+      .in("user_id", filteredIds);
     setDevelopers(profiles || []);
   };
 

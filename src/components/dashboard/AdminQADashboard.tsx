@@ -79,24 +79,29 @@ export function AdminQADashboard() {
     try {
       setLoading(true);
 
-      // 1. Fetch all team members (profiles + roles)
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .eq("approval_status", "approved");
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
+      // 1. Fetch all team members (profiles + roles + project access)
+      const [{ data: profiles }, { data: roles }, { data: projectAccess }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").eq("approval_status", "approved"),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("user_project_access").select("user_id").eq("project_id", currentProject.id),
+      ]);
 
       const roleMap: Record<string, string> = {};
       (roles || []).forEach((r) => (roleMap[r.user_id] = r.role));
 
-      const members: TeamMember[] = (profiles || []).map((p) => ({
+      // Build set of user_ids with access to this project
+      const projectUserIds = new Set((projectAccess || []).map((a) => a.user_id));
+
+      const allMembers: TeamMember[] = (profiles || []).map((p) => ({
         user_id: p.user_id,
         full_name: p.full_name,
         role: roleMap[p.user_id] || "user",
       }));
+
+      // Filter: only show users who have project access OR are admins
+      const members = allMembers.filter(
+        (m) => m.role === "admin" || projectUserIds.has(m.user_id)
+      );
       setTeamMembers(members);
 
       const developers = members.filter((m) => m.role === "developer");
