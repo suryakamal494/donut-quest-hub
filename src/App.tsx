@@ -61,14 +61,17 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* /dashboard redirects to /qa */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute allowedRoles={["user"]}>
-                  <UserDashboard />
+                <ProtectedRoute>
+                  <QALayout />
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route index element={<QADashboard />} />
+            </Route>
             
             {/* QA Module Routes */}
             <Route

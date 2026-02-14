@@ -9,11 +9,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
+
+const roleConfig: Record<string, { label: string; className: string }> = {
+  admin: { label: "Admin", className: "bg-destructive/15 text-destructive border-destructive/30" },
+  developer: { label: "Developer", className: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30" },
+  user: { label: "QA Tester", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30" },
+};
 
 interface QAHeaderProps {
   onMenuToggle: () => void;
@@ -87,9 +94,11 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
                 {!isMobile && (
                   <div className="text-left">
                     <p className="text-sm font-medium">{userName}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{role}</p>
                   </div>
                 )}
+                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 font-semibold ${roleConfig[role || "user"]?.className || ""}`}>
+                  {roleConfig[role || "user"]?.label || role}
+                </Badge>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
