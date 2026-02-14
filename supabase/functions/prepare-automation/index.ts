@@ -39,7 +39,7 @@ serve(async (req) => {
     }
     const userId = claimsData.claims.sub;
 
-    const { scenario_id, target_url, credentials, project_id } = await req.json();
+    const { scenario_id, target_url, credentials, project_id, manual_script } = await req.json();
 
     if (!scenario_id || !target_url) {
       return new Response(
@@ -255,11 +255,55 @@ serve(async (req) => {
       return playwrightSteps;
     }
 
-    // Split test cases: enriched (convert directly) vs non-enriched (send to GPT-4o)
+    // If manual_script provided, use it directly for all test cases
+    if (manual_script) {
+      try {
+        const parsedManual = typeof manual_script === "string" ? JSON.parse(manual_script) : manual_script;
+        const manualSteps = Array.isArray(parsedManual) ? parsedManual : (parsedManual.test_cases || []);
+
+        // If it's a flat array of steps, apply to all test cases
+        if (manualSteps.length > 0 && manualSteps[0].step_number !== undefined) {
+          for (const tc of testPayload) {
+            aiInstructions.test_cases.push({
+              test_case_id: tc.test_case_id,
+              playwright_steps: manualSteps,
+            });
+          }
+        } else {
+          // It's already in test_cases format
+          aiInstructions.test_cases.push(...manualSteps);
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse manual_script:", parseErr);
+      }
+    }
+
+    // Also check for saved manual scripts on individual test cases
+    if (aiInstructions.test_cases.length === 0) {
+      for (const tc of testPayload) {
+        const testCase = testCases.find((c: any) => c.id === tc.test_case_id);
+        if (testCase?.manual_playwright_script) {
+          try {
+            const parsed = JSON.parse(testCase.manual_playwright_script);
+            const steps = Array.isArray(parsed) ? parsed : (parsed.playwright_steps || []);
+            aiInstructions.test_cases.push({
+              test_case_id: tc.test_case_id,
+              playwright_steps: steps,
+            });
+          } catch {
+            console.error("Failed to parse saved manual script for", tc.test_case_id);
+          }
+        }
+      }
+    }
+
+    // Split remaining test cases: enriched (convert directly) vs non-enriched (send to GPT-4o)
+    const alreadyHandled = new Set(aiInstructions.test_cases.map((tc: any) => tc.test_case_id));
     const enrichedCases: any[] = [];
     const nonEnrichedCases: any[] = [];
 
     for (const tc of testPayload) {
+      if (alreadyHandled.has(tc.test_case_id)) continue;
       if (tc.enriched_steps && Array.isArray(tc.enriched_steps) && tc.enriched_steps.length > 0) {
         enrichedCases.push(tc);
       } else {

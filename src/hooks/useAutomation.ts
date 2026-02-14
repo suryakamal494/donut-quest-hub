@@ -36,7 +36,7 @@ export function useAutomation() {
     loadRuns();
   }, [loadRuns]);
 
-  const triggerAutomation = async (scenarioId: string, targetUrl: string, credentials?: { email?: string; username?: string; password: string }) => {
+  const triggerAutomation = async (scenarioId: string, targetUrl: string, credentials?: { email?: string; username?: string; password: string }, manualScript?: string) => {
     if (!user) return null;
     setTriggering(true);
     try {
@@ -46,6 +46,7 @@ export function useAutomation() {
           target_url: targetUrl,
           credentials,
           project_id: currentProject?.id,
+          manual_script: manualScript || undefined,
         },
       });
 

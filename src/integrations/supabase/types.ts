@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_configs: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          label: string
+          password_encrypted: string | null
+          project_id: string | null
+          target_url: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          label: string
+          password_encrypted?: string | null
+          project_id?: string | null
+          target_url: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          label?: string
+          password_encrypted?: string | null
+          project_id?: string | null
+          target_url?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_results: {
         Row: {
           actual_result: string | null
@@ -537,6 +578,7 @@ export type Database = {
           id: string
           is_regression: boolean
           login_type: Database["public"]["Enums"]["login_type"]
+          manual_playwright_script: string | null
           order_index: number
           preconditions: string[] | null
           scenario_id: string
@@ -555,6 +597,7 @@ export type Database = {
           id?: string
           is_regression?: boolean
           login_type: Database["public"]["Enums"]["login_type"]
+          manual_playwright_script?: string | null
           order_index?: number
           preconditions?: string[] | null
           scenario_id: string
@@ -573,6 +616,7 @@ export type Database = {
           id?: string
           is_regression?: boolean
           login_type?: Database["public"]["Enums"]["login_type"]
+          manual_playwright_script?: string | null
           order_index?: number
           preconditions?: string[] | null
           scenario_id?: string

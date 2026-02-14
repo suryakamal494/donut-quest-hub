@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Bug, AlertTriangle, Image, Loader2 } from "lucide-react";
+import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -130,17 +131,7 @@ export default function AutomationBugs() {
                 </div>
 
                 {bug.screenshots && bug.screenshots.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto">
-                    {bug.screenshots.map((url, i) => (
-                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={url}
-                          alt={`Screenshot ${i + 1}`}
-                          className="h-20 rounded border object-cover hover:opacity-80 transition-opacity"
-                        />
-                      </a>
-                    ))}
-                  </div>
+                  <AttachmentGallery attachments={bug.screenshots} />
                 )}
               </CardContent>
             </Card>
