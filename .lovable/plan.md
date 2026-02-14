@@ -1,112 +1,65 @@
 
-# Fix: Automation Login Failure -- Wrong URL and SPA Timing
 
-## Root Cause Found
+# Clean Up Automation Bugs and Isolate Future Auto-Bugs
 
-I verified the actual DonutAI application and found the exact problem:
+## What You Asked
 
-1. **The target URL used was wrong**: `https://thedonut-ai-alpha.vercel.app/auth/admin` loads a **blank white page**. The login form only exists at the root: `https://thedonut-ai-alpha.vercel.app`
-2. **SPA rendering delay**: Even with the correct URL, the React-based login form takes a moment to render. The runner needs to explicitly wait for the form fields to appear before trying to fill them.
+1. **Delete all automation-generated bugs** -- There are **27 bugs** with titles starting with `[AUTO]` (BUG-148 through BUG-187) that were auto-created by the webhook when Playwright tests failed. These are cluttering Active Bugs and Bug Report. Delete them all.
 
-This means the runner navigates to a blank page, finds no login form, skips login, and then all test steps fail because "Master Data" doesn't exist on a blank page.
+2. **Delete all automation-generated failures** -- There are **27 failed test results** linked to automated test runs. These show up in the Failures page. Delete them too.
 
-## What Will Change
+3. **Stop auto-creating bugs from automation** -- Update the webhook so it no longer inserts into the `bugs` table when automation tests fail. The automation system is still being stabilized, so bugs from it should not pollute the real bug tracker.
 
-### Platform Changes (this project)
+4. **Create an "Automation Bugs" sub-tab under Automation** -- Instead of adding automation failures to the real bug tracker, show them in a dedicated view under the Automation section. This keeps automation issues visible for debugging without mixing them with real bugs.
 
-**1. Update `AutomationDialog.tsx`**
-- Change the credentials input label from "Email" to "Username / Email" since DonutAI uses usernames, not emails
-- Send credentials as `{ email, username: email, password }` so the runner has both keys available
-- Add a helper hint suggesting the root URL (no `/auth/admin` suffix)
+## Implementation Steps
 
-### Runner Changes (your GitHub repo)
+### Step 1: Delete automation bugs from database
+- Delete all 27 bugs where title starts with `[AUTO]` from the `bugs` table
+- Also delete any related records in `bug_history` and `bug_comments` for those bugs
 
-**2. Update `runner.js` -- Add SPA wait logic**
+### Step 2: Delete automation-generated test failures
+- Delete all `test_results` records where `run_id` belongs to automated test runs (`test_runs.run_type = 'automated'`)
+- Delete all `automation_results` records (these are the automation-specific result tracking)
+- Reset the `pending_failures` count on the affected test scenarios
 
-The `performLogin` function needs to wait for the login form to actually render before trying to fill it. Right now it uses `isVisible({ timeout: 3000 })` which may not be enough for a React SPA.
+### Step 3: Update the automation webhook to stop creating bugs
+- In `supabase/functions/automation-webhook/index.ts`, remove lines 108-175 (the "Auto-create bug for failures" block)
+- Keep the notification to the user so they know a test failed, but change the notification link to point to `/qa/automation` instead of `/bugs`
 
-Here is the exact change needed in the `performLogin` function:
+### Step 4: Add "Automation Bugs" tab to the Automation Dashboard
+- Add a Tabs component to `AutomationDashboard.tsx` with two tabs: "Runs" (current view) and "Automation Bugs"
+- The "Automation Bugs" tab will show a list of failed automation results (from `automation_results` table where status is `fail` or `error`) with:
+  - Test case name and code
+  - Error message and failed step
+  - Screenshots (if any)
+  - Timestamp
+- This gives visibility into automation issues without polluting the real bug tracker
 
-```text
-CURRENT (line ~115 in runner.js):
-  if (await usernameField.isVisible({ timeout: 3000 })) {
+### Step 5: Update sidebar navigation
+- Add "Automation Bugs" as a sub-item under the Automation sidebar entry in `QASidebar.tsx`
+- Add it to the mobile bottom nav's "More" menu as well
 
-CHANGE TO:
-  if (await usernameField.isVisible({ timeout: 10000 })) {
+## Technical Details
+
+### Database Deletions (via data operations)
+```sql
+-- Delete bug history and comments for auto bugs
+DELETE FROM bug_history WHERE bug_id IN (SELECT id FROM bugs WHERE title LIKE '[AUTO]%');
+DELETE FROM bug_comments WHERE bug_id IN (SELECT id FROM bugs WHERE title LIKE '[AUTO]%');
+-- Delete the auto bugs themselves
+DELETE FROM bugs WHERE title LIKE '[AUTO]%';
+
+-- Delete automated test results and reset scenario stats
+DELETE FROM test_results WHERE run_id IN (SELECT id FROM test_runs WHERE run_type = 'automated');
+UPDATE test_scenarios SET pending_failures = 0 WHERE pending_failures > 0;
 ```
 
-Also add a post-login wait to allow the dashboard/sidebar to fully load before the first test step runs. After the login `page.waitForLoadState` line, add:
+### Files Modified
+- `supabase/functions/automation-webhook/index.ts` -- Remove bug auto-creation block
+- `src/pages/qa/AutomationDashboard.tsx` -- Add Tabs with "Runs" and "Automation Bugs" views
+- `src/components/qa/layout/QASidebar.tsx` -- Add sub-items under Automation
+- `src/components/qa/layout/QABottomNav.tsx` -- Add Automation Bugs to more menu
+- `src/App.tsx` -- Add route for `/qa/automation/bugs`
+- New file: `src/pages/qa/AutomationBugs.tsx` -- Dedicated page showing failed automation results
 
-```text
-await page.waitForTimeout(3000);  // Wait for SPA dashboard to render
-```
-
-So the full updated `performLogin` function should look like:
-
-```javascript
-async function performLogin(page, credentials) {
-  const loginStrategies = [
-    {
-      name: 'DonutAI (username/password)',
-      usernameSelector: 'input[placeholder="Enter your username"]',
-      passwordSelector: 'input[placeholder="Enter your password"]',
-      submitSelector: 'button:has-text("Sign In")'
-    },
-    {
-      name: 'Standard email login',
-      usernameSelector: 'input[type="email"], input[name="email"], #email',
-      passwordSelector: 'input[type="password"], input[name="password"], #password',
-      submitSelector: 'button[type="submit"], input[type="submit"]'
-    },
-    {
-      name: 'Username field login',
-      usernameSelector: 'input[name="username"], #username',
-      passwordSelector: 'input[type="password"], input[name="password"], #password',
-      submitSelector: 'button[type="submit"], input[type="submit"]'
-    }
-  ];
-
-  const loginValue = credentials.email || credentials.username || '';
-
-  for (const strategy of loginStrategies) {
-    try {
-      const usernameField = page.locator(strategy.usernameSelector).first();
-      const passwordField = page.locator(strategy.passwordSelector).first();
-
-      // Wait longer for SPA to render the login form
-      if (await usernameField.isVisible({ timeout: 10000 })) {
-        await usernameField.fill(loginValue);
-        await passwordField.fill(credentials.password);
-        await page.locator(strategy.submitSelector).first().click();
-        await page.waitForLoadState('networkidle', { timeout: 15000 });
-        // Wait for SPA dashboard/sidebar to fully render
-        await page.waitForTimeout(3000);
-        console.log(`Login successful using strategy: ${strategy.name}`);
-        return;
-      }
-    } catch (err) {
-      console.log(`Login strategy "${strategy.name}" failed: ${err.message}`);
-    }
-  }
-
-  console.log('All login strategies failed -- continuing without login');
-}
-```
-
-## Steps to Fix
-
-### You do (Runner -- GitHub):
-1. Open `runner.js` in your GitHub repo
-2. Find the `performLogin` function
-3. Change `timeout: 3000` to `timeout: 10000`
-4. Add `await page.waitForTimeout(3000);` after the `waitForLoadState` line
-5. Commit and push -- Railway auto-redeploys
-
-### I will do (Platform -- this project):
-1. Update the AutomationDialog to label the field "Username / Email" and pass both keys
-2. Add a note reminding users to use the root URL without path suffixes
-
-### You do (When re-triggering):
-- Use `https://thedonut-ai-alpha.vercel.app` as the Target URL (NOT `/auth/admin`)
-- Enter `superadmin` as the username
-- Enter `admin123` as the password
