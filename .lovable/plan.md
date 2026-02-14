@@ -1,116 +1,52 @@
 
+# Fix UI Overlaps and Audit Automation Visibility
 
-# Phase-Wise Plan: Automation Access Control, Isolated Test Runs, and Delete Functionality
+## Issues Identified
 
-## Summary of Requirements
+### Issue 1: Test Runs page -- Delete icon overlapping with progress percentage
+The delete button is positioned with `absolute top-3 right-3` inside the card, which places it directly on top of the progress percentage text (e.g., "0%", "100%"). This is clearly visible in the first screenshot.
 
-You asked for three things:
+**Fix**: Move the delete button inline within the card layout instead of using absolute positioning. Place it after the progress section as part of the flex row, so it never overlaps content.
 
-1. **Automation visibility should be per-user** -- Add an "automation_enabled" toggle on each user in the Admin Dashboard. Only users with this enabled can see anything automation-related (sidebar items, bottom nav items, the "Automate" button on scenario details).
+### Issue 2: Scenario Detail page -- Action buttons overflowing and overlapping title
+The header uses `flex items-start gap-4` with all action buttons (Share, Clone, Edit, Delete, I'm Testing This, Automate, Run Test) in a single `flex-wrap` container. On desktop, these 7 buttons overflow and wrap on top of the scenario title, the "Run Test" button especially overlaps the scenario code and name.
 
-2. **Automation test runs should be separate** -- Currently automated test runs appear in "All Runs" alongside manual ones. Move automated runs exclusively under the Automation section (add a "Test Runs" sub-menu there). Filter them out of the main Test Runs page.
+**Fix**: Reorganize the header layout:
+- Move the primary action button ("Run Test") and scenario info to the top row
+- Group secondary actions (Share, Clone, Edit, Delete, Automate) into a second row or use a dropdown menu for less-used actions on smaller screens
+- Use responsive wrapping so buttons stack properly without overlapping the title
 
-3. **Role-based delete functionality** -- Add delete buttons across the platform (bugs, test scenarios, test runs, failures) with proper permissions: Admins can delete anything, QA users can only delete items they created.
+### Issue 3: Automation visibility audit
+Based on the code review, the automation access control is correctly implemented:
+- **Sidebar**: Line 124 filters out the "Automation" nav item when `automationEnabled` is false
+- **Bottom Nav**: Line 101-102 filters out "Automation", "Automation Bugs", and "Auto Test Runs" from the more menu
+- **Automate Button**: Line 115 in `ScenarioDetailHeader.tsx` wraps the `AutomationDialog` in an `automationEnabled` check
+- **Auth Context**: Lines 15 and 62 correctly fetch and expose `automation_enabled` from the profile
 
----
-
-## Phase 1: Automation Access Control (Per-User Toggle)
-
-### What changes:
-
-**Database:**
-- Add `automation_enabled` (boolean, default false) column to the `profiles` table
-- Only admins can update this field (existing RLS handles it)
-
-**Admin Dashboard (`UserListSection.tsx`):**
-- Add a small toggle/switch next to each user showing "Automation" on/off
-- When toggled, update `profiles.automation_enabled` for that user
-- The admin's own profile should default to enabled
-
-**Auth Context (`AuthContext.tsx`):**
-- Expose `profile.automation_enabled` so all components can check it
-
-**Sidebar (`QASidebar.tsx`):**
-- Wrap the "Automation" nav item in a condition: only render if `profile?.automation_enabled === true`
-
-**Bottom Nav (`QABottomNav.tsx`):**
-- Same conditional -- hide "Automation" and "Automation Bugs" from the "More" menu if not enabled
-
-**Scenario Detail Header (`ScenarioDetailHeader.tsx`):**
-- Hide the `AutomationDialog` (the "Automate" button) if `profile?.automation_enabled !== true`
-
-**Route Protection (`App.tsx`):**
-- The routes `/qa/automation` and `/qa/automation/bugs` remain accessible but the UI hides the navigation. If someone navigates directly, the page will simply show no data (acceptable for Phase 1).
+No bugs found in the automation visibility logic -- it should work correctly when `automation_enabled` is toggled in the admin panel.
 
 ---
 
-## Phase 2: Isolate Automation Test Runs
+## Implementation Plan
 
-### What changes:
+### Fix 1: Test Runs -- Delete button layout (TestRuns.tsx)
+- Remove the `relative` wrapper div and the `absolute top-3 right-3` positioned delete button
+- Instead, add the delete button as a third column in the flex row layout (after the progress section)
+- Use `shrink-0` to prevent the button from being squeezed
 
-**Main Test Runs page (`TestRuns.tsx`):**
-- Filter out automated runs by adding `.eq("run_type", "manual")` to the query so only manual runs show in "All Runs"
+### Fix 2: Scenario Detail Header -- Responsive button layout (ScenarioDetailHeader.tsx)
+- Restructure the header into two rows:
+  - **Row 1**: Back button + scenario info (code, name, badges) + "Run Test" button (primary CTA, always visible)
+  - **Row 2**: Secondary actions (Share, Clone, Edit, Delete, I'm Testing This, Automate) in a horizontal scrollable or wrapping row below the title
+- This prevents buttons from overlapping the title text
+- On mobile, the secondary actions will wrap naturally below
 
-**Automation Dashboard (`AutomationDashboard.tsx`):**
-- Add a "Test Runs" sub-tab (alongside existing "Runs" which shows automation_runs)
-- This tab queries `test_runs` where `run_type = 'automated'` and displays them in the same card format as the main Test Runs page
-- This keeps all automation-related data (runs, bugs, results) under one roof
+### Fix 3: Verify no other UI overlap issues
+- Bug cards: The delete button is inline in a flex layout -- no overlap issue
+- Failures page: Will verify the delete button placement is correct
 
-**Sidebar (`QASidebar.tsx`):**
-- Update the Automation sub-items to: "Runs" (automation_runs), "Test Runs" (automated test_runs), and "Automation Bugs"
+## Technical Details
 
-**Bottom Nav (`QABottomNav.tsx`):**
-- Add "Auto Test Runs" to the more menu (only visible if automation_enabled)
-
----
-
-## Phase 3: Role-Based Delete Functionality
-
-### What changes:
-
-**Bug List (`BugList.tsx`) and Bug Detail (`BugDetail.tsx`):**
-- Add a delete button (trash icon) on each bug card/detail
-- Visible only if: user is admin OR user is the reporter (`reported_by === user.id`)
-- On click: confirmation dialog, then delete from `bugs` table (cascade handles history/comments via RLS)
-
-**Test Scenarios (`TestScenarios.tsx`) and Scenario Detail (`ScenarioDetailHeader.tsx`):**
-- Add delete button visible if: user is admin OR user is the creator (`created_by === user.id`)
-- Delete cascades to test_cases and test_steps
-
-**Test Runs (`TestRuns.tsx`):**
-- Add delete button visible if: user is admin OR user is the executor (`executed_by === user.id`)
-- Delete cascades to test_results
-
-**Failures page (`Failures.tsx`):**
-- Add delete/dismiss button on individual failure entries
-- Admin can delete any; QA user can delete failures from their own test executions
-
-**Shared confirmation dialog:**
-- Create a reusable `DeleteConfirmDialog` component that all pages use
-- Shows "Are you sure? This action cannot be undone."
-
-### Technical Details
-
-**Existing RLS policies already support these deletes:**
-- `bugs`: "Admins can delete bugs" policy exists
-- `test_scenarios`: "Admins can delete scenarios" policy exists
-- `test_runs`: "Admins can delete runs" policy exists
-- `test_results`: "Admins can delete results" policy exists
-
-**Missing RLS policies to add:**
-- `bugs`: Allow reporters to delete their own bugs (`auth.uid() = reported_by`)
-- `test_scenarios`: Creators can already delete (policy exists)
-- `test_runs`: Allow executors to delete own runs (`auth.uid() = executed_by`)
-- `test_results`: Allow executors to delete own results (`auth.uid() = executed_by`)
-
----
-
-## Execution Order
-
-| Phase | Scope | Risk |
-|-------|-------|------|
-| Phase 1 | Database migration + 5 UI files | Low -- adds a column and conditional rendering |
-| Phase 2 | 3 UI files + query filter | Low -- filters existing data |
-| Phase 3 | 6 UI files + 3 RLS policies + 1 new component | Medium -- touches many pages |
-
-I will implement **Phase 1 first**, verify it works, then proceed to Phase 2, and finally Phase 3.
+### Files to modify:
+1. **`src/pages/qa/TestRuns.tsx`** (lines 185-252): Refactor the card layout to place the delete button inline instead of absolute-positioned
+2. **`src/components/qa/scenario-detail/ScenarioDetailHeader.tsx`** (lines 53-128): Split action buttons into two rows -- primary CTA on top row with title, secondary actions on a separate row below
