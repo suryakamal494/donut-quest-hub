@@ -123,18 +123,6 @@ serve(async (req) => {
             low: "trivial",
           };
 
-          // Generate bug code
-          const { data: lastBug } = await supabase
-            .from("bugs")
-            .select("bug_code")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
-
-          const bugNum = lastBug?.bug_code
-            ? parseInt(lastBug.bug_code.replace("BUG-", "")) + 1
-            : 1;
-
           const stepsToReproduce = [];
           if (testCase.preconditions?.length) {
             stepsToReproduce.push(`Preconditions: ${testCase.preconditions.join(", ")}`);
@@ -154,7 +142,7 @@ serve(async (req) => {
           }
 
           await supabase.from("bugs").insert({
-            bug_code: `BUG-${String(bugNum).padStart(3, "0")}`,
+            bug_code: "AUTO",
             title: `[AUTO] ${testCase.title} - ${error_message || "Test Failed"}`,
             description: `Automated test failure detected.\n\nScenario: ${scenario?.name || "Unknown"} (${scenario?.scenario_code || ""})\nTest Case: ${testCase.case_code} - ${testCase.title}\nFailed Step: ${failed_step !== null && failed_step !== undefined ? `Step ${failed_step + 1}` : "Unknown"}\n\nActual Result: ${actual_result || "Not specified"}\nExpected Result: ${testCase.expected_result}`,
             severity: (severityMap[scenario?.priority] || "minor") as any,
