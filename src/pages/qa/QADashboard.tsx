@@ -72,13 +72,25 @@ export default function QADashboard() {
 
       const inProgressRuns = allRunsData?.filter(r => r.status === "in_progress").length || 0;
 
-      const { data: allResultsData } = await supabase
-        .from("test_results")
-        .select("*, test_cases(*)")
-        .gte("executed_at", thirtyDaysAgo.toISOString())
-        .order("executed_at", { ascending: false });
+      const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
+        supabase
+          .from("test_results")
+          .select("*, test_cases(*)")
+          .gte("executed_at", thirtyDaysAgo.toISOString())
+          .order("executed_at", { ascending: false }),
+        supabase
+          .from("automation_results")
+          .select("test_result_id")
+      ]);
 
-      const failedResults = allResultsData?.filter(r => r.status === "fail") || [];
+      // Exclude automation-generated results from dashboard metrics
+      const automationResultIds = new Set(
+        (automationResultsData || [])
+          .map(ar => ar.test_result_id)
+          .filter(Boolean)
+      );
+      const manualResults = (allResultsData || []).filter(r => !automationResultIds.has(r.id));
+      const failedResults = manualResults.filter(r => r.status === "fail");
 
       setStats({
         totalScenarios: scenarios?.length || 0,
@@ -92,7 +104,7 @@ export default function QADashboard() {
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
       setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
       setFailedTests(failedResults as TestResult[]);
-      setAllResults(allResultsData as TestResult[] || []);
+      setAllResults(manualResults as TestResult[] || []);
 
     } catch (error) {
       console.error("Error loading dashboard:", error);

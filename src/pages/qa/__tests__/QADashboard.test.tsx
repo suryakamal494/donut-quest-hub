@@ -156,6 +156,7 @@ describe("QADashboard", () => {
         expect(mockFrom).toHaveBeenCalledWith("test_scenarios");
         expect(mockFrom).toHaveBeenCalledWith("test_runs");
         expect(mockFrom).toHaveBeenCalledWith("test_results");
+        expect(mockFrom).toHaveBeenCalledWith("automation_results");
       });
     });
 
