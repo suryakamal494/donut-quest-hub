@@ -17,10 +17,11 @@ import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
 import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
+import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -37,10 +38,15 @@ export default function QADashboard() {
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
   useEffect(() => {
-    if (user && currentProject) {
+    if (user && currentProject && role !== "developer") {
       loadDashboardData();
     }
-  }, [user, currentProject]);
+  }, [user, currentProject, role]);
+
+  // Developer gets their own dashboard
+  if (role === "developer") {
+    return <DeveloperDashboard />;
+  }
 
   const loadDashboardData = async () => {
     if (!currentProject) return;
