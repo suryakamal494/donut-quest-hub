@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
+import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
 export default function QADashboard() {
@@ -229,6 +230,12 @@ export default function QADashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Dashboard Widgets */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <WeeklyBugTrendsChart />
+        <CoverageSummaryWidget />
       </div>
 
       {/* Stale Failures Alert (Admin/Developer only) */}
