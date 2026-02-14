@@ -72,6 +72,12 @@ const moreNavItems = [
     description: "Automated browser testing",
   },
   {
+    title: "Automation Bugs",
+    href: "/qa/automation/bugs",
+    icon: Bug,
+    description: "Failures from automated tests",
+  },
+  {
     title: "Coverage",
     href: "/qa/coverage",
     icon: BarChart3,
