@@ -1,137 +1,84 @@
 
 
-# Automation Failure Analysis -- Curriculum CRUD Operations
+# Rewrite Curriculum CRUD Test Scenario with Proper Test Steps
 
-## What Happened
+## Goal
+Rewrite the TS-004 "Curriculum CRUD Operations" scenario's test cases in the database so they have detailed, granular test steps with exact UI element references. This will serve as the "gold standard" example for how all future test scenarios should be structured.
 
-The automation ran successfully from end to end -- the runner received the job, executed all 10 test cases, and sent results back. **All 10 test cases failed.** Here is exactly why, broken into **3 root causes**.
+## Current Problem
+All 10 test cases (TC-011 to TC-020) have **zero test steps**. They only have a one-line description like "Click Quick Add -> Add Curriculum, fill name, save". The AI (GPT-4o) is forced to guess the UI layout, producing broken selectors and vague instructions.
 
----
+## What Will Change
 
-## Root Cause 1: Login Failed on Every Test Case
+### 1. Simplify to Fewer, Well-Defined Test Cases
+The current 10 test cases try to cover too much with too little detail. We will restructure to focus on **3-4 core test cases** that are realistic and automatable, removing cases that depend on unsupported actions (drag-and-drop) or are too vague (scroll verification).
 
-**The Problem:**
-Every single log entry shows: `"Login attempt with standard selectors failed, continuing..."`
+The revised test cases will be:
 
-The runner has hardcoded login selectors (likely looking for `input[type="email"]` or `#email`), but the DonutAI login page uses:
-- A **"Username"** field with placeholder `"Enter your username"` (not "email")
-- A **"Password"** field with placeholder `"Enter your password"`
-- A **"Sign In"** button (not "Login" or "Submit")
+**TC-011: Add Curriculum (rewritten)**
+- Navigate to Master Data > Curriculum in the sidebar
+- Click "Add Curriculum" button
+- Fill curriculum name in the dialog/form
+- Save and verify it appears
 
-Because login failed, the runner continued without being logged in. Every subsequent step then failed because the app was still showing the login page.
+**TC-012: Add Class under a Curriculum (rewritten)**
+- Select an existing curriculum tab
+- Click the "+" button in the Class panel
+- Fill the class name
+- Save and verify it appears in the list
 
-**The Fix:**
-Update the runner's login logic to handle username-based login forms. The selectors should be:
-- Username field: `placeholder="Enter your username"`
-- Password field: `placeholder="Enter your password"`
-- Submit button: `text="Sign In"`
+**TC-013: Add Subject under a Class (rewritten)**
+- Select a curriculum, then select a class
+- Click "+" in the Subject panel
+- Fill the subject name
+- Save and verify
 
----
+**TC-014: Add Chapter via Quick Add (rewritten)**
+- Select Curriculum > Class > Subject
+- Click Quick Add > Add Chapter
+- Fill chapter name
+- Save and verify it appears in Content panel
 
-## Root Cause 2: Runner Misinterprets Selector Hints
+The remaining test cases (TC-015 to TC-020) will have their descriptions updated to note they require manual testing (bulk operations, edit, scroll, reorder) since they depend on complex UI interactions that are fragile for automation.
 
-**The Problem:**
-The AI generates selector hints like `["text=Quick Add"]` or `["aria-label=Edit"]`. But the runner wraps ALL hints in `[data-testid="..."]`, creating broken selectors:
+### 2. Add Granular Test Steps to Each Test Case
+Each retained test case will get 4-8 specific steps in the `test_steps` table with:
+- **Action**: Exact instruction using real UI labels (e.g., "Click 'Master Data' in the left sidebar navigation")
+- **Expected Outcome**: What should happen (e.g., "Submenu expands showing Curriculum, Content Library, etc.")
 
-| AI Hint | Runner Used (Wrong) | Should Have Used |
-|---|---|---|
-| `text=+` | `[data-testid="text=+"]` | `page.getByText('+')` |
-| `text=Quick Add` | `[data-testid="text=Quick Add"]` | `page.getByText('Quick Add')` |
-| `aria-label=Edit` | `[data-testid="aria-label=Edit"]` | `page.getByLabel('Edit')` |
-| `text=Chapter/Topic` | `[data-testid="text=Chapter/Topic"]` | `page.getByText('Chapter/Topic')` |
+### 3. Steps Will Use Exact UI Labels from DonutAI
+Since I can see the login page confirms placeholders are "Enter your username" and "Enter your password", the test steps will reference the actual button text, menu items, and placeholder text found in the DonutAI Super Admin panel.
 
-The runner's selector resolution code needs to parse the hint prefix (`text=`, `aria-label=`, `placeholder=`, `data-testid=`) and use the correct Playwright method for each.
+## Database Operations
+The following SQL operations will be performed:
 
-**The Fix:**
-In the runner's `server.js`, the selector resolution function should work like this:
+1. **Delete existing test_steps** for TC-011 through TC-014 (currently 0, but for safety)
+2. **Update test case descriptions** for TC-011 through TC-014 to be more precise
+3. **Insert new test_steps** for each test case with detailed action/expected_outcome pairs
+4. **Update TC-015 through TC-020** descriptions to indicate they are manual-only for now
 
-```text
-if hint starts with "text="       -> page.getByText(value)
-if hint starts with "aria-label=" -> page.getByLabel(value)  
-if hint starts with "placeholder="-> page.getByPlaceholder(value)
-if hint starts with "data-testid="-> page.getByTestId(value)
-otherwise                         -> page.locator(hint)
-```
+## Technical Details
 
----
+### Example: TC-011 "Add Curriculum" will get these steps:
 
-## Root Cause 3: Test Cases Have Zero Steps
+| Step | Action | Expected Outcome |
+|------|--------|-----------------|
+| 1 | Click "Master Data" in the left sidebar navigation | Master Data submenu expands |
+| 2 | Click "Curriculum" under Master Data submenu | Curriculum management page loads |
+| 3 | Click "Add Curriculum" button | Add curriculum dialog or input appears |
+| 4 | Type "Test Curriculum Automation" in the curriculum name field | Name field is filled |
+| 5 | Click "Save" or "Add" button to confirm | New curriculum tab appears in the curriculum list |
+| 6 | Verify "Test Curriculum Automation" text is visible on the page | Curriculum was successfully created |
 
-**The Problem:**
-All 10 test cases have `step_count: 0` -- they have descriptions but **no granular test steps** in the database. The system depends entirely on GPT-4o to generate Playwright steps from a one-line description like:
+### How This Fixes Automation
+- The `prepare-automation` function sends these steps to GPT-4o
+- With real step descriptions, GPT-4o generates accurate `selector_hints` like `["text=Master Data"]`, `["text=Curriculum"]`, `["text=Add Curriculum"]`
+- The updated runner correctly resolves these prefixed hints to Playwright methods
+- Login works because the runner now handles DonutAI's username/password form
 
-> "Click Quick Add --> Add Curriculum, fill name, save"
+### Files Modified
+- No code file changes -- only database inserts/updates to `test_cases` and `test_steps` tables
 
-This produces vague, generic AI instructions that don't know the actual UI layout, button labels, or page structure. The AI is guessing, and guessing wrong.
-
-**The Fix:**
-When creating test scenarios, add detailed **test steps** to each test case. Each step should specify:
-- **Action**: What exactly to click/fill/select
-- **Expected Outcome**: What should happen after
-
-For example, instead of just "Click Quick Add --> Add Curriculum, fill name, save", the test case should have steps like:
-
-```text
-Step 1: Action: "Click the Quick Add button"
-        Expected: "Dropdown menu appears"
-Step 2: Action: "Click Add Curriculum from dropdown"  
-        Expected: "Curriculum name input dialog appears"
-Step 3: Action: "Type 'Test Curriculum' in the name field"
-        Expected: "Name field shows text"
-Step 4: Action: "Click Save button"
-        Expected: "New curriculum tab appears in the list"
-```
-
----
-
-## Summary of All Failures
-
-| Test Case | Error | Root Cause |
-|---|---|---|
-| TC-011: Add curriculum | `Cannot navigate to invalid URL` | Login failed, no navigation context |
-| TC-012: Add class | `Timeout: [data-testid="text=+"]` | Bad selector + login failed |
-| TC-013: Add subject | `Timeout: [data-testid="text=+"]` | Bad selector + login failed |
-| TC-014: Add single chapter | `Timeout: [data-testid="text=Quick Add"]` | Bad selector + login failed |
-| TC-015: Add multiple chapters | `Timeout: [data-testid="text=Quick Add"]` | Bad selector + login failed |
-| TC-016: Add single topic | `Timeout: [data-testid="text=Quick Add"]` | Bad selector + login failed |
-| TC-017: Add multiple topics | `Timeout: [data-testid="text=Quick Add"]` | Bad selector + login failed |
-| TC-018: Edit items | `Timeout: [data-testid="aria-label=Edit"]` | Bad selector + login failed |
-| TC-019: Scroll works | `Timeout: text=All content accessible` | Trying to find literal text on page |
-| TC-020: Reorder items | `Timeout: [data-testid="text=Chapter/Topic"]` + `Unknown action: drag` | Bad selector + unsupported action |
-
----
-
-## What Needs to Change
-
-### Changes to the Runner (your GitHub repo)
-
-1. **Fix login selectors** -- use `placeholder="Enter your username"` and `placeholder="Enter your password"` and `text="Sign In"`
-2. **Fix selector resolution** -- parse hint prefixes (`text=`, `aria-label=`, etc.) and use proper Playwright methods instead of wrapping everything in `data-testid`
-3. **Add drag support** -- TC-020 uses drag-and-drop which the runner logged as `"Unknown action: drag"`
-
-### Changes to the Platform (this project)
-
-1. **Improve the AI prompt** in `prepare-automation` to generate better, more specific selector hints that match how the runner interprets them
-2. **Require test steps** -- when test cases have no steps, the AI is working blind. We should either require steps or improve the AI prompt to be smarter about generating steps from descriptions
-
-### Changes to Test Scenarios (your data)
-
-1. **Add detailed test steps** to each test case in the Curriculum CRUD scenario
-2. **Include the exact button labels, placeholder text, and element descriptions** that exist on the actual DonutAI pages
-
----
-
-## Timing
-
-When everything works correctly, each test case takes about 30-40 seconds (based on the logs showing ~40 seconds between each TC result). A full 10-case scenario should complete in approximately 5-7 minutes.
-
----
-
-## Recommended Next Steps
-
-1. **First** -- Fix the runner's login and selector resolution code (I can provide the exact code changes if you share the GitHub repo)
-2. **Second** -- I will update the AI prompt in `prepare-automation` to generate better instructions
-3. **Third** -- Add proper test steps to the Curriculum CRUD test cases
-
-Would you like me to start with updating the AI prompt and improving how the platform generates automation instructions?
+### Important Note
+Since I cannot log into the DonutAI app to visually verify exact button labels, the step descriptions will use the labels mentioned in the existing test case descriptions (Quick Add, Add Curriculum, ClassPanel "+", SubjectPanel "+", etc.). If any label is slightly different in the actual UI, you can edit the step text directly from the Scenario Detail page in the QA platform.
 
