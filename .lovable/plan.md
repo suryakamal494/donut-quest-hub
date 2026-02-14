@@ -1,57 +1,72 @@
 
 
-# Fix User Visibility by Project & Multi-Project Assignment
+# Screenshot-Aware AI Script Enrichment for Test Automation
 
-## Problems Identified
+## Problem
+Your test cases are written in simple business language (e.g., "Go to Curriculum, click Add Curriculum, save it"). But the actual UI requires navigating submenus, finding specific buttons labeled differently, filling forms, etc. The current `prepare-automation` edge function asks GPT-4o to guess the UI structure, which fails because the AI has never seen the app.
 
-**Problem 1: Users visible across all projects regardless of assignment**
-When the platform shows lists of developers or QA testers (e.g., in the Admin QA Dashboard, Bug Report "assign to" dropdown, Bug Detail page), it fetches ALL users with a given role from the `user_roles` table -- without checking whether those users actually have access to the currently selected project via `user_project_access`. This means a developer assigned only to "Project A" still appears in "Project B."
+## Solution: "Enrich Script" Feature
+Add a new capability where you upload screenshots of the UI flow alongside your simple test case, and AI (using Lovable AI's Gemini Vision) analyzes both to generate a detailed, step-by-step navigation script. This enriched script then replaces the guesswork in the automation pipeline.
 
-**Problem 2: Multi-project assignment already works**
-The `AssignProjectDialog` component already supports selecting multiple projects via checkboxes. This is functioning correctly. The real issue is Problem 1 above.
+## How It Works
 
----
+**User Flow:**
+1. Open a test scenario's detail page
+2. Click a new "Enrich with Screenshots" button
+3. Upload 3-8 screenshots showing the UI navigation flow (e.g., dashboard -> sidebar menu -> submenu -> form)
+4. AI analyzes screenshots + your simple test steps and generates a detailed script
+5. The enriched script is saved to the test case and used automatically during automation runs
 
-## Solution
+**Example transformation:**
 
-Filter user lists by project access everywhere users are displayed in a project context. Specifically, after fetching users by role, cross-reference them against `user_project_access` for the current project, keeping only users who have been assigned to that project.
+Simple test case step:
+> "Add a new curriculum"
 
----
+AI-enriched output (after seeing screenshots):
+> 1. Click "Master Data" in the left sidebar
+> 2. Click "Curriculum" in the submenu that appears
+> 3. Click the "+" button in the top-right corner
+> 4. Fill the "Curriculum Name" field with placeholder "Enter curriculum name"
+> 5. Click "Save" button
+
+## Technical Implementation
+
+### 1. New Storage Bucket: `scenario-screenshots`
+Create a storage bucket for uploading UI flow screenshots per scenario.
+
+### 2. Database: Add `enriched_steps` column to `test_cases` table
+A JSONB column to store the AI-generated detailed script alongside the original simple steps. The automation pipeline will prefer `enriched_steps` when available.
+
+### 3. New Edge Function: `enrich-test-script`
+- Accepts: scenario_id + array of screenshot URLs
+- Fetches the test cases and their simple steps
+- Sends screenshots + steps to Lovable AI (Gemini Vision -- supports image analysis natively, no extra API key needed)
+- Returns detailed navigation script
+- Saves enriched steps back to the `test_cases` table
+
+**Key advantage**: Uses the already-configured `LOVABLE_API_KEY` with Gemini's vision capability -- no new API keys or external tools required.
+
+### 4. New UI Component: `ScriptEnrichmentDialog`
+- Screenshot uploader (reuses existing upload pattern from `AttachmentUploader`)
+- Shows the original simple steps for reference
+- Displays AI-generated enriched script for review/editing before saving
+- Located on the Scenario Detail page
+
+### 5. Update `prepare-automation` Edge Function
+- Check if `enriched_steps` exist on test cases
+- If yes, use those instead of asking GPT-4o to guess from simple steps
+- Falls back to the current GPT-4o generation if no enriched steps exist
+
+## Files to Create
+- `supabase/functions/enrich-test-script/index.ts` -- Vision AI edge function
+- `src/components/qa/automation/ScriptEnrichmentDialog.tsx` -- Upload + review UI
 
 ## Files to Modify
+- `src/pages/qa/ScenarioDetail.tsx` -- Add "Enrich with Screenshots" button
+- `supabase/functions/prepare-automation/index.ts` -- Prefer enriched steps when available
+- `src/types/automation.ts` -- Add enriched step types
 
-### 1. `src/components/dashboard/AdminQADashboard.tsx` (lines 82-100)
-**Current**: Fetches all approved profiles and all roles, then displays them as team members.
-**Fix**: After building the `members` list, fetch `user_project_access` for the current project and filter `members` to only include users who have access to that project (or are admins).
-
-### 2. `src/pages/bugs/BugReport.tsx` (lines 124-137) -- "Assign To" dropdown
-**Current**: `loadDevelopers()` fetches all users with developer/admin roles globally.
-**Fix**: Also fetch `user_project_access` for the current project, then filter the developer list to only show those assigned to the current project (admins always visible).
-
-### 3. `src/pages/bugs/BugDetail.tsx` (lines 94-107) -- "Reassign" developer list
-**Current**: `loadDevelopers()` fetches all developer/admin users globally.
-**Fix**: Same approach -- filter by project access. The bug's `project_id` is available from the loaded bug data.
-
-### 4. `src/components/qa/TodayActivityPanel.tsx` (line 80-84)
-**Current**: Fetches profile names for activity panel users without project filtering.
-**Fix**: This one only resolves names for users who already have activity, so no change needed (they are already in context).
-
----
-
-## Technical Approach
-
-For each affected file, the pattern is the same:
-
-```text
-1. Fetch user_roles (filtered by role)
-2. Fetch user_project_access WHERE project_id = currentProject.id
-3. Build a Set of user_ids that have project access
-4. Filter the user list: keep user if they have project access OR are admin
-5. Then fetch profiles only for the filtered user_ids
-```
-
-This ensures:
-- Developers/QA testers only appear in projects they are assigned to
-- Admins remain visible everywhere (they have implicit access to all projects)
-- No database schema changes needed -- `user_project_access` table already exists
+## Database Migration
+- Add `enriched_steps JSONB` column to `test_cases` table
+- Create `scenario-screenshots` storage bucket with appropriate policies
 
