@@ -1,1 +1,7 @@
 project_id = "lysajjlxfgpbcsyaqjyu"
+
+[functions.prepare-automation]
+verify_jwt = false
+
+[functions.automation-webhook]
+verify_jwt = false
