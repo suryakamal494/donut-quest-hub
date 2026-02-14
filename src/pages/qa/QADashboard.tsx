@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { 
   Plus, 
@@ -38,7 +38,7 @@ export default function QADashboard() {
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     if (!currentProject) return;
     
     try {
@@ -99,13 +99,13 @@ export default function QADashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject]);
 
   useEffect(() => {
-    if (user && currentProject && role !== "developer") {
+    if (user && currentProject && role !== "developer" && role !== "admin") {
       loadDashboardData();
     }
-  }, [user, currentProject, role]);
+  }, [user, currentProject, role, loadDashboardData]);
 
   // Developer gets their own dashboard
   if (role === "developer") {
