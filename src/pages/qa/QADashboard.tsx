@@ -38,29 +38,12 @@ export default function QADashboard() {
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
-  useEffect(() => {
-    if (user && currentProject && role !== "developer") {
-      loadDashboardData();
-    }
-  }, [user, currentProject, role]);
-
-  // Developer gets their own dashboard
-  if (role === "developer") {
-    return <DeveloperDashboard />;
-  }
-
-  // Admin gets team overview dashboard
-  if (role === "admin") {
-    return <AdminQADashboard />;
-  }
-
   const loadDashboardData = async () => {
     if (!currentProject) return;
     
     try {
       setLoading(true);
 
-      // Get scenario counts for current project
       const { data: scenarios } = await supabase
         .from("test_scenarios")
         .select("id, scenario_type")
@@ -70,7 +53,6 @@ export default function QADashboard() {
       const intraLoginCount = scenarios?.filter(s => s.scenario_type === "intra_login").length || 0;
       const interLoginCount = scenarios?.filter(s => s.scenario_type === "inter_login").length || 0;
 
-      // Get recent scenarios for current project
       const { data: recentScenariosData } = await supabase
         .from("test_scenarios")
         .select("*")
@@ -78,7 +60,6 @@ export default function QADashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Get all test runs for chart (last 30 days) for current project
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
@@ -91,14 +72,12 @@ export default function QADashboard() {
 
       const inProgressRuns = allRunsData?.filter(r => r.status === "in_progress").length || 0;
 
-      // Get all results for chart
       const { data: allResultsData } = await supabase
         .from("test_results")
         .select("*, test_cases(*)")
         .gte("executed_at", thirtyDaysAgo.toISOString())
         .order("executed_at", { ascending: false });
 
-      // Get failed tests
       const failedResults = allResultsData?.filter(r => r.status === "fail") || [];
 
       setStats({
@@ -121,6 +100,22 @@ export default function QADashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user && currentProject && role !== "developer") {
+      loadDashboardData();
+    }
+  }, [user, currentProject, role]);
+
+  // Developer gets their own dashboard
+  if (role === "developer") {
+    return <DeveloperDashboard />;
+  }
+
+  // Admin gets team overview dashboard
+  if (role === "admin") {
+    return <AdminQADashboard />;
+  }
 
   if (loading || projectLoading) {
     return (
