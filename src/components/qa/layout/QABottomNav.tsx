@@ -13,6 +13,7 @@ import {
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sheet,
   SheetContent,
@@ -87,7 +88,13 @@ const moreNavItems = [
 
 export function QABottomNav() {
   const location = useLocation();
+  const { profile } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const automationEnabled = profile?.automation_enabled === true;
+  
+  const filteredMoreItems = moreNavItems.filter(item => 
+    !["Automation", "Automation Bugs"].includes(item.title) || automationEnabled
+  );
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;
@@ -95,7 +102,7 @@ export function QABottomNav() {
   };
 
   // Check if any "more" item is active
-  const isMoreActive = moreNavItems.some(item => isActive(item.href));
+  const isMoreActive = filteredMoreItems.some(item => isActive(item.href));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border z-50 safe-area-pb">
@@ -154,7 +161,7 @@ export function QABottomNav() {
               <SheetTitle>More Options</SheetTitle>
             </SheetHeader>
             <div className="grid gap-2 pb-4">
-              {moreNavItems.map((item) => {
+              {filteredMoreItems.map((item) => {
                 const active = isActive(item.href);
                 const Icon = item.icon;
                 

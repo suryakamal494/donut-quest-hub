@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProject } from "@/contexts/ProjectContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 interface QASidebarProps {
@@ -88,7 +89,10 @@ const navItems = [
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const location = useLocation();
   const { currentProject } = useProject();
+  const { profile } = useAuth();
   const [retestCount, setRetestCount] = useState(0);
+  
+  const automationEnabled = profile?.automation_enabled === true;
 
   useEffect(() => {
     if (currentProject) {
@@ -116,7 +120,7 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
     >
       {/* Nav Items */}
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.map((item) => {
+        {navItems.filter(item => item.title !== "Automation" || automationEnabled).map((item) => {
           const active = isActive(item.href, item.end);
           const Icon = item.icon;
           
