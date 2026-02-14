@@ -1,7 +1,11 @@
-import { Users, Loader2, Check, X, Clock, FolderKanban } from "lucide-react";
+import { useState } from "react";
+import { Users, Loader2, Check, X, Clock, FolderKanban, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { RoleSelector } from "@/components/admin/RoleSelector";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserProfile {
   id: string;
@@ -9,6 +13,7 @@ interface UserProfile {
   full_name: string;
   email: string;
   approval_status: "pending" | "approved" | "rejected";
+  automation_enabled: boolean;
   created_at: string;
 }
 
@@ -35,6 +40,23 @@ const getStatusBadge = (status: string) => {
 };
 
 export function UserListSection({ users, isLoading, actionLoading, userProjectCounts, onApproval, onAssignProject }: Props) {
+  const { toast } = useToast();
+  const [automationLoading, setAutomationLoading] = useState<string | null>(null);
+
+  const toggleAutomation = async (userId: string, enabled: boolean) => {
+    setAutomationLoading(userId);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ automation_enabled: enabled } as any)
+      .eq("user_id", userId);
+    setAutomationLoading(null);
+    if (error) {
+      toast({ title: "Error", description: "Failed to update automation access", variant: "destructive" });
+    } else {
+      toast({ title: enabled ? "Automation enabled" : "Automation disabled" });
+    }
+  };
+
   return (
     <div className="glass-card rounded-2xl shadow-warm overflow-hidden">
       <div className="p-4 md:p-6 border-b border-border/50">
@@ -76,6 +98,15 @@ export function UserListSection({ users, isLoading, actionLoading, userProjectCo
               </div>
               <div className="flex items-center gap-2 pl-13 sm:pl-0 flex-wrap">
                 <RoleSelector userId={user.user_id} />
+                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <Switch
+                    checked={user.automation_enabled}
+                    onCheckedChange={(checked) => toggleAutomation(user.user_id, checked)}
+                    disabled={automationLoading === user.user_id}
+                    className="scale-75"
+                  />
+                </div>
                 <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onAssignProject(user); }} className="rounded-xl text-xs">
                   <FolderKanban className="h-3.5 w-3.5 mr-1" />
                   {userProjectCounts.get(user.user_id) || 0} Projects

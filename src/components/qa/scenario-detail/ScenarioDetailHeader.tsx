@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScenarioTypeBadge, PriorityBadge } from "@/components/qa/badges";
 import { ScenarioClaimButton } from "@/components/qa";
+import { useAuth } from "@/contexts/AuthContext";
 import type { TestScenario, Feature } from "@/types/qa";
 
 interface Props {
@@ -33,6 +34,8 @@ export function ScenarioDetailHeader({
   currentClaimer, onBack, onClone, onDelete, onStartRun, onClaimUpdate,
 }: Props) {
   const { toast } = useToast();
+  const { profile } = useAuth();
+  const automationEnabled = profile?.automation_enabled === true;
 
   const handleShare = async () => {
     const url = `${window.location.origin}/qa/scenarios/${id}`;
@@ -108,11 +111,13 @@ export function ScenarioDetailHeader({
           onClaim={onClaimUpdate}
           onRelease={onClaimUpdate}
         />
-        <AutomationDialog
-          scenarioId={id}
-          scenarioName={scenario.name}
-          loginTypes={scenario.login_types}
-        />
+        {automationEnabled && (
+          <AutomationDialog
+            scenarioId={id}
+            scenarioName={scenario.name}
+            loginTypes={scenario.login_types}
+          />
+        )}
         <Button size="sm" disabled={startingRun} onClick={onStartRun}>
           {startingRun ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
           Run Test

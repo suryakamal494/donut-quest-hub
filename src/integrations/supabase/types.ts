@@ -422,6 +422,7 @@ export type Database = {
       profiles: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
+          automation_enabled: boolean
           created_at: string
           email: string
           full_name: string
@@ -431,6 +432,7 @@ export type Database = {
         }
         Insert: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
+          automation_enabled?: boolean
           created_at?: string
           email: string
           full_name: string
@@ -440,6 +442,7 @@ export type Database = {
         }
         Update: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
+          automation_enabled?: boolean
           created_at?: string
           email?: string
           full_name?: string

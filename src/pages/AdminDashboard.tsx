@@ -22,6 +22,7 @@ interface UserProfile {
   full_name: string;
   email: string;
   approval_status: "pending" | "approved" | "rejected";
+  automation_enabled: boolean;
   created_at: string;
 }
 

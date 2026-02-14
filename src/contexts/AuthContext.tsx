@@ -12,6 +12,7 @@ interface Profile {
   full_name: string;
   email: string;
   approval_status: ApprovalStatus;
+  automation_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
