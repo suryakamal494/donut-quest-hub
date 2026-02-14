@@ -105,72 +105,22 @@ serve(async (req) => {
         error_message: error_message || null,
       });
 
-      // Auto-create bug for failures
-      if (status === "fail" || status === "error") {
-        // Get test case details for bug report
+      // Notify user of failures (without creating bugs)
+      if ((status === "fail" || status === "error") && automationRun.created_by) {
         const { data: testCase } = await supabase
           .from("test_cases")
-          .select("*, scenario:test_scenarios(*)")
+          .select("case_code, title")
           .eq("id", test_case_id)
           .single();
 
         if (testCase) {
-          const scenario = (testCase as any).scenario;
-          const severityMap: Record<string, string> = {
-            critical: "critical",
-            high: "major",
-            medium: "minor",
-            low: "trivial",
-          };
-
-          const stepsToReproduce = [];
-          if (testCase.preconditions?.length) {
-            stepsToReproduce.push(`Preconditions: ${testCase.preconditions.join(", ")}`);
-          }
-
-          // Get test steps
-          const { data: steps } = await supabase
-            .from("test_steps")
-            .select("*")
-            .eq("test_case_id", test_case_id)
-            .order("order_index");
-
-          if (steps) {
-            steps.forEach((s: any) => {
-              stepsToReproduce.push(`Step ${s.order_index + 1}: ${s.action}`);
-            });
-          }
-
-          await supabase.from("bugs").insert({
-            bug_code: "AUTO",
-            title: `[AUTO] ${testCase.title} - ${error_message || "Test Failed"}`,
-            description: `Automated test failure detected.\n\nScenario: ${scenario?.name || "Unknown"} (${scenario?.scenario_code || ""})\nTest Case: ${testCase.case_code} - ${testCase.title}\nFailed Step: ${failed_step !== null && failed_step !== undefined ? `Step ${failed_step + 1}` : "Unknown"}\n\nActual Result: ${actual_result || "Not specified"}\nExpected Result: ${testCase.expected_result}`,
-            severity: (severityMap[scenario?.priority] || "minor") as any,
-            status: "open",
-            fix_status: "unfixed",
-            project_id: automationRun.project_id,
-            scenario_id: scenario?.id,
-            test_result_id: test_result_id || null,
-            login_type: testCase.login_type,
-            reported_by: automationRun.created_by,
-            steps_to_reproduce: stepsToReproduce,
-            expected_behavior: testCase.expected_result,
-            actual_behavior: actual_result || error_message,
-            attachments: screenshots || [],
-            environment: "Automated Test",
-            bug_type: "functional",
+          await supabase.from("notifications").insert({
+            user_id: automationRun.created_by,
+            title: "Automated Test Failed",
+            message: `${testCase.case_code}: ${testCase.title} failed during automated testing. View details in Automation dashboard.`,
+            type: "error",
+            link: `/qa/automation`,
           });
-
-          // Send notification to the automation creator
-          if (automationRun.created_by) {
-            await supabase.from("notifications").insert({
-              user_id: automationRun.created_by,
-              title: "Automated Test Failed",
-              message: `${testCase.case_code}: ${testCase.title} failed during automated testing. A bug has been auto-created.`,
-              type: "error",
-              link: `/bugs`,
-            });
-          }
         }
       }
     }

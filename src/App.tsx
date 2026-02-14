@@ -28,6 +28,7 @@ import TestCaseHistory from "./pages/qa/TestCaseHistory";
 import ExecuteTestRun from "./pages/qa/ExecuteTestRun";
 import Failures from "./pages/qa/Failures";
 import AutomationDashboard from "./pages/qa/AutomationDashboard";
+import AutomationBugs from "./pages/qa/AutomationBugs";
 
 // Bug Module
 import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport, PendingRetest } from "./pages/bugs";
@@ -88,6 +89,7 @@ const App = () => (
               <Route path="runs/:id/execute" element={<ExecuteTestRun />} />
               <Route path="failures" element={<Failures />} />
               <Route path="automation" element={<AutomationDashboard />} />
+              <Route path="automation/bugs" element={<AutomationBugs />} />
               <Route path="coverage" element={<Coverage />} />
             </Route>
 
