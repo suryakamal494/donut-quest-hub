@@ -1,84 +1,112 @@
 
+# Fix: Automation Login Failure -- Wrong URL and SPA Timing
 
-# Rewrite Curriculum CRUD Test Scenario with Proper Test Steps
+## Root Cause Found
 
-## Goal
-Rewrite the TS-004 "Curriculum CRUD Operations" scenario's test cases in the database so they have detailed, granular test steps with exact UI element references. This will serve as the "gold standard" example for how all future test scenarios should be structured.
+I verified the actual DonutAI application and found the exact problem:
 
-## Current Problem
-All 10 test cases (TC-011 to TC-020) have **zero test steps**. They only have a one-line description like "Click Quick Add -> Add Curriculum, fill name, save". The AI (GPT-4o) is forced to guess the UI layout, producing broken selectors and vague instructions.
+1. **The target URL used was wrong**: `https://thedonut-ai-alpha.vercel.app/auth/admin` loads a **blank white page**. The login form only exists at the root: `https://thedonut-ai-alpha.vercel.app`
+2. **SPA rendering delay**: Even with the correct URL, the React-based login form takes a moment to render. The runner needs to explicitly wait for the form fields to appear before trying to fill them.
+
+This means the runner navigates to a blank page, finds no login form, skips login, and then all test steps fail because "Master Data" doesn't exist on a blank page.
 
 ## What Will Change
 
-### 1. Simplify to Fewer, Well-Defined Test Cases
-The current 10 test cases try to cover too much with too little detail. We will restructure to focus on **3-4 core test cases** that are realistic and automatable, removing cases that depend on unsupported actions (drag-and-drop) or are too vague (scroll verification).
+### Platform Changes (this project)
 
-The revised test cases will be:
+**1. Update `AutomationDialog.tsx`**
+- Change the credentials input label from "Email" to "Username / Email" since DonutAI uses usernames, not emails
+- Send credentials as `{ email, username: email, password }` so the runner has both keys available
+- Add a helper hint suggesting the root URL (no `/auth/admin` suffix)
 
-**TC-011: Add Curriculum (rewritten)**
-- Navigate to Master Data > Curriculum in the sidebar
-- Click "Add Curriculum" button
-- Fill curriculum name in the dialog/form
-- Save and verify it appears
+### Runner Changes (your GitHub repo)
 
-**TC-012: Add Class under a Curriculum (rewritten)**
-- Select an existing curriculum tab
-- Click the "+" button in the Class panel
-- Fill the class name
-- Save and verify it appears in the list
+**2. Update `runner.js` -- Add SPA wait logic**
 
-**TC-013: Add Subject under a Class (rewritten)**
-- Select a curriculum, then select a class
-- Click "+" in the Subject panel
-- Fill the subject name
-- Save and verify
+The `performLogin` function needs to wait for the login form to actually render before trying to fill it. Right now it uses `isVisible({ timeout: 3000 })` which may not be enough for a React SPA.
 
-**TC-014: Add Chapter via Quick Add (rewritten)**
-- Select Curriculum > Class > Subject
-- Click Quick Add > Add Chapter
-- Fill chapter name
-- Save and verify it appears in Content panel
+Here is the exact change needed in the `performLogin` function:
 
-The remaining test cases (TC-015 to TC-020) will have their descriptions updated to note they require manual testing (bulk operations, edit, scroll, reorder) since they depend on complex UI interactions that are fragile for automation.
+```text
+CURRENT (line ~115 in runner.js):
+  if (await usernameField.isVisible({ timeout: 3000 })) {
 
-### 2. Add Granular Test Steps to Each Test Case
-Each retained test case will get 4-8 specific steps in the `test_steps` table with:
-- **Action**: Exact instruction using real UI labels (e.g., "Click 'Master Data' in the left sidebar navigation")
-- **Expected Outcome**: What should happen (e.g., "Submenu expands showing Curriculum, Content Library, etc.")
+CHANGE TO:
+  if (await usernameField.isVisible({ timeout: 10000 })) {
+```
 
-### 3. Steps Will Use Exact UI Labels from DonutAI
-Since I can see the login page confirms placeholders are "Enter your username" and "Enter your password", the test steps will reference the actual button text, menu items, and placeholder text found in the DonutAI Super Admin panel.
+Also add a post-login wait to allow the dashboard/sidebar to fully load before the first test step runs. After the login `page.waitForLoadState` line, add:
 
-## Database Operations
-The following SQL operations will be performed:
+```text
+await page.waitForTimeout(3000);  // Wait for SPA dashboard to render
+```
 
-1. **Delete existing test_steps** for TC-011 through TC-014 (currently 0, but for safety)
-2. **Update test case descriptions** for TC-011 through TC-014 to be more precise
-3. **Insert new test_steps** for each test case with detailed action/expected_outcome pairs
-4. **Update TC-015 through TC-020** descriptions to indicate they are manual-only for now
+So the full updated `performLogin` function should look like:
 
-## Technical Details
+```javascript
+async function performLogin(page, credentials) {
+  const loginStrategies = [
+    {
+      name: 'DonutAI (username/password)',
+      usernameSelector: 'input[placeholder="Enter your username"]',
+      passwordSelector: 'input[placeholder="Enter your password"]',
+      submitSelector: 'button:has-text("Sign In")'
+    },
+    {
+      name: 'Standard email login',
+      usernameSelector: 'input[type="email"], input[name="email"], #email',
+      passwordSelector: 'input[type="password"], input[name="password"], #password',
+      submitSelector: 'button[type="submit"], input[type="submit"]'
+    },
+    {
+      name: 'Username field login',
+      usernameSelector: 'input[name="username"], #username',
+      passwordSelector: 'input[type="password"], input[name="password"], #password',
+      submitSelector: 'button[type="submit"], input[type="submit"]'
+    }
+  ];
 
-### Example: TC-011 "Add Curriculum" will get these steps:
+  const loginValue = credentials.email || credentials.username || '';
 
-| Step | Action | Expected Outcome |
-|------|--------|-----------------|
-| 1 | Click "Master Data" in the left sidebar navigation | Master Data submenu expands |
-| 2 | Click "Curriculum" under Master Data submenu | Curriculum management page loads |
-| 3 | Click "Add Curriculum" button | Add curriculum dialog or input appears |
-| 4 | Type "Test Curriculum Automation" in the curriculum name field | Name field is filled |
-| 5 | Click "Save" or "Add" button to confirm | New curriculum tab appears in the curriculum list |
-| 6 | Verify "Test Curriculum Automation" text is visible on the page | Curriculum was successfully created |
+  for (const strategy of loginStrategies) {
+    try {
+      const usernameField = page.locator(strategy.usernameSelector).first();
+      const passwordField = page.locator(strategy.passwordSelector).first();
 
-### How This Fixes Automation
-- The `prepare-automation` function sends these steps to GPT-4o
-- With real step descriptions, GPT-4o generates accurate `selector_hints` like `["text=Master Data"]`, `["text=Curriculum"]`, `["text=Add Curriculum"]`
-- The updated runner correctly resolves these prefixed hints to Playwright methods
-- Login works because the runner now handles DonutAI's username/password form
+      // Wait longer for SPA to render the login form
+      if (await usernameField.isVisible({ timeout: 10000 })) {
+        await usernameField.fill(loginValue);
+        await passwordField.fill(credentials.password);
+        await page.locator(strategy.submitSelector).first().click();
+        await page.waitForLoadState('networkidle', { timeout: 15000 });
+        // Wait for SPA dashboard/sidebar to fully render
+        await page.waitForTimeout(3000);
+        console.log(`Login successful using strategy: ${strategy.name}`);
+        return;
+      }
+    } catch (err) {
+      console.log(`Login strategy "${strategy.name}" failed: ${err.message}`);
+    }
+  }
 
-### Files Modified
-- No code file changes -- only database inserts/updates to `test_cases` and `test_steps` tables
+  console.log('All login strategies failed -- continuing without login');
+}
+```
 
-### Important Note
-Since I cannot log into the DonutAI app to visually verify exact button labels, the step descriptions will use the labels mentioned in the existing test case descriptions (Quick Add, Add Curriculum, ClassPanel "+", SubjectPanel "+", etc.). If any label is slightly different in the actual UI, you can edit the step text directly from the Scenario Detail page in the QA platform.
+## Steps to Fix
 
+### You do (Runner -- GitHub):
+1. Open `runner.js` in your GitHub repo
+2. Find the `performLogin` function
+3. Change `timeout: 3000` to `timeout: 10000`
+4. Add `await page.waitForTimeout(3000);` after the `waitForLoadState` line
+5. Commit and push -- Railway auto-redeploys
+
+### I will do (Platform -- this project):
+1. Update the AutomationDialog to label the field "Username / Email" and pass both keys
+2. Add a note reminding users to use the root URL without path suffixes
+
+### You do (When re-triggering):
+- Use `https://thedonut-ai-alpha.vercel.app` as the Target URL (NOT `/auth/admin`)
+- Enter `superadmin` as the username
+- Enter `admin123` as the password
