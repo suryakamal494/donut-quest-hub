@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.automation-webhook]
 verify_jwt = false
+
+[functions.enrich-test-script]
+verify_jwt = false

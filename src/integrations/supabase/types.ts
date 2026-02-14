@@ -532,6 +532,7 @@ export type Database = {
           created_by: string | null
           dependencies: string[] | null
           description: string | null
+          enriched_steps: Json | null
           expected_result: string
           id: string
           is_regression: boolean
@@ -549,6 +550,7 @@ export type Database = {
           created_by?: string | null
           dependencies?: string[] | null
           description?: string | null
+          enriched_steps?: Json | null
           expected_result: string
           id?: string
           is_regression?: boolean
@@ -566,6 +568,7 @@ export type Database = {
           created_by?: string | null
           dependencies?: string[] | null
           description?: string | null
+          enriched_steps?: Json | null
           expected_result?: string
           id?: string
           is_regression?: boolean
