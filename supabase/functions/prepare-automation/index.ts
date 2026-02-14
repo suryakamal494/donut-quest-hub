@@ -179,60 +179,170 @@ serve(async (req) => {
       })),
     }));
 
-    // Check if any test cases have enriched steps from screenshot analysis
-    const hasEnrichedSteps = testCases.some((tc: any) => tc.enriched_steps && Array.isArray(tc.enriched_steps) && tc.enriched_steps.length > 0);
+    // === Direct conversion of enriched steps (bypasses GPT-4o entirely) ===
+    function convertEnrichedToPlaywright(enrichedSteps: any[]): any[] {
+      const playwrightSteps: any[] = [];
 
-    // Use OpenAI to convert steps to Playwright-ready instructions
-    // If enriched_steps exist (from screenshot AI analysis), incorporate them into the prompt
-    let aiInstructions = null;
-    if (openaiKey) {
+      for (const step of enrichedSteps) {
+        const action = (step.action || "").toLowerCase();
+        const target = step.target || "";
+        const location = (step.location || "").toLowerCase();
+        const notes = (step.notes || "").toLowerCase();
+        const selectorHint = step.selector_hint || "";
+        const inputValue = step.input_value || null;
+
+        // Determine action_type
+        let actionType = action;
+        if (action === "type" || action === "input" || action === "enter") actionType = "fill";
+        if (action === "verify" || action === "check" || action === "confirm") actionType = "assert";
+        if (action === "go" || action === "open" || action === "navigate") actionType = "navigate";
+
+        // Build scoped selector hints
+        const selectorHints: string[] = [];
+        if (selectorHint) {
+          // If location mentions sidebar/submenu, scope the selector
+          if (location.includes("submenu") || location.includes("sidebar")) {
+            selectorHints.push(`nav >> ${selectorHint}`);
+            selectorHints.push(`[data-sidebar] >> ${selectorHint}`);
+          }
+          selectorHints.push(selectorHint);
+        }
+        // Add text-based fallback from target
+        if (target && !selectorHints.some(s => s.includes(target))) {
+          if (location.includes("submenu") || location.includes("sidebar")) {
+            selectorHints.push(`nav >> text=${target}`);
+          }
+          selectorHints.push(`text=${target}`);
+        }
+
+        // Determine wait_for
+        let waitFor: string | null = null;
+        if (notes.includes("expand")) {
+          waitFor = "submenu expands and child items become visible";
+        } else if (notes.includes("load") || notes.includes("navigate") || notes.includes("redirect")) {
+          waitFor = "page content loads completely";
+        } else if (notes.includes("appear") || notes.includes("open") || notes.includes("display")) {
+          waitFor = "element becomes visible";
+        } else if (actionType === "click" && (location.includes("menu") || location.includes("sidebar"))) {
+          waitFor = "navigation response or submenu visible";
+        } else if (actionType === "fill") {
+          waitFor = null; // No wait needed for fill actions
+        }
+
+        // Determine assertion
+        let assertion: string | null = null;
+        if (actionType === "assert") {
+          assertion = step.notes || `Verify ${target} is visible`;
+        }
+
+        // Fallback strategy from location
+        let fallbackStrategy: string | null = null;
+        if (step.location) {
+          fallbackStrategy = `Look for element in ${step.location}`;
+        }
+
+        playwrightSteps.push({
+          step_number: step.step_number,
+          action_type: actionType,
+          selector_hints: selectorHints.length > 0 ? selectorHints : [`text=${target}`],
+          input_value: actionType === "fill" ? (inputValue || target) : null,
+          wait_for: waitFor,
+          assertion,
+          fallback_strategy: fallbackStrategy,
+        });
+      }
+
+      return playwrightSteps;
+    }
+
+    // Split test cases: enriched (convert directly) vs non-enriched (send to GPT-4o)
+    const enrichedCases: any[] = [];
+    const nonEnrichedCases: any[] = [];
+
+    for (const tc of testPayload) {
+      if (tc.enriched_steps && Array.isArray(tc.enriched_steps) && tc.enriched_steps.length > 0) {
+        enrichedCases.push(tc);
+      } else {
+        nonEnrichedCases.push(tc);
+      }
+    }
+
+    // Build AI instructions: start with directly-converted enriched cases
+    let aiInstructions: any = { test_cases: [] };
+
+    // 1) Programmatically convert enriched cases (no LLM needed)
+    for (const tc of enrichedCases) {
+      const playwrightSteps = convertEnrichedToPlaywright(tc.enriched_steps);
+
+      // Insert a post-login wait if first step isn't a login action
+      const hasLoginSteps = tc.steps?.some((s: any) =>
+        s.action?.toLowerCase().includes("login") || s.action?.toLowerCase().includes("sign in")
+      );
+      if (hasLoginSteps || tc.login_type) {
+        // Add a wait step at the beginning for page load after login
+        playwrightSteps.unshift({
+          step_number: 0,
+          action_type: "wait",
+          selector_hints: [],
+          input_value: null,
+          wait_for: "page fully loaded after login, sidebar navigation visible and interactive",
+          assertion: null,
+          fallback_strategy: "Wait for main layout and sidebar to be rendered",
+        });
+        // Re-number steps
+        playwrightSteps.forEach((s: any, i: number) => { s.step_number = i + 1; });
+      }
+
+      aiInstructions.test_cases.push({
+        test_case_id: tc.test_case_id,
+        playwright_steps: playwrightSteps,
+      });
+    }
+
+    // 2) Use GPT-4o only for non-enriched test cases
+    if (nonEnrichedCases.length > 0 && openaiKey) {
       try {
-        const enrichedNote = hasEnrichedSteps
-          ? `\n\nIMPORTANT: Some test cases include "enriched_steps" — these are AI-analyzed, screenshot-verified navigation steps with precise UI element targets. When enriched_steps exist for a test case, USE THEM as the primary source for generating playwright_steps. Convert each enriched step's selector_hint into proper selector_hints array format. The enriched steps are MUCH more reliable than the simple steps because they were generated by analyzing actual screenshots of the application UI.\n`
-          : "";
-
         const aiPrompt = `You are a QA automation expert. Convert these plain-English test cases into structured Playwright-ready instructions.
-${enrichedNote}
+
 CRITICAL RULES FOR SELECTOR HINTS:
-- Each selector_hint string MUST use a prefix to indicate the selector strategy.
-- Supported prefixes: "text=", "placeholder=", "aria-label=", "data-testid=", "role="
-- Examples of CORRECT hints: ["text=Quick Add"], ["placeholder=Enter your username"], ["aria-label=Edit"], ["data-testid=submit-btn"], ["role=button"]
-- NEVER use bare text without a prefix. "Quick Add" is WRONG. "text=Quick Add" is CORRECT.
-- Prefer "text=" for buttons and links (visible text the user sees).
-- Prefer "placeholder=" for input fields.
-- Prefer "aria-label=" for icon buttons without visible text.
-- Prefer "role=" combined with text for semantic elements (e.g. "role=menuitem" with "text=Add Curriculum").
-- Provide 2-3 hints per step ordered by preference (most reliable first).
+- Each selector_hint string MUST use a prefix: "text=", "placeholder=", "aria-label=", "data-testid=", "role="
+- Examples: ["text=Quick Add"], ["placeholder=Enter your username"], ["role=button"]
+- NEVER use bare text without a prefix.
+- Prefer "text=" for buttons/links, "placeholder=" for inputs, "aria-label=" for icon buttons.
+- Provide 2-3 hints per step ordered by preference.
 
 CRITICAL RULES FOR ACTIONS:
-- Supported action_type values: click, fill, select, navigate, wait, assert, scroll, hover, press_key
-- Do NOT use "drag" -- it is not supported. For reorder operations, describe an alternative approach using click-based interactions.
-- For dropdowns: use "click" to open, then "click" on the option.
-- For typing: use "fill" with the input_value field.
-- For keyboard shortcuts: use "press_key" with input_value like "Enter", "Tab", "Escape".
+- Supported: click, fill, select, navigate, wait, assert, scroll, hover, press_key
+- Do NOT use "drag". For dropdowns: "click" to open, then "click" on option. For typing: "fill".
+
+SIDEBAR/MENU NAVIGATION RULE:
+- When clicking a parent menu item that EXPANDS a submenu (e.g. "Master Data", "Settings"), ALWAYS set wait_for to "submenu expands and child items become visible".
+- For clicking a CHILD item inside a submenu, SCOPE the selector: use "nav >> text=ItemName" or "[data-sidebar] >> text=ItemName" as the FIRST hint, with unscoped "text=ItemName" as fallback.
+- NEVER set wait_for to null for menu/sidebar navigation steps.
+
+POST-LOGIN WAIT RULE:
+- After login steps complete, ALWAYS insert a wait step: { action_type: "wait", wait_for: "page fully loaded, sidebar navigation visible and interactive" }
 
 Target URL: ${target_url}
-Login Type: ${testPayload[0]?.login_type || "unknown"}
-
-${testPayload.some((tc: any) => (tc.steps || []).length === 0 && !(tc.enriched_steps && tc.enriched_steps.length > 0)) ? `WARNING: Some test cases have NO granular steps and NO enriched steps. For those, you must infer reasonable steps from the title and description. Be conservative -- generate only the essential click/fill/assert steps.` : ""}
+Login Type: ${nonEnrichedCases[0]?.login_type || "unknown"}
 
 Test Cases:
-${JSON.stringify(testPayload, null, 2)}
+${JSON.stringify(nonEnrichedCases, null, 2)}
 
-For each test case, return a JSON object with structured instructions:
+Return JSON:
 {
   "test_cases": [
     {
-      "test_case_id": "uuid-here",
+      "test_case_id": "uuid",
       "playwright_steps": [
         {
           "step_number": 1,
           "action_type": "click",
-          "selector_hints": ["text=Quick Add", "aria-label=Quick Add"],
+          "selector_hints": ["text=Quick Add"],
           "input_value": null,
           "wait_for": "Dropdown menu appears",
           "assertion": null,
-          "fallback_strategy": "Look for a + button or add button near the top of the page"
+          "fallback_strategy": "Look for a + button near the top"
         }
       ]
     }
@@ -259,20 +369,22 @@ Return ONLY valid JSON, no markdown or code blocks.`;
           const aiData = await aiResponse.json();
           const content = aiData.choices?.[0]?.message?.content || "";
           try {
-            aiInstructions = JSON.parse(content);
+            const parsed = JSON.parse(content);
+            aiInstructions.test_cases.push(...(parsed.test_cases || []));
           } catch {
-            // Try extracting JSON from markdown code blocks
             const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
             if (jsonMatch) {
-              aiInstructions = JSON.parse(jsonMatch[1].trim());
+              const parsed = JSON.parse(jsonMatch[1].trim());
+              aiInstructions.test_cases.push(...(parsed.test_cases || []));
             }
           }
         }
       } catch (aiError) {
-        console.error("AI conversion error:", aiError);
-        // Continue without AI - the runner can use raw steps
+        console.error("AI conversion error (non-enriched cases):", aiError);
       }
     }
+
+    console.log(`Prepared ${enrichedCases.length} enriched + ${nonEnrichedCases.length} GPT-4o cases`);
 
     // Build the final payload for the external runner
     const runnerPayload = {
@@ -290,11 +402,11 @@ Return ONLY valid JSON, no markdown or code blocks.`;
         login_types: scenario.login_types,
       },
       test_cases: testPayload,
-      ai_instructions: aiInstructions,
+      ai_instructions: aiInstructions.test_cases.length > 0 ? aiInstructions : null,
     };
 
     // Store AI script in automation results for debugging
-    if (aiInstructions) {
+    if (aiInstructions.test_cases.length > 0) {
       for (const tc of aiInstructions.test_cases || []) {
         await supabase
           .from("automation_results")
