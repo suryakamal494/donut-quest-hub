@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AutomationGuard } from "@/components/auth/AutomationGuard";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -89,9 +90,9 @@ const App = () => (
               <Route path="runs/:id" element={<ScenarioDetail />} />
               <Route path="runs/:id/execute" element={<ExecuteTestRun />} />
               <Route path="failures" element={<Failures />} />
-              <Route path="automation" element={<AutomationDashboard />} />
-              <Route path="automation/bugs" element={<AutomationBugs />} />
-              <Route path="automation/runs" element={<AutomationTestRuns />} />
+              <Route path="automation" element={<AutomationGuard><AutomationDashboard /></AutomationGuard>} />
+              <Route path="automation/bugs" element={<AutomationGuard><AutomationBugs /></AutomationGuard>} />
+              <Route path="automation/runs" element={<AutomationGuard><AutomationTestRuns /></AutomationGuard>} />
               <Route path="coverage" element={<Coverage />} />
             </Route>
 
