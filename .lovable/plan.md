@@ -1,52 +1,107 @@
 
-# Fix UI Overlaps and Audit Automation Visibility
 
-## Issues Identified
+# Role-Based Dashboards and Login Flow Overhaul
 
-### Issue 1: Test Runs page -- Delete icon overlapping with progress percentage
-The delete button is positioned with `absolute top-3 right-3` inside the card, which places it directly on top of the progress percentage text (e.g., "0%", "100%"). This is clearly visible in the first screenshot.
+## Understanding Your Pain Points
 
-**Fix**: Move the delete button inline within the card layout instead of using absolute positioning. Place it after the progress section as part of the flex row, so it never overlaps content.
+1. **The current User Dashboard (module picker) is pointless** -- since both QA Testing and Bug Reporting are already active, there's no need for a landing page that just says "Open Module". Users should land directly on their role-specific dashboard.
 
-### Issue 2: Scenario Detail page -- Action buttons overflowing and overlapping title
-The header uses `flex items-start gap-4` with all action buttons (Share, Clone, Edit, Delete, I'm Testing This, Automate, Run Test) in a single `flex-wrap` container. On desktop, these 7 buttons overflow and wrap on top of the scenario title, the "Run Test" button especially overlaps the scenario code and name.
+2. **No role-specific context** -- currently all roles (QA, Developer, Admin) see the same QA Dashboard. A developer needs to see their assigned bugs and fix metrics, not test scenario stats. An admin needs team oversight, not personal testing activity.
 
-**Fix**: Reorganize the header layout:
-- Move the primary action button ("Run Test") and scenario info to the top row
-- Group secondary actions (Share, Clone, Edit, Delete, Automate) into a second row or use a dropdown menu for less-used actions on smaller screens
-- Use responsive wrapping so buttons stack properly without overlapping the title
-
-### Issue 3: Automation visibility audit
-Based on the code review, the automation access control is correctly implemented:
-- **Sidebar**: Line 124 filters out the "Automation" nav item when `automationEnabled` is false
-- **Bottom Nav**: Line 101-102 filters out "Automation", "Automation Bugs", and "Auto Test Runs" from the more menu
-- **Automate Button**: Line 115 in `ScenarioDetailHeader.tsx` wraps the `AutomationDialog` in an `automationEnabled` check
-- **Auth Context**: Lines 15 and 62 correctly fetch and expose `automation_enabled` from the profile
-
-No bugs found in the automation visibility logic -- it should work correctly when `automation_enabled` is toggled in the admin panel.
+3. **Role is not displayed** -- users can't easily see what role they're operating under.
 
 ---
 
-## Implementation Plan
+## Phase-wise Implementation
 
-### Fix 1: Test Runs -- Delete button layout (TestRuns.tsx)
-- Remove the `relative` wrapper div and the `absolute top-3 right-3` positioned delete button
-- Instead, add the delete button as a third column in the flex row layout (after the progress section)
-- Use `shrink-0` to prevent the button from being squeezed
+### Phase 1: Eliminate the Module Picker and Fix Login Routing
 
-### Fix 2: Scenario Detail Header -- Responsive button layout (ScenarioDetailHeader.tsx)
-- Restructure the header into two rows:
-  - **Row 1**: Back button + scenario info (code, name, badges) + "Run Test" button (primary CTA, always visible)
-  - **Row 2**: Secondary actions (Share, Clone, Edit, Delete, I'm Testing This, Automate) in a horizontal scrollable or wrapping row below the title
-- This prevents buttons from overlapping the title text
-- On mobile, the secondary actions will wrap naturally below
+**What changes:**
+- Remove the generic `UserDashboard` (module picker page shown in your screenshot)
+- Update `Index.tsx` login routing so ALL roles (admin, user, developer) land directly on `/qa` (the QA Layout with sidebar/nav)
+- The QA Dashboard at `/qa` will then serve role-appropriate content (Phase 2)
+- Display the user's **role badge** in the QA Header next to their name (already partially there -- the role shows in small text, but we'll make it more prominent with a colored badge)
 
-### Fix 3: Verify no other UI overlap issues
-- Bug cards: The delete button is inline in a flex layout -- no overlap issue
-- Failures page: Will verify the delete button placement is correct
+**Files modified:**
+- `src/pages/Index.tsx` -- route all approved users to `/qa` instead of `/dashboard` or `/admin`
+- `src/App.tsx` -- update `/dashboard` route to redirect to `/qa`, keep `/admin` for admin panel access
+- `src/components/qa/layout/QAHeader.tsx` -- add a visible role badge (e.g., "QA Tester", "Developer", "Admin") with distinct colors
+
+---
+
+### Phase 2: Developer Dashboard
+
+**What it shows (when role = "developer"):**
+A dedicated dashboard view replacing the QA-centric one, focused on bug assignments and resolution performance.
+
+**Widgets:**
+1. **My Assigned Bugs (cards)** -- count of Open, In Progress, Fixed bugs assigned to the developer
+2. **Bugs Assigned to Me (list)** -- clickable cards for each open/in-progress bug, linking to `/bugs/:id`
+3. **Resolution Stats** -- pie chart showing Open vs Fixed vs Verified vs Reopened distribution for their bugs
+4. **Turnaround Time** -- average time from assignment to fix (calculated from `bug_history` timestamps)
+5. **Recent Activity** -- latest bugs assigned or status changes
+
+**Data sources:** `bugs` table filtered by `assigned_to = current_user_id`, `bug_history` for timeline data.
+
+**Files created/modified:**
+- `src/pages/qa/QADashboard.tsx` -- add role check: if developer, render `DeveloperDashboard`; if user/admin, render existing QA dashboard
+- `src/components/dashboard/DeveloperDashboard.tsx` (new) -- the developer-specific dashboard component
+
+---
+
+### Phase 3: Enhanced Admin Dashboard (within QA Layout)
+
+**What it shows (when role = "admin"):**
+The admin sees a management overview inside the QA Layout (not the separate `/admin` page, which remains for user management/projects).
+
+**Widgets:**
+1. **Team Overview Cards** -- total developers, total QA testers, total active bugs, total test runs this week
+2. **Developer Performance Table** -- each developer's name, bugs assigned, bugs resolved, average resolution time
+3. **QA Tester Activity Table** -- each tester's name, test runs executed this week, bugs reported, scenarios created
+4. **Bug Status Distribution** -- pie chart (Open / In Progress / Resolved / Closed / Reopened)
+5. **Today's Activity Feed** -- who tested what, who fixed what (timeline view)
+
+**Data sources:** `bugs`, `test_runs`, `test_results`, `profiles`, `user_roles`, `bug_history`
+
+**Files created/modified:**
+- `src/pages/qa/QADashboard.tsx` -- if admin, render `AdminQADashboard`
+- `src/components/dashboard/AdminQADashboard.tsx` (new) -- admin-specific QA dashboard
+- Keep the existing `/admin` route for user management and project settings
+
+---
+
+### Phase 4: Developer-Prioritized Bug List
+
+**What changes:**
+- When a developer views the Bug List (`/bugs`), bugs assigned to them appear at the top, sorted by severity
+- Unassigned and other bugs appear below in a separate section
+- A subtle "Assigned to you" highlight/badge on their bugs
+
+**Files modified:**
+- `src/pages/bugs/BugList.tsx` -- add role-aware sorting logic that prioritizes `assigned_to = current_user_id`
+
+---
 
 ## Technical Details
 
-### Files to modify:
-1. **`src/pages/qa/TestRuns.tsx`** (lines 185-252): Refactor the card layout to place the delete button inline instead of absolute-positioned
-2. **`src/components/qa/scenario-detail/ScenarioDetailHeader.tsx`** (lines 53-128): Split action buttons into two rows -- primary CTA on top row with title, secondary actions on a separate row below
+### Database
+No schema changes needed. All data exists in `bugs`, `bug_history`, `test_runs`, `test_results`, `profiles`, and `user_roles` tables.
+
+### New Files
+- `src/components/dashboard/DeveloperDashboard.tsx`
+- `src/components/dashboard/AdminQADashboard.tsx`
+
+### Modified Files
+- `src/pages/Index.tsx` (routing)
+- `src/App.tsx` (route cleanup)
+- `src/components/qa/layout/QAHeader.tsx` (role badge)
+- `src/pages/qa/QADashboard.tsx` (role-based rendering)
+- `src/pages/bugs/BugList.tsx` (developer prioritization)
+
+### Mobile Responsiveness
+All new dashboard components will follow mobile-first design:
+- Stats cards: 2-column grid on mobile, 4-column on desktop
+- Charts: full-width on mobile, side-by-side on desktop
+- Tables: horizontal scroll with sticky first column on mobile
+- Bug cards: stacked layout on mobile
+
