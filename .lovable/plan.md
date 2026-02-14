@@ -1,161 +1,89 @@
 
 
-# Phase 1: Automated Browser Testing Integration
+# Automation Integration Audit Report
 
-## Overview
-
-Build the platform-side infrastructure so your QA platform can send test cases to an external Playwright runner and automatically receive, display, and act on results -- including auto-creating bugs for failures.
+## Status: Mostly Solid -- 3 Issues Found (1 Critical, 2 Minor)
 
 ---
 
-## What Gets Built
+## What Was Verified (All Passing)
 
-### 1. New Database Table: `automation_runs`
-
-Tracks each automated execution job with its status, progress, and results.
-
-| Column | Purpose |
-|---|---|
-| `id` | Unique job ID |
-| `test_run_id` | Links to the existing `test_runs` table |
-| `status` | `queued`, `running`, `completed`, `failed` |
-| `total_cases` | How many test cases to execute |
-| `completed_cases` | How many finished so far |
-| `target_url` | The LMS app URL being tested |
-| `started_at` / `completed_at` | Timing |
-| `error_message` | If the entire job fails |
-| `execution_log` | JSON array of per-step logs |
-
-### 2. New Database Table: `automation_results`
-
-Stores detailed per-test-case results from the Playwright runner, including screenshots and step-by-step logs.
-
-| Column | Purpose |
-|---|---|
-| `id` | Unique ID |
-| `automation_run_id` | Links to the job |
-| `test_case_id` | Which test case |
-| `test_result_id` | Links to existing `test_results` for unified reporting |
-| `status` | `pass`, `fail`, `error`, `skipped` |
-| `failed_step` | Which step number failed (if any) |
-| `actual_result` | What actually happened |
-| `error_message` | Detailed error |
-| `screenshots` | Array of screenshot URLs |
-| `execution_time_ms` | How long it took |
-| `ai_script` | The Playwright script that AI generated (for debugging) |
-
-### 3. Backend Function: `prepare-automation`
-
-This function prepares test case data for the external Playwright runner:
-- Fetches all test cases + steps for selected scenarios
-- Structures them into a clean JSON payload with login credentials, preconditions, steps, and expected results
-- Uses **OpenAI GPT-4o** to convert plain-English test steps into structured Playwright-ready instructions (action type, selector hints, input values)
-- Returns the structured payload (which the external runner will consume)
-
-**Why GPT-4o**: Best balance of reasoning quality and speed for code generation tasks. It understands UI context well and produces reliable Playwright selectors from natural language descriptions.
-
-### 4. Backend Function: `automation-webhook`
-
-Receives results from the external Playwright runner:
-- Validates the incoming payload
-- Updates `automation_results` and `automation_runs` tables
-- Updates the linked `test_results` records (pass/fail) so results appear in the existing test run view
-- Uploads screenshots to storage
-- **Auto-creates bug reports** for failures using the existing bug creation flow (title, steps to reproduce, actual vs expected, screenshots attached)
-- Sends notifications to the test run creator
-
-### 5. UI Changes
-
-**Scenario Detail Page** (`ScenarioDetail.tsx`):
-- New "Automate" button next to the existing "Run Test" button
-- Opens a dialog to configure: target URL, login credentials for the required role
-- Shows real-time progress (queued > running > completed)
-
-**Create Test Run Page** (`CreateTestRun.tsx`):
-- New toggle: "Manual" vs "Automated" execution mode
-- When "Automated" is selected, shows target URL and credentials fields
-- Creates the test run AND triggers the automation job
-
-**New Automation Dashboard Tab** (in QA sidebar):
-- List of automation jobs with status, progress bars, pass/fail counts
-- Click into a job to see per-test-case results with screenshots
-- One-click to view auto-created bugs
-
-**Test Run Results** (existing pages):
-- Automated results appear alongside manual results
-- Badge indicating "Automated" vs "Manual" execution
-- Screenshot thumbnails for failed automated tests
+| Component | Status | Details |
+|---|---|---|
+| Database: `automation_runs` table | OK | All 15 columns present with correct types and defaults |
+| Database: `automation_results` table | OK | All 12 columns present with correct types and defaults |
+| RLS: `automation_runs` | OK | 4 policies (SELECT, INSERT, UPDATE, DELETE) properly scoped |
+| RLS: `automation_results` | OK | 4 policies with project-level access control via JOIN to `automation_runs` |
+| Storage: `automation-screenshots` bucket | OK | Public bucket with upload/view policies |
+| Edge Function: `prepare-automation` | OK | Deployed, responds correctly, validates auth, fetches test data, calls OpenAI GPT-4o |
+| Edge Function: `automation-webhook` | OK | Deployed, validates webhook secret, processes results, auto-creates bugs, sends notifications |
+| UI: Automation Dashboard | OK | `/qa/automation` renders, empty state shown, Refresh button works |
+| UI: Automate button on Scenario Detail | OK | Button visible, dialog opens with correct scenario name |
+| UI: AutomationDialog | OK | Target URL, credentials fields, info note all display correctly |
+| UI: Sidebar navigation | OK | "Automation" link present in sidebar |
+| UI: Bottom nav (mobile) | OK | "Automation" in "More" sheet with description |
+| Route: `/qa/automation` | OK | Registered in App.tsx |
+| Types: `automation.ts` | OK | Complete type definitions for AutomationRun, AutomationResult, AutomationConfig |
+| Hook: `useAutomation` | OK | loadRuns, triggerAutomation, loadRunResults all implemented |
+| Enum compatibility | OK | `test_status` enum includes `blocked` and `skipped` as used by webhook |
+| Bug auto-creation | OK | `set_bug_code` trigger will auto-generate codes (webhook's manual generation is harmless -- trigger overrides) |
+| Test run code | OK | `generate_run_code_trigger` auto-generates run codes (the empty string in prepare-automation is fine) |
 
 ---
 
-## Technical Details
+## Issues Found
 
-### OpenAI Integration
-- You will provide your OpenAI API key (stored securely as a backend secret)
-- Model: **GPT-4o** -- chosen for its strong code generation and vision capabilities
-- The AI converts steps like "Click Quick Add button" into structured instructions:
-  ```text
-  {
-    "action": "click",
-    "selector_hints": ["Quick Add", "button", "data-testid"],
-    "fallback_text": "Quick Add",
-    "wait_for": "menu or dropdown to appear"
-  }
-  ```
-- This structured format is what the external Playwright runner consumes
+### Issue 1: CRITICAL -- Missing `verify_jwt = false` in config.toml
 
-### Auto-Bug Creation Flow
-When a test fails:
-1. Bug is created with title: `[AUTO] {test_case_title} - {failed_step_action}`
-2. Description includes: scenario name, test case, failed step, actual vs expected result
-3. Screenshots from the failure are attached
-4. Severity is derived from the scenario's priority (critical scenario = critical bug)
-5. Notification sent to admins
+**Problem**: Both edge functions (`prepare-automation` and `automation-webhook`) handle JWT validation in their own code, but `supabase/config.toml` does not set `verify_jwt = false` for them. The config only has `project_id`.
 
-### Storage
-- New storage bucket `automation-screenshots` for Playwright screenshots
-- Screenshots uploaded by the webhook function when results arrive
+- `prepare-automation` validates JWT via `getClaims()` in code -- this will work since Lovable Cloud uses signing-keys, but without `verify_jwt = false` the default deprecated verification may cause double-validation issues.
+- `automation-webhook` is designed to be called by an **external Playwright runner** (no JWT) using a webhook secret. Without `verify_jwt = false`, the external runner's requests will be rejected before the code even runs.
 
-### Security
-- Webhook endpoint uses a shared secret token for authentication (not JWT)
-- All new tables have RLS policies scoped to project access
-- OpenAI key stored as a backend secret, never exposed to the frontend
+**Fix**: Add to `supabase/config.toml`:
+```toml
+[functions.prepare-automation]
+verify_jwt = false
 
----
+[functions.automation-webhook]
+verify_jwt = false
+```
 
-## Files to Create/Modify
+### Issue 2: MINOR -- Webhook bug_code generation is redundant
 
-| File | Action |
-|---|---|
-| `supabase/migrations/...` | New tables: `automation_runs`, `automation_results` + RLS policies |
-| `supabase/functions/prepare-automation/index.ts` | New edge function |
-| `supabase/functions/automation-webhook/index.ts` | New edge function |
-| `supabase/config.toml` | Register new functions with `verify_jwt = false` |
-| `src/types/qa.ts` | Add automation types |
-| `src/components/qa/automation/AutomationDialog.tsx` | New -- trigger dialog |
-| `src/components/qa/automation/AutomationProgress.tsx` | New -- progress display |
-| `src/components/qa/automation/AutomationResultsView.tsx` | New -- results with screenshots |
-| `src/components/qa/automation/index.ts` | New -- barrel export |
-| `src/pages/qa/AutomationDashboard.tsx` | New page -- list of automation jobs |
-| `src/pages/qa/ScenarioDetail.tsx` | Add "Automate" button |
-| `src/pages/qa/CreateTestRun.tsx` | Add Manual/Automated toggle |
-| `src/components/qa/layout/QASidebar.tsx` | Add Automation nav item |
-| `src/components/qa/layout/QABottomNav.tsx` | Add Automation nav item (mobile) |
-| `src/App.tsx` | Add route for `/qa/automation` |
-| `src/hooks/useAutomation.ts` | New hook for automation state management |
+**Problem**: The `automation-webhook` function manually generates bug codes (lines 127-137) by querying the last bug and incrementing. However, the `set_bug_code` trigger already auto-generates bug codes on INSERT.
+
+**Impact**: No functional bug -- the trigger runs BEFORE INSERT and overrides whatever value was set. But the extra query is wasted work.
+
+**Fix**: Remove the manual bug_code generation from the webhook and let the trigger handle it. Simply omit `bug_code` from the INSERT.
+
+### Issue 3: MINOR -- Credentials stored in plaintext in database
+
+**Problem**: The `automation_runs.credentials` column stores login credentials as plaintext JSONB. This is visible to anyone with SELECT access to the table.
+
+**Impact**: Low risk since RLS limits access to project members, and credentials are for the LMS being tested (not the QA platform itself). But it is not ideal.
+
+**Fix**: Consider encrypting credentials before storage or not storing them at all (only pass them through to the runner payload without persisting).
 
 ---
 
-## What Happens After Phase 1
+## Recommended Fix Priority
 
-Your platform will be **fully ready** to connect to a Playwright runner. The API contract (what data goes out, what results come back) will be defined and working. You can then hire a developer to build the Playwright runner service that:
-1. Receives the structured test payload from your platform
-2. Executes the AI-generated Playwright instructions in a headless browser
-3. POSTs results back to your webhook endpoint
+1. **config.toml** -- Must fix before the external Playwright runner can call the webhook (Critical)
+2. **Redundant bug_code** -- Clean up to avoid unnecessary DB queries (Minor)
+3. **Credentials storage** -- Address when hardening for production use (Minor)
 
 ---
 
-## First Step
+## Technical Summary
 
-I will need your **OpenAI API key** to store it securely in the backend. This key powers the AI that converts your plain-English test steps into Playwright-ready instructions.
+The implementation is architecturally sound:
+- The two-function design (prepare + webhook) properly separates concerns
+- AI script generation with GPT-4o is well-structured with fallback parsing for markdown code blocks
+- Auto-bug creation includes scenario context, steps to reproduce, screenshots, and severity mapping
+- The webhook secret pattern is a good security choice for external service authentication
+- RLS policies are correctly scoped using the existing `has_project_access` function
+- The UI components follow the existing platform patterns (badges, collapsibles, progress bars)
+
+Only the config.toml fix is blocking -- the other two are improvements.
 
