@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   XCircle,
   ClipboardList,
-  RotateCcw
+  RotateCcw,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,11 @@ const navItems = [
     title: "Failures",
     href: "/qa/failures",
     icon: AlertTriangle,
+  },
+  {
+    title: "Automation",
+    href: "/qa/automation",
+    icon: Zap,
   },
   {
     title: "Coverage",

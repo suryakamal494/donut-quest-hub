@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2, Share2 } from "lucide-react";
+import { ArrowLeft, Edit, PlayCircle, Loader2, Copy, Trash2, Share2, Zap } from "lucide-react";
+import { AutomationDialog } from "@/components/qa/automation";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,6 +107,11 @@ export function ScenarioDetailHeader({
           currentClaimer={currentClaimer}
           onClaim={onClaimUpdate}
           onRelease={onClaimUpdate}
+        />
+        <AutomationDialog
+          scenarioId={id}
+          scenarioName={scenario.name}
+          loginTypes={scenario.login_types}
         />
         <Button size="sm" disabled={startingRun} onClick={onStartRun}>
           {startingRun ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}

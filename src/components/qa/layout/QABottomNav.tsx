@@ -9,6 +9,7 @@ import {
   AlertCircle,
   BarChart3,
   RotateCcw,
+  Zap,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,12 @@ const moreNavItems = [
     href: "/qa/failures",
     icon: AlertCircle,
     description: "Pending test failures",
+  },
+  {
+    title: "Automation",
+    href: "/qa/automation",
+    icon: Zap,
+    description: "Automated browser testing",
   },
   {
     title: "Coverage",

@@ -14,6 +14,142 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_results: {
+        Row: {
+          actual_result: string | null
+          ai_script: string | null
+          automation_run_id: string
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          failed_step: number | null
+          id: string
+          screenshots: string[] | null
+          status: string
+          test_case_id: string
+          test_result_id: string | null
+        }
+        Insert: {
+          actual_result?: string | null
+          ai_script?: string | null
+          automation_run_id: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          failed_step?: number | null
+          id?: string
+          screenshots?: string[] | null
+          status?: string
+          test_case_id: string
+          test_result_id?: string | null
+        }
+        Update: {
+          actual_result?: string | null
+          ai_script?: string | null
+          automation_run_id?: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          failed_step?: number | null
+          id?: string
+          screenshots?: string[] | null
+          status?: string
+          test_case_id?: string
+          test_result_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_results_automation_run_id_fkey"
+            columns: ["automation_run_id"]
+            isOneToOne: false
+            referencedRelation: "automation_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_results_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_results_test_result_id_fkey"
+            columns: ["test_result_id"]
+            isOneToOne: false
+            referencedRelation: "test_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_runs: {
+        Row: {
+          completed_at: string | null
+          completed_cases: number
+          created_at: string
+          created_by: string | null
+          credentials: Json | null
+          error_message: string | null
+          execution_log: Json | null
+          id: string
+          project_id: string | null
+          started_at: string
+          status: string
+          target_url: string
+          test_run_id: string | null
+          total_cases: number
+          webhook_secret: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_cases?: number
+          created_at?: string
+          created_by?: string | null
+          credentials?: Json | null
+          error_message?: string | null
+          execution_log?: Json | null
+          id?: string
+          project_id?: string | null
+          started_at?: string
+          status?: string
+          target_url: string
+          test_run_id?: string | null
+          total_cases?: number
+          webhook_secret?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_cases?: number
+          created_at?: string
+          created_by?: string | null
+          credentials?: Json | null
+          error_message?: string | null
+          execution_log?: Json | null
+          id?: string
+          project_id?: string | null
+          started_at?: string
+          status?: string
+          target_url?: string
+          test_run_id?: string | null
+          total_cases?: number
+          webhook_secret?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_runs_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bug_comments: {
         Row: {
           bug_id: string
