@@ -26,12 +26,8 @@ const Index: React.FC = () => {
       return;
     }
 
-    // Route based on role
-    if (role === "admin") {
-      navigate("/admin");
-    } else {
-      navigate("/dashboard");
-    }
+    // All approved users go directly to QA dashboard
+    navigate("/qa");
   }, [user, profile, role, isLoading, navigate]);
 
   return (
