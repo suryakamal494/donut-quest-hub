@@ -1,142 +1,246 @@
 
 
-# Phase-wise Implementation Plan
+# Evolution Plan: Intelligent Test Automation System
 
-## Summary of Your 5 Requests
+## Current State
 
-1. **Save and Reuse Automation Credentials** -- When clicking "Automate", allow saving target URL + login credentials to the database. Next time, users can pick from saved configs instead of re-entering everything.
+Your automation pipeline today works like this:
 
-2. **Manual Playwright Script Option** -- Add a second mode in the Automate dialog: either paste a custom Playwright script manually (with Save and Reuse for that scenario), or use the existing AI-generated script. If a manual script is saved, it takes priority.
+```text
+Test Cases --> GPT-4o converts to JSON steps --> External Runner executes step-by-step --> Pass/Fail
+```
 
-3. **Fix Screenshot Viewing in Automation Bugs** -- Currently screenshots open in a new tab (broken). Instead, show them in a lightbox popup on the same page, matching how screenshots work elsewhere in the app.
+Problems:
+- Rigid JSON instructions break when UI changes (locator failures)
+- No auto-waiting -- hardcoded waits or none at all
+- No self-healing -- one broken selector fails the entire run
+- No learning from failures -- same mistakes repeat
 
-4. **Hide "Enrich with Screenshots" Behind Automation Toggle** -- Already partially done (it is inside the `automationEnabled` block), but confirm this is correctly gated so only users with the automation toggle enabled can see it.
+## Target State
 
-5. **View Enriched Script Popup** -- Add a small button on the Scenario Detail page that opens a popup showing the enriched steps that were generated via the "Enrich with Screenshots" feature, so users can review what was produced without re-running enrichment.
-
----
-
-## Phase 1: Screenshot Lightbox Fix (Automation Bugs Page)
-
-**What**: Replace the current `<a href target="_blank">` links with an in-page lightbox dialog, reusing the existing `AttachmentGallery` component pattern.
-
-**Changes**:
-- `src/pages/qa/AutomationBugs.tsx` -- Import and use the existing `AttachmentGallery` component (which already has lightbox functionality) instead of the raw `<a><img></a>` links. The `AttachmentGallery` component handles click-to-zoom with a Dialog overlay.
-
-**Effort**: Small -- swapping ~10 lines of code.
+```text
+Test Cases --> Intent-based instructions --> Smart Runner with auto-wait + fallbacks + self-healing --> Pass/Fail + Auto-fix suggestions
+```
 
 ---
 
-## Phase 2: Save and Reuse Automation Credentials
+## Phase 1: Smart Runner Upgrade (External Service)
 
-**What**: Create a database table to store saved automation configurations per project. Update the AutomationDialog to show a dropdown of saved configs.
+**What**: Upgrade the Playwright runner on Railway.app to use Playwright's native intelligence instead of fighting it.
+
+**Why this matters**: The runner currently receives JSON steps and executes them literally. If a selector fails, the whole test fails. Playwright has built-in auto-waiting and smart locator strategies that we are not using.
+
+**Changes to the Runner (Railway.app Node.js service)**:
+
+1. **Replace waitForTimeout with native auto-waiting**
+   - Remove all `page.waitForTimeout(5000)` calls
+   - Use `page.click()` which auto-waits for visible + enabled + stable
+   - Use `page.waitForLoadState('networkidle')` after navigation steps
+   - Use `page.waitForSelector()` only when explicitly needed (submenu expansion)
+
+2. **Multi-strategy locator resolution**
+   - Current: tries first `selector_hint` and fails
+   - New: try hints in order, with increasing fallback scope
+   ```text
+   Strategy 1: page.locator(selectorHints[0])  -- e.g. "nav >> text=Curriculum"
+   Strategy 2: page.locator(selectorHints[1])  -- e.g. "text=Curriculum"
+   Strategy 3: page.getByRole('link', { name: 'Curriculum' })
+   Strategy 4: page.getByText('Curriculum', { exact: false })
+   ```
+   - Each strategy has a 5-second timeout before moving to the next
+
+3. **Smart wait injection**
+   - After any click on a menu/sidebar item: `page.waitForLoadState('domcontentloaded')`
+   - After login: `page.waitForSelector('[data-sidebar]', { state: 'visible', timeout: 15000 })`
+   - After navigation: `page.waitForURL()` pattern matching
+
+4. **Failure context capture**
+   - On failure, capture: screenshot, page URL, available text on page, DOM snippet of the area
+   - Send this rich context back via webhook (not just error string)
+
+**Effort**: Medium -- changes are in the Railway.app runner code (not in Lovable)
+
+**Impact on Lovable codebase**: None -- runner is external. But the webhook payload format gets richer.
+
+---
+
+## Phase 2: Rich Failure Context in Webhook
+
+**What**: Update the automation-webhook to accept and store richer failure data, and display it in Automation Bugs.
 
 **Database Migration**:
 ```text
-New table: automation_configs
-  - id (uuid, PK)
-  - project_id (uuid, FK to projects)
-  - label (text) -- e.g. "Admin Login - Production"
-  - target_url (text)
-  - username (text, nullable)
-  - password_encrypted (text, nullable) -- stored as-is for now
-  - created_by (uuid)
-  - created_at (timestamptz)
-
-RLS: 
-  - SELECT: users with project access
-  - INSERT: authenticated users (created_by = auth.uid())
-  - UPDATE/DELETE: creator or admin
+Add columns to automation_results:
+  - page_url_at_failure (text, nullable) -- what URL the browser was on when it failed
+  - dom_context (text, nullable) -- snippet of DOM near the failed element
+  - available_text (text[], nullable) -- visible text on page at failure time
+  - retry_count (integer, default 0) -- how many retries were attempted
 ```
-
-**Frontend Changes**:
-- `src/components/qa/automation/AutomationDialog.tsx`:
-  - Add a "Saved Configs" dropdown at the top of the dialog
-  - When a saved config is selected, auto-fill URL, username, password
-  - Add a "Save Config" checkbox + label input before triggering
-  - On trigger, if "Save" is checked, insert into `automation_configs` first
-
-**Effort**: Medium -- new table + dialog UI update.
-
----
-
-## Phase 3: Manual Playwright Script Option
-
-**What**: Add a toggle in the AutomationDialog: "Use AI Script" (default) vs "Paste Manual Script". If manual script is pasted, it gets saved to the test case and sent to the runner instead of the AI-generated one.
-
-**Database Migration**:
-```text
-Add column to test_cases:
-  - manual_playwright_script (text, nullable)
-```
-
-**Frontend Changes**:
-- `src/components/qa/automation/AutomationDialog.tsx`:
-  - Add tabs or toggle: "AI Generated" | "Manual Script"
-  - In "Manual Script" mode, show a textarea to paste Playwright JSON steps
-  - Add "Save Script for Reuse" checkbox -- saves to `test_cases.manual_playwright_script`
-  - If a saved manual script exists, pre-populate the textarea and show an "Edit" option
 
 **Backend Changes**:
-- `supabase/functions/prepare-automation/index.ts`:
-  - Accept optional `manual_script` parameter
-  - If `manual_script` is provided (or `test_case.manual_playwright_script` exists), use it directly -- skip both enriched conversion and GPT-4o
-  - Priority order: Manual Script > Enriched Steps > GPT-4o
-
-**Effort**: Medium-Large -- DB change + dialog redesign + edge function update.
-
----
-
-## Phase 4: View Enriched Steps Popup
-
-**What**: Add a small icon button on the Scenario Detail page that, when clicked, opens a read-only popup showing the enriched steps stored in the database for each test case.
+- `supabase/functions/automation-webhook/index.ts`:
+  - Accept new fields: `page_url_at_failure`, `dom_context`, `available_text`, `retry_count`
+  - Store them in `automation_results`
 
 **Frontend Changes**:
-- New component: `src/components/qa/automation/ViewEnrichedStepsDialog.tsx`
-  - Fetches test cases for the scenario and displays any that have `enriched_steps` populated
-  - Uses the same step rendering (action badges, location, notes) as the `ScriptEnrichmentDialog` results view
-  - Read-only -- just for viewing what was generated
+- `src/pages/qa/AutomationBugs.tsx`:
+  - Show page URL at failure time
+  - Show DOM context in a collapsible code block
+  - Show what text was visible on screen (helps debug "element not found" issues)
+  - Show retry count
 
-- `src/components/qa/scenario-detail/ScenarioDetailHeader.tsx`:
-  - Add a small "View Enriched Script" button (only shown when `automationEnabled` is true AND at least one test case has enriched steps)
-  - Placed next to the existing "Enrich with Screenshots" button
-
-**Effort**: Small-Medium -- new dialog component + conditional button.
+**Effort**: Small-Medium
 
 ---
 
-## Phase 5: Verify Automation Toggle Gating for Enrichment
+## Phase 3: Healer -- AI-Powered Failure Analysis
 
-**What**: Confirm and enforce that "Enrich with Screenshots" is only visible to users with `automation_enabled = true` in their profile.
+**What**: When a test fails, automatically send the failure context (screenshot, DOM, error) to an AI model to get a suggested fix for the script.
 
-**Current State**: Already correctly gated -- the button is inside the `{automationEnabled && (...)}` block in `ScenarioDetailHeader.tsx` (line 123-134). No code change needed here.
+**How it works**:
+```text
+Test Fails --> Webhook receives failure data --> 
+  Trigger "heal" function --> 
+  Send to AI: "Here is the step that failed, the screenshot, and the DOM. Suggest a corrected selector." -->
+  Store suggestion in database --> 
+  Show in UI as "AI Suggested Fix"
+```
 
-**Verification**: This is already working. The `automationEnabled` variable is derived from `profile?.automation_enabled === true`, and both the Enrich and Automate buttons are wrapped in the same conditional.
+**New Edge Function**: `supabase/functions/heal-automation/index.ts`
+- Triggered by the webhook when a test fails
+- Sends to Lovable AI (Gemini 2.5 Pro -- supports image + text):
+  - The failed step JSON
+  - The screenshot (from automation-screenshots bucket)
+  - The page URL
+  - The DOM context snippet
+  - Available text on the page
+- AI returns:
+  - Corrected selector hints
+  - Explanation of what went wrong
+  - Confidence score (high/medium/low)
 
-**Effort**: None -- already implemented.
+**Database Migration**:
+```text
+Add columns to automation_results:
+  - heal_suggestion (jsonb, nullable) -- AI's suggested fix
+  - heal_status (text, nullable) -- 'pending', 'suggested', 'applied', 'rejected'
+```
+
+**Frontend Changes**:
+- `src/pages/qa/AutomationBugs.tsx`:
+  - Show "AI Suggestion" card below each failure
+  - Display the corrected selectors and explanation
+  - "Apply Fix" button that updates the enriched steps or manual script with the suggestion
+  - "Reject" button to dismiss
+
+**Effort**: Large -- new edge function + UI + database changes
 
 ---
 
-## Implementation Order
+## Phase 4: Intent-Based Test Instructions
 
-| Phase | Feature | Dependencies | Effort |
-|-------|---------|-------------|--------|
-| 1 | Screenshot lightbox fix | None | Small |
-| 2 | Save/reuse credentials | New DB table | Medium |
-| 3 | Manual Playwright script | Phase 2 dialog changes, DB column | Medium-Large |
-| 4 | View enriched steps popup | None | Small-Medium |
-| 5 | Automation toggle verification | None | None (already done) |
+**What**: Instead of generating rigid step-by-step JSON, generate high-level intent descriptions that the runner interprets flexibly.
+
+**Current approach** (brittle):
+```text
+Step 1: click "text=Master Data"
+Step 2: click "nav >> text=Curriculum"
+Step 3: assert "text=Curriculum"
+```
+
+**Intent-based approach** (flexible):
+```text
+Step 1: Navigate to the "Curriculum" page via the sidebar (under "Master Data")
+Step 2: Verify the Curriculum page loaded successfully
+```
+
+The runner then figures out HOW to navigate -- click parent menu, wait for submenu, click child, wait for page load. If the menu structure changes, the runner adapts.
+
+**Changes**:
+
+1. **New prompt strategy in prepare-automation**:
+   - Generate intent descriptions instead of selector-level steps
+   - Each intent includes: goal, context, success criteria
+   ```text
+   {
+     "intent": "navigate_to_page",
+     "target_page": "Curriculum",
+     "navigation_path": ["Master Data", "Curriculum"],
+     "success_criteria": "Page title or heading contains 'Curriculum'"
+   }
+   ```
+
+2. **Runner interprets intents**:
+   - For "navigate_to_page": runner looks for the target in sidebar, clicks through menu hierarchy
+   - For "fill_form": runner finds inputs by label/placeholder, fills values
+   - For "verify_content": runner checks page text/heading matches
+
+**Effort**: Large -- requires runner redesign + prompt rewrite
+
+---
+
+## Phase 5: Learning Loop (Auto-Improvement)
+
+**What**: Track which selectors work and which fail across runs. Use this history to improve future script generation.
+
+**Database Migration**:
+```text
+New table: selector_history
+  - id (uuid)
+  - project_id (uuid)
+  - target_text (text) -- what we were trying to find
+  - selector_used (text) -- the selector that was tried
+  - worked (boolean) -- did it find the element?
+  - page_url (text) -- on which page
+  - created_at (timestamptz)
+```
+
+**How it works**:
+- Runner reports every selector attempt (success or failure) via webhook
+- Before generating scripts, `prepare-automation` queries selector_history:
+  "For 'Curriculum' on this app, what selectors have worked before?"
+- Uses proven selectors first, avoids known-broken ones
+- Over time, the system builds a "selector knowledge base" per application
+
+**Effort**: Large -- runner changes + new table + query logic in prepare-automation
+
+---
+
+## Implementation Priority
+
+| Phase | Feature | Effort | Impact | Dependencies |
+|-------|---------|--------|--------|-------------|
+| 1 | Smart Runner (auto-wait + fallbacks) | Medium | Very High | Runner code (Railway) |
+| 2 | Rich Failure Context | Small-Medium | High | Phase 1 (runner sends richer data) |
+| 3 | Healer (AI failure analysis) | Large | Very High | Phase 2 (needs failure context) |
+| 4 | Intent-Based Instructions | Large | High | Phase 1 (runner must support intents) |
+| 5 | Learning Loop | Large | Medium | Phase 2 + 3 (needs history data) |
+
+## Recommended Starting Point
+
+**Phase 1 + Phase 2 together** -- these give the biggest immediate improvement:
+- Tests stop failing due to timing issues (auto-wait)
+- Failed tests give useful debugging context (rich failure data)
+- No AI changes needed yet -- just smarter execution
 
 ## Files Summary
 
 | File | Action | Phase |
 |------|--------|-------|
-| `src/pages/qa/AutomationBugs.tsx` | Modify (use AttachmentGallery) | 1 |
-| `migration (automation_configs table)` | Create | 2 |
-| `src/components/qa/automation/AutomationDialog.tsx` | Major rewrite (saved configs + manual script) | 2, 3 |
-| `migration (manual_playwright_script column)` | Create | 3 |
-| `supabase/functions/prepare-automation/index.ts` | Modify (manual script priority) | 3 |
-| `src/components/qa/automation/ViewEnrichedStepsDialog.tsx` | Create | 4 |
-| `src/components/qa/scenario-detail/ScenarioDetailHeader.tsx` | Modify (add view button) | 4 |
-| `src/components/qa/automation/index.ts` | Update exports | 4 |
+| Railway.app runner (external) | Major refactor (auto-wait, fallbacks, rich error capture) | 1 |
+| Migration (automation_results new columns) | Create | 2 |
+| `supabase/functions/automation-webhook/index.ts` | Modify (accept richer failure data) | 2 |
+| `src/pages/qa/AutomationBugs.tsx` | Modify (show rich failure context) | 2 |
+| `supabase/functions/heal-automation/index.ts` | Create (new edge function) | 3 |
+| Migration (heal_suggestion columns) | Create | 3 |
+| `src/pages/qa/AutomationBugs.tsx` | Modify (show AI suggestions) | 3 |
+| `supabase/functions/prepare-automation/index.ts` | Rewrite (intent-based generation) | 4 |
+| Migration (selector_history table) | Create | 5 |
+| `supabase/functions/prepare-automation/index.ts` | Modify (query selector history) | 5 |
+
+## Important Note
+
+Phase 1 requires changes to the **external Playwright runner on Railway.app** -- this is outside the Lovable codebase. I can help you design the runner code structure, but you would need to deploy it to Railway separately. Phases 2-5 are all within the Lovable project and can be implemented here directly.
+
+Shall I start with Phase 2 (rich failure context in webhook + UI) since that is fully within our control, while you update the runner for Phase 1 in parallel?
 
