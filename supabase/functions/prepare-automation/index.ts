@@ -6,6 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+// ============================================================
+// VERSIONING — Change these to auto-invalidate all caches
+// ============================================================
+const AI_MODEL = "google/gemini-2.5-flash";
+const INTENT_PROMPT_VERSION = "v3";
 
 // ============================================================
 // INTENT TYPES — These are the high-level instructions
@@ -302,7 +307,7 @@ Return ONLY valid JSON, no markdown or code blocks.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         max_tokens: 4000,
@@ -351,17 +356,34 @@ Return ONLY valid JSON, no markdown or code blocks.`;
 }
 
 // ============================================================
-// Compute content hash for cache detection
+// Normalized content hash for deterministic cache detection
 // ============================================================
+function normalizeValue(val: any): any {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string') return val.trim();
+  if (Array.isArray(val)) return val.map(normalizeValue);
+  if (typeof val === 'object') {
+    const sorted: Record<string, any> = {};
+    for (const key of Object.keys(val).sort()) {
+      sorted[key] = normalizeValue(val[key]);
+    }
+    return sorted;
+  }
+  return val;
+}
+
 async function computeContentHash(tc: any, steps: any[]): Promise<string> {
-  const content = JSON.stringify({
+  const fingerprint = normalizeValue({
     title: tc.title || '',
     description: tc.description || '',
     expected_result: tc.expected_result || '',
     preconditions: tc.preconditions || [],
     enriched_steps: tc.enriched_steps || null,
     steps: (steps || []).map((s: any) => ({ action: s.action, expected_outcome: s.expected_outcome })),
+    ai_model_version: AI_MODEL,
+    intent_prompt_version: INTENT_PROMPT_VERSION,
   });
+  const content = JSON.stringify(fingerprint);
   const encoder = new TextEncoder();
   const data = encoder.encode(content);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -646,8 +668,9 @@ serve(async (req) => {
       }
     }
 
-    // Convert enriched steps to intents
+    // Convert enriched steps to intents and save cache with metadata
     for (const tc of enrichedCases) {
+      const genStart = Date.now();
       const intents = convertEnrichedToIntents(tc.enriched_steps);
 
       if (tc.login_type) {
@@ -658,30 +681,61 @@ serve(async (req) => {
         });
       }
 
-      intentInstructions.push({ test_case_id: tc.test_case_id, intents });
-      alreadyHandled.add(tc.test_case_id);
+      // Only cache if we got valid intents
+      if (intents.length > 0) {
+        intentInstructions.push({ test_case_id: tc.test_case_id, intents });
+        alreadyHandled.add(tc.test_case_id);
 
-      // Save cache
-      await supabaseAdmin
-        .from("test_cases")
-        .update({ cached_ai_intents: intents as any, ai_intents_hash: (tc as any)._computed_hash })
-        .eq("id", tc.test_case_id);
+        await supabaseAdmin
+          .from("test_cases")
+          .update({
+            cached_ai_intents: intents as any,
+            ai_intents_hash: (tc as any)._computed_hash,
+            ai_generated_at: new Date().toISOString(),
+            ai_model_used: 'enriched_conversion',
+            ai_generation_time_ms: Date.now() - genStart,
+          })
+          .eq("id", tc.test_case_id);
+      } else {
+        console.warn(`Enriched conversion returned empty intents for ${tc.test_case_id}, keeping stale cache if any`);
+        // Fallback to stale cache
+        const testCaseRow = testCases.find((c: any) => c.id === tc.test_case_id);
+        if (testCaseRow?.cached_ai_intents && Array.isArray(testCaseRow.cached_ai_intents) && testCaseRow.cached_ai_intents.length > 0) {
+          intentInstructions.push({ test_case_id: tc.test_case_id, intents: testCaseRow.cached_ai_intents as TestIntent[] });
+          alreadyHandled.add(tc.test_case_id);
+        }
+      }
     }
 
     // Use AI for non-enriched test cases
     if (nonEnrichedCases.length > 0) {
+      const genStart = Date.now();
       try {
         const aiIntents = await convertStepsToIntentsViaAI(nonEnrichedCases, target_url, openaiKey);
+        const genTime = Date.now() - genStart;
         for (const tc of nonEnrichedCases) {
-          if (aiIntents[tc.test_case_id]) {
-            const intents = aiIntents[tc.test_case_id];
+          const intents = aiIntents[tc.test_case_id];
+          if (intents && Array.isArray(intents) && intents.length > 0) {
             intentInstructions.push({ test_case_id: tc.test_case_id, intents });
 
-            // Save cache
+            // Save cache with metadata
             await supabaseAdmin
               .from("test_cases")
-              .update({ cached_ai_intents: intents as any, ai_intents_hash: (tc as any)._computed_hash })
+              .update({
+                cached_ai_intents: intents as any,
+                ai_intents_hash: (tc as any)._computed_hash,
+                ai_generated_at: new Date().toISOString(),
+                ai_model_used: AI_MODEL,
+                ai_generation_time_ms: genTime,
+              })
               .eq("id", tc.test_case_id);
+          } else {
+            // AI returned empty for this case — fallback to stale cache
+            console.warn(`AI returned empty intents for ${tc.test_case_id}, falling back to stale cache`);
+            const testCaseRow = testCases.find((c: any) => c.id === tc.test_case_id);
+            if (testCaseRow?.cached_ai_intents && Array.isArray(testCaseRow.cached_ai_intents) && testCaseRow.cached_ai_intents.length > 0) {
+              intentInstructions.push({ test_case_id: tc.test_case_id, intents: testCaseRow.cached_ai_intents as TestIntent[] });
+            }
           }
         }
       } catch (aiError) {
