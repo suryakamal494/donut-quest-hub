@@ -632,7 +632,10 @@ export type Database = {
       }
       test_cases: {
         Row: {
+          ai_generated_at: string | null
+          ai_generation_time_ms: number | null
           ai_intents_hash: string | null
+          ai_model_used: string | null
           cached_ai_intents: Json | null
           case_code: string
           content_types: string[] | null
@@ -653,7 +656,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_generated_at?: string | null
+          ai_generation_time_ms?: number | null
           ai_intents_hash?: string | null
+          ai_model_used?: string | null
           cached_ai_intents?: Json | null
           case_code: string
           content_types?: string[] | null
@@ -674,7 +680,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_generated_at?: string | null
+          ai_generation_time_ms?: number | null
           ai_intents_hash?: string | null
+          ai_model_used?: string | null
           cached_ai_intents?: Json | null
           case_code?: string
           content_types?: string[] | null
