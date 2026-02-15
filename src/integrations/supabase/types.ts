@@ -73,6 +73,7 @@ export type Database = {
           retry_count: number
           screenshots: string[] | null
           status: string
+          step_log: Json | null
           test_case_id: string
           test_result_id: string | null
         }
@@ -93,6 +94,7 @@ export type Database = {
           retry_count?: number
           screenshots?: string[] | null
           status?: string
+          step_log?: Json | null
           test_case_id: string
           test_result_id?: string | null
         }
@@ -113,6 +115,7 @@ export type Database = {
           retry_count?: number
           screenshots?: string[] | null
           status?: string
+          step_log?: Json | null
           test_case_id?: string
           test_result_id?: string | null
         }

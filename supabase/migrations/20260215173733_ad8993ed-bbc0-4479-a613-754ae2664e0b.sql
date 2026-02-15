@@ -1,0 +1,1 @@
+ALTER TABLE public.automation_results ADD COLUMN step_log jsonb DEFAULT NULL;
