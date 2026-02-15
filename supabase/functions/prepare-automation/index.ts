@@ -635,8 +635,43 @@ serve(async (req) => {
       `Phase 4 — Prepared ${enrichedCases.length} enriched + ${nonEnrichedCases.length} AI-converted intent-based cases`
     );
 
+    // ============================================================
+    // PHASE 5: Query selector history for proven selectors
+    // ============================================================
+    let selectorKnowledge: Record<string, { worked: string[]; failed: string[] }> = {};
+
+    if (project_id) {
+      try {
+        const { data: history } = await supabase
+          .from("selector_history")
+          .select("target_text, selector_used, strategy, worked")
+          .eq("project_id", project_id)
+          .order("created_at", { ascending: false })
+          .limit(500);
+
+        if (history && history.length > 0) {
+          for (const h of history) {
+            const key = h.target_text.toLowerCase();
+            if (!selectorKnowledge[key]) selectorKnowledge[key] = { worked: [], failed: [] };
+            const entry = `${h.strategy || 'unknown'}:${h.selector_used}`;
+            if (h.worked) {
+              if (!selectorKnowledge[key].worked.includes(entry)) {
+                selectorKnowledge[key].worked.push(entry);
+              }
+            } else {
+              if (!selectorKnowledge[key].failed.includes(entry)) {
+                selectorKnowledge[key].failed.push(entry);
+              }
+            }
+          }
+          console.log(`Phase 5 — Loaded selector knowledge for ${Object.keys(selectorKnowledge).length} targets`);
+        }
+      } catch (histErr) {
+        console.error("Failed to load selector history:", histErr);
+      }
+    }
+
     // Build the final payload for the external runner
-    // PHASE 4: ai_instructions now contains intents instead of playwright_steps
     const runnerPayload = {
       automation_run_id: automationRun.id,
       test_run_id: testRun.id,
@@ -644,7 +679,9 @@ serve(async (req) => {
       webhook_secret: webhookSecret,
       target_url,
       credentials: credentials || null,
-      instruction_format: "intent", // Signal to runner that this uses intent format
+      instruction_format: "intent",
+      // Phase 5: Send selector knowledge to runner
+      selector_knowledge: Object.keys(selectorKnowledge).length > 0 ? selectorKnowledge : null,
       scenario: {
         id: scenario.id,
         name: scenario.name,

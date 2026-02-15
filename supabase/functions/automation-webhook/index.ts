@@ -69,6 +69,8 @@ serve(async (req) => {
         dom_context,
         available_text,
         retry_count,
+        // Phase 5: Selector history from runner
+        selector_attempts,
       } = result;
 
       // Update automation_results (includes rich failure context)
@@ -88,6 +90,26 @@ serve(async (req) => {
         })
         .eq("automation_run_id", automation_run_id)
         .eq("test_case_id", test_case_id);
+
+      // Phase 5: Store selector history for learning loop
+      if (selector_attempts && Array.isArray(selector_attempts) && selector_attempts.length > 0) {
+        const historyInserts = selector_attempts.map((attempt: any) => ({
+          project_id: automationRun.project_id || null,
+          target_text: attempt.target_text || '',
+          selector_used: attempt.selector_used || '',
+          strategy: attempt.strategy || null,
+          worked: attempt.worked === true,
+          page_url: attempt.page_url || null,
+          intent_type: attempt.intent_type || null,
+        }));
+
+        // Batch insert — don't let failures block the main flow
+        try {
+          await supabase.from("selector_history").insert(historyInserts);
+        } catch (histErr) {
+          console.error("Failed to store selector history:", histErr);
+        }
+      }
 
       // Update linked test_results
       if (test_result_id) {

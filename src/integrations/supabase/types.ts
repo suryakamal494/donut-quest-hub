@@ -538,6 +538,50 @@ export type Database = {
         }
         Relationships: []
       }
+      selector_history: {
+        Row: {
+          created_at: string
+          id: string
+          intent_type: string | null
+          page_url: string | null
+          project_id: string | null
+          selector_used: string
+          strategy: string | null
+          target_text: string
+          worked: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intent_type?: string | null
+          page_url?: string | null
+          project_id?: string | null
+          selector_used: string
+          strategy?: string | null
+          target_text: string
+          worked?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intent_type?: string | null
+          page_url?: string | null
+          project_id?: string | null
+          selector_used?: string
+          strategy?: string | null
+          target_text?: string
+          worked?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "selector_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_activity: {
         Row: {
           id: string
@@ -942,6 +986,7 @@ export type Database = {
         Args: { _test_case_id: string }
         Returns: boolean
       }
+      cleanup_old_selector_history: { Args: never; Returns: undefined }
       expire_stale_test_activity: { Args: never; Returns: undefined }
       get_approval_status: {
         Args: { _user_id: string }
