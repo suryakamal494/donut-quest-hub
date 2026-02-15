@@ -114,22 +114,48 @@ serve(async (req) => {
         error_message: error_message || null,
       });
 
-      // Notify user of failures (without creating bugs)
-      if ((status === "fail" || status === "error") && automationRun.created_by) {
-        const { data: testCase } = await supabase
-          .from("test_cases")
-          .select("case_code, title")
-          .eq("id", test_case_id)
+      // Notify user of failures and trigger AI healer
+      if ((status === "fail" || status === "error")) {
+        // Trigger AI healer asynchronously (fire-and-forget)
+        const { data: autoResult } = await supabase
+          .from("automation_results")
+          .select("id")
+          .eq("automation_run_id", automation_run_id)
+          .eq("test_case_id", test_case_id)
           .single();
 
-        if (testCase) {
-          await supabase.from("notifications").insert({
-            user_id: automationRun.created_by,
-            title: "Automated Test Failed",
-            message: `${testCase.case_code}: ${testCase.title} failed during automated testing. View details in Automation dashboard.`,
-            type: "error",
-            link: `/qa/automation`,
-          });
+        if (autoResult) {
+          try {
+            const healUrl = `${supabaseUrl}/functions/v1/heal-automation`;
+            fetch(healUrl, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${serviceRoleKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ automation_result_id: autoResult.id }),
+            }).catch((e) => console.error("Heal trigger failed:", e));
+          } catch (e) {
+            console.error("Failed to trigger healer:", e);
+          }
+        }
+
+        if (automationRun.created_by) {
+          const { data: testCase } = await supabase
+            .from("test_cases")
+            .select("case_code, title")
+            .eq("id", test_case_id)
+            .single();
+
+          if (testCase) {
+            await supabase.from("notifications").insert({
+              user_id: automationRun.created_by,
+              title: "Automated Test Failed",
+              message: `${testCase.case_code}: ${testCase.title} failed during automated testing. View details in Automation dashboard.`,
+              type: "error",
+              link: `/qa/automation/bugs`,
+            });
+          }
         }
       }
     }
