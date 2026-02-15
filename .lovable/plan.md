@@ -64,7 +64,7 @@ Test Cases --> Intent-based instructions --> Smart Runner with auto-wait + fallb
 
 ---
 
-## Phase 2: Rich Failure Context in Webhook
+## Phase 2: Rich Failure Context in Webhook ✅ COMPLETED
 
 **What**: Update the automation-webhook to accept and store richer failure data, and display it in Automation Bugs.
 
@@ -93,7 +93,7 @@ Add columns to automation_results:
 
 ---
 
-## Phase 3: Healer -- AI-Powered Failure Analysis
+## Phase 3: Healer -- AI-Powered Failure Analysis ✅ COMPLETED
 
 **What**: When a test fails, automatically send the failure context (screenshot, DOM, error) to an AI model to get a suggested fix for the script.
 
