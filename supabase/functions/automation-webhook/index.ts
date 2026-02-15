@@ -64,9 +64,14 @@ serve(async (req) => {
         error_message,
         screenshots,
         execution_time_ms,
+        // Phase 2: Rich failure context fields
+        page_url_at_failure,
+        dom_context,
+        available_text,
+        retry_count,
       } = result;
 
-      // Update automation_results
+      // Update automation_results (includes rich failure context)
       await supabase
         .from("automation_results")
         .update({
@@ -76,6 +81,10 @@ serve(async (req) => {
           error_message,
           screenshots: screenshots || [],
           execution_time_ms,
+          page_url_at_failure: page_url_at_failure || null,
+          dom_context: dom_context || null,
+          available_text: available_text || null,
+          retry_count: retry_count || 0,
         })
         .eq("automation_run_id", automation_run_id)
         .eq("test_case_id", test_case_id);

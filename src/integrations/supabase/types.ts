@@ -60,11 +60,17 @@ export type Database = {
           actual_result: string | null
           ai_script: string | null
           automation_run_id: string
+          available_text: string[] | null
           created_at: string
+          dom_context: string | null
           error_message: string | null
           execution_time_ms: number | null
           failed_step: number | null
+          heal_status: string | null
+          heal_suggestion: Json | null
           id: string
+          page_url_at_failure: string | null
+          retry_count: number
           screenshots: string[] | null
           status: string
           test_case_id: string
@@ -74,11 +80,17 @@ export type Database = {
           actual_result?: string | null
           ai_script?: string | null
           automation_run_id: string
+          available_text?: string[] | null
           created_at?: string
+          dom_context?: string | null
           error_message?: string | null
           execution_time_ms?: number | null
           failed_step?: number | null
+          heal_status?: string | null
+          heal_suggestion?: Json | null
           id?: string
+          page_url_at_failure?: string | null
+          retry_count?: number
           screenshots?: string[] | null
           status?: string
           test_case_id: string
@@ -88,11 +100,17 @@ export type Database = {
           actual_result?: string | null
           ai_script?: string | null
           automation_run_id?: string
+          available_text?: string[] | null
           created_at?: string
+          dom_context?: string | null
           error_message?: string | null
           execution_time_ms?: number | null
           failed_step?: number | null
+          heal_status?: string | null
+          heal_suggestion?: Json | null
           id?: string
+          page_url_at_failure?: string | null
+          retry_count?: number
           screenshots?: string[] | null
           status?: string
           test_case_id?: string
