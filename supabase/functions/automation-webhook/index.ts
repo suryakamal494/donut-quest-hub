@@ -71,9 +71,11 @@ serve(async (req) => {
         retry_count,
         // Phase 5: Selector history from runner
         selector_attempts,
+        // Phase 6: Detailed step log
+        step_log,
       } = result;
 
-      // Update automation_results (includes rich failure context)
+      // Update automation_results (includes rich failure context + step log)
       await supabase
         .from("automation_results")
         .update({
@@ -87,6 +89,7 @@ serve(async (req) => {
           dom_context: dom_context || null,
           available_text: available_text || null,
           retry_count: retry_count || 0,
+          step_log: step_log || null,
         })
         .eq("automation_run_id", automation_run_id)
         .eq("test_case_id", test_case_id);

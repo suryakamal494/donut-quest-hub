@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban } from "lucide-react";
+import { Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban, ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
+import { AutomationResultsView } from "@/components/qa/automation/AutomationResultsView";
 import type { TestRun, RunStatus } from "@/types/qa";
 import { RUN_STATUS_LABELS } from "@/types/qa";
 
@@ -14,6 +14,8 @@ export default function AutomationTestRuns() {
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [search, setSearch] = useState("");
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [automationRunIds, setAutomationRunIds] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (currentProject) loadRuns();
@@ -43,6 +45,20 @@ export default function AutomationTestRuns() {
         };
       }) || [];
       setRuns(runsWithStats as TestRun[]);
+
+      // Pre-fetch automation_run_ids mapped to test_run_ids
+      if (runsData && runsData.length > 0) {
+        const testRunIds = runsData.map(r => r.id);
+        const { data: autoRuns } = await supabase
+          .from("automation_runs")
+          .select("id, test_run_id")
+          .in("test_run_id", testRunIds);
+        const mapping: Record<string, string> = {};
+        for (const ar of autoRuns || []) {
+          if (ar.test_run_id) mapping[ar.test_run_id] = ar.id;
+        }
+        setAutomationRunIds(mapping);
+      }
     } catch (error) {
       console.error("Error loading automation runs:", error);
     } finally {
@@ -121,41 +137,68 @@ export default function AutomationTestRuns() {
           {filteredRuns.map((run) => {
             const completedCount = (run.passed || 0) + (run.failed || 0) + (run.blocked || 0) + (run.skipped || 0);
             const progressPercent = run.total_tests ? (completedCount / run.total_tests) * 100 : 0;
+            const isExpanded = expandedRunId === run.id;
+            const autoRunId = automationRunIds[run.id];
+
             return (
-              <Card key={run.id} className="glass">
-                <CardContent className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-muted-foreground">{run.run_code}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${getStatusClass(run.status)}`}>
-                          {getStatusIcon(run.status)}
-                          {RUN_STATUS_LABELS[run.status]}
-                        </span>
+              <Card key={run.id} className="glass overflow-hidden">
+                <CardContent className="p-0">
+                  <button
+                    onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
+                    className="w-full text-left p-4 hover:bg-muted/20 transition-colors"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-mono text-muted-foreground">{run.run_code}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${getStatusClass(run.status)}`}>
+                              {getStatusIcon(run.status)}
+                              {RUN_STATUS_LABELS[run.status]}
+                            </span>
+                          </div>
+                          <h3 className="font-semibold text-foreground line-clamp-1">{run.name}</h3>
+                          <p className="text-sm text-muted-foreground mt-0.5">Started {new Date(run.started_at).toLocaleString()}</p>
+                        </div>
                       </div>
-                      <h3 className="font-semibold text-foreground line-clamp-1">{run.name}</h3>
-                      <p className="text-sm text-muted-foreground mt-0.5">Started {new Date(run.started_at).toLocaleString()}</p>
+                      <div className="sm:w-64 ml-6 sm:ml-0">
+                        {run.total_tests && run.total_tests > 0 ? (
+                          <>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-muted-foreground">{completedCount} / {run.total_tests} tests</span>
+                              <span className="font-medium">{Math.round(progressPercent)}%</span>
+                            </div>
+                            <Progress value={progressPercent} className="h-2 mb-2" />
+                            <div className="flex gap-3 text-xs">
+                              <span className="text-emerald-600">✓ {run.passed || 0}</span>
+                              <span className="text-red-600">✗ {run.failed || 0}</span>
+                              <span className="text-amber-600">⊘ {run.blocked || 0}</span>
+                              <span className="text-gray-500">⏭ {run.skipped || 0}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No tests executed yet</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="sm:w-64">
-                      {run.total_tests && run.total_tests > 0 ? (
-                        <>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">{completedCount} / {run.total_tests} tests</span>
-                            <span className="font-medium">{Math.round(progressPercent)}%</span>
-                          </div>
-                          <Progress value={progressPercent} className="h-2 mb-2" />
-                          <div className="flex gap-3 text-xs">
-                            <span className="text-emerald-600">✓ {run.passed || 0}</span>
-                            <span className="text-red-600">✗ {run.failed || 0}</span>
-                            <span className="text-amber-600">⊘ {run.blocked || 0}</span>
-                            <span className="text-gray-500">⏭ {run.skipped || 0}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">No tests executed yet</span>
-                      )}
+                  </button>
+
+                  {isExpanded && autoRunId && (
+                    <div className="border-t px-4 pb-4">
+                      <AutomationResultsView automationRunId={autoRunId} />
                     </div>
-                  </div>
+                  )}
+
+                  {isExpanded && !autoRunId && (
+                    <div className="border-t px-4 py-6 text-center text-sm text-muted-foreground">
+                      No automation run data found for this test run.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

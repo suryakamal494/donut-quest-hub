@@ -81,7 +81,7 @@ export function useAutomation() {
         .select("*, test_case:test_cases(case_code, title, login_type)")
         .eq("automation_run_id", runId);
       if (error) throw error;
-      return (data || []) as AutomationResult[];
+      return (data || []) as unknown as AutomationResult[];
     } catch (error) {
       console.error("Error loading automation results:", error);
       return [];

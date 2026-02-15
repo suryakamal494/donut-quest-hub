@@ -21,6 +21,17 @@ export interface AutomationRun {
   webhook_secret: string | null;
 }
 
+export interface StepLogEntry {
+  step: number;
+  intent_type: string;
+  description: string;
+  input_values?: Record<string, string>;
+  status: 'success' | 'fail' | 'skipped';
+  error?: string;
+  duration_ms: number;
+  timestamp: string;
+}
+
 export interface AutomationResult {
   id: string;
   automation_run_id: string;
@@ -33,6 +44,7 @@ export interface AutomationResult {
   screenshots: string[];
   execution_time_ms: number | null;
   ai_script: string | null;
+  step_log: StepLogEntry[] | null;
   created_at: string;
   // Joined data
   test_case?: {
