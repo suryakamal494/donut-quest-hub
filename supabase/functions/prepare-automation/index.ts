@@ -351,6 +351,25 @@ Return ONLY valid JSON, no markdown or code blocks.`;
 }
 
 // ============================================================
+// Compute content hash for cache detection
+// ============================================================
+async function computeContentHash(tc: any, steps: any[]): Promise<string> {
+  const content = JSON.stringify({
+    title: tc.title || '',
+    description: tc.description || '',
+    expected_result: tc.expected_result || '',
+    preconditions: tc.preconditions || [],
+    enriched_steps: tc.enriched_steps || null,
+    steps: (steps || []).map((s: any) => ({ action: s.action, expected_outcome: s.expected_outcome })),
+  });
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ============================================================
 // MAIN HANDLER
 // ============================================================
 serve(async (req) => {
@@ -585,12 +604,41 @@ serve(async (req) => {
       }
     }
 
-    // 3) Convert enriched steps to intents (no LLM needed)
+    // 3) Check cache, then convert enriched steps or use AI for remaining
     const enrichedCases: any[] = [];
     const nonEnrichedCases: any[] = [];
+    let cachedCount = 0;
+
+    // Use service role client for cache updates (bypasses RLS)
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     for (const tc of testPayload) {
       if (alreadyHandled.has(tc.test_case_id)) continue;
+
+      // Compute hash for this test case
+      const currentHash = await computeContentHash(tc, stepsByCase[tc.test_case_id] || []);
+      const testCaseRow = testCases.find((c: any) => c.id === tc.test_case_id);
+
+      // Check cache: if hash matches and cached intents exist, use them
+      if (
+        testCaseRow?.ai_intents_hash === currentHash &&
+        testCaseRow?.cached_ai_intents &&
+        Array.isArray(testCaseRow.cached_ai_intents) &&
+        testCaseRow.cached_ai_intents.length > 0
+      ) {
+        intentInstructions.push({
+          test_case_id: tc.test_case_id,
+          intents: testCaseRow.cached_ai_intents as TestIntent[],
+        });
+        alreadyHandled.add(tc.test_case_id);
+        cachedCount++;
+        continue;
+      }
+
+      // Store hash on tc for later save-back
+      (tc as any)._computed_hash = currentHash;
+
       if (tc.enriched_steps && Array.isArray(tc.enriched_steps) && tc.enriched_steps.length > 0) {
         enrichedCases.push(tc);
       } else {
@@ -598,10 +646,10 @@ serve(async (req) => {
       }
     }
 
+    // Convert enriched steps to intents
     for (const tc of enrichedCases) {
       const intents = convertEnrichedToIntents(tc.enriched_steps);
 
-      // Prepend a wait intent for post-login page load
       if (tc.login_type) {
         intents.unshift({
           intent: "wait_for",
@@ -612,18 +660,28 @@ serve(async (req) => {
 
       intentInstructions.push({ test_case_id: tc.test_case_id, intents });
       alreadyHandled.add(tc.test_case_id);
+
+      // Save cache
+      await supabaseAdmin
+        .from("test_cases")
+        .update({ cached_ai_intents: intents as any, ai_intents_hash: (tc as any)._computed_hash })
+        .eq("id", tc.test_case_id);
     }
 
-    // 4) Use AI for non-enriched test cases → generate intents
+    // Use AI for non-enriched test cases
     if (nonEnrichedCases.length > 0) {
       try {
         const aiIntents = await convertStepsToIntentsViaAI(nonEnrichedCases, target_url, openaiKey);
         for (const tc of nonEnrichedCases) {
           if (aiIntents[tc.test_case_id]) {
-            intentInstructions.push({
-              test_case_id: tc.test_case_id,
-              intents: aiIntents[tc.test_case_id],
-            });
+            const intents = aiIntents[tc.test_case_id];
+            intentInstructions.push({ test_case_id: tc.test_case_id, intents });
+
+            // Save cache
+            await supabaseAdmin
+              .from("test_cases")
+              .update({ cached_ai_intents: intents as any, ai_intents_hash: (tc as any)._computed_hash })
+              .eq("id", tc.test_case_id);
           }
         }
       } catch (aiError) {
@@ -632,7 +690,7 @@ serve(async (req) => {
     }
 
     console.log(
-      `Phase 4 — Prepared ${enrichedCases.length} enriched + ${nonEnrichedCases.length} AI-converted intent-based cases`
+      `Phase 4 — ${cachedCount} cached + ${enrichedCases.length} enriched + ${nonEnrichedCases.length} AI-converted intent-based cases`
     );
 
     // ============================================================

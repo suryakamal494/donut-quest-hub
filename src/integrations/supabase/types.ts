@@ -632,6 +632,8 @@ export type Database = {
       }
       test_cases: {
         Row: {
+          ai_intents_hash: string | null
+          cached_ai_intents: Json | null
           case_code: string
           content_types: string[] | null
           created_at: string
@@ -651,6 +653,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_intents_hash?: string | null
+          cached_ai_intents?: Json | null
           case_code: string
           content_types?: string[] | null
           created_at?: string
@@ -670,6 +674,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_intents_hash?: string | null
+          cached_ai_intents?: Json | null
           case_code?: string
           content_types?: string[] | null
           created_at?: string
