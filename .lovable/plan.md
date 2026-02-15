@@ -1,246 +1,145 @@
 
 
-# Evolution Plan: Intelligent Test Automation System
+# Detailed Execution Logs — Runner Upgrade + UI Enhancement
 
-## Current State
+## Overview
 
-Your automation pipeline today works like this:
+This plan implements two connected changes:
 
-```text
-Test Cases --> GPT-4o converts to JSON steps --> External Runner executes step-by-step --> Pass/Fail
-```
+1. **Runner upgrade (your GitHub repo)** — The runner will build a detailed `step_log` array during execution, recording every action it performs with human-readable descriptions, input values used, and outcomes. This works for all intent types: navigation, form filling (multi-field steppers), clicking, verifying, selecting dropdowns, scrolling, key presses, and hovering. It is designed to handle complex multi-step flows like exam creation with 5-step wizards.
 
-Problems:
-- Rigid JSON instructions break when UI changes (locator failures)
-- No auto-waiting -- hardcoded waits or none at all
-- No self-healing -- one broken selector fails the entire run
-- No learning from failures -- same mistakes repeat
+2. **Lovable-side changes** — Database column addition, webhook update to save step_log, and UI to display it inside the Automation Test Runs page as expandable detail cards.
 
-## Target State
+---
 
-```text
-Test Cases --> Intent-based instructions --> Smart Runner with auto-wait + fallbacks + self-healing --> Pass/Fail + Auto-fix suggestions
+## Part 1: Database Migration
+
+Add a `step_log` column to `automation_results` to store per-step execution details:
+
+```sql
+ALTER TABLE automation_results ADD COLUMN step_log jsonb DEFAULT NULL;
 ```
 
 ---
 
-## Phase 1: Smart Runner Upgrade (External Service)
+## Part 2: Webhook Update (automation-webhook edge function)
 
-**What**: Upgrade the Playwright runner on Railway.app to use Playwright's native intelligence instead of fighting it.
-
-**Why this matters**: The runner currently receives JSON steps and executes them literally. If a selector fails, the whole test fails. Playwright has built-in auto-waiting and smart locator strategies that we are not using.
-
-**Changes to the Runner (Railway.app Node.js service)**:
-
-1. **Replace waitForTimeout with native auto-waiting**
-   - Remove all `page.waitForTimeout(5000)` calls
-   - Use `page.click()` which auto-waits for visible + enabled + stable
-   - Use `page.waitForLoadState('networkidle')` after navigation steps
-   - Use `page.waitForSelector()` only when explicitly needed (submenu expansion)
-
-2. **Multi-strategy locator resolution**
-   - Current: tries first `selector_hint` and fails
-   - New: try hints in order, with increasing fallback scope
-   ```text
-   Strategy 1: page.locator(selectorHints[0])  -- e.g. "nav >> text=Curriculum"
-   Strategy 2: page.locator(selectorHints[1])  -- e.g. "text=Curriculum"
-   Strategy 3: page.getByRole('link', { name: 'Curriculum' })
-   Strategy 4: page.getByText('Curriculum', { exact: false })
-   ```
-   - Each strategy has a 5-second timeout before moving to the next
-
-3. **Smart wait injection**
-   - After any click on a menu/sidebar item: `page.waitForLoadState('domcontentloaded')`
-   - After login: `page.waitForSelector('[data-sidebar]', { state: 'visible', timeout: 15000 })`
-   - After navigation: `page.waitForURL()` pattern matching
-
-4. **Failure context capture**
-   - On failure, capture: screenshot, page URL, available text on page, DOM snippet of the area
-   - Send this rich context back via webhook (not just error string)
-
-**Effort**: Medium -- changes are in the Railway.app runner code (not in Lovable)
-
-**Impact on Lovable codebase**: None -- runner is external. But the webhook payload format gets richer.
+Update the webhook to accept and persist the new `step_log` field from the runner payload into the `automation_results` table. One line addition to the existing update call.
 
 ---
 
-## Phase 2: Rich Failure Context in Webhook ✅ COMPLETED
+## Part 3: Type Updates
 
-**What**: Update the automation-webhook to accept and store richer failure data, and display it in Automation Bugs.
+Add `step_log` to the `AutomationResult` type in `src/types/automation.ts`:
 
-**Database Migration**:
-```text
-Add columns to automation_results:
-  - page_url_at_failure (text, nullable) -- what URL the browser was on when it failed
-  - dom_context (text, nullable) -- snippet of DOM near the failed element
-  - available_text (text[], nullable) -- visible text on page at failure time
-  - retry_count (integer, default 0) -- how many retries were attempted
+```typescript
+step_log?: StepLogEntry[] | null;
 ```
 
-**Backend Changes**:
-- `supabase/functions/automation-webhook/index.ts`:
-  - Accept new fields: `page_url_at_failure`, `dom_context`, `available_text`, `retry_count`
-  - Store them in `automation_results`
+With the `StepLogEntry` interface:
 
-**Frontend Changes**:
-- `src/pages/qa/AutomationBugs.tsx`:
-  - Show page URL at failure time
-  - Show DOM context in a collapsible code block
-  - Show what text was visible on screen (helps debug "element not found" issues)
-  - Show retry count
-
-**Effort**: Small-Medium
+```typescript
+interface StepLogEntry {
+  step: number;
+  intent_type: string;
+  description: string;   // Human-readable: "Navigated to Curriculum via Master Data > Curriculum"
+  input_values?: Record<string, string>;  // { "Class Name": "Test Class Auto" }
+  status: "success" | "fail" | "skipped";
+  error?: string;
+  duration_ms: number;
+  timestamp: string;
+}
+```
 
 ---
 
-## Phase 3: Healer -- AI-Powered Failure Analysis ✅ COMPLETED
+## Part 4: AutomationTestRuns Page — Expandable Detail View
 
-**What**: When a test fails, automatically send the failure context (screenshot, DOM, error) to an AI model to get a suggested fix for the script.
+Currently each test run card is static. Changes:
 
-**How it works**:
-```text
-Test Fails --> Webhook receives failure data --> 
-  Trigger "heal" function --> 
-  Send to AI: "Here is the step that failed, the screenshot, and the DOM. Suggest a corrected selector." -->
-  Store suggestion in database --> 
-  Show in UI as "AI Suggested Fix"
-```
-
-**New Edge Function**: `supabase/functions/heal-automation/index.ts`
-- Triggered by the webhook when a test fails
-- Sends to Lovable AI (Gemini 2.5 Pro -- supports image + text):
-  - The failed step JSON
-  - The screenshot (from automation-screenshots bucket)
-  - The page URL
-  - The DOM context snippet
-  - Available text on the page
-- AI returns:
-  - Corrected selector hints
-  - Explanation of what went wrong
-  - Confidence score (high/medium/low)
-
-**Database Migration**:
-```text
-Add columns to automation_results:
-  - heal_suggestion (jsonb, nullable) -- AI's suggested fix
-  - heal_status (text, nullable) -- 'pending', 'suggested', 'applied', 'rejected'
-```
-
-**Frontend Changes**:
-- `src/pages/qa/AutomationBugs.tsx`:
-  - Show "AI Suggestion" card below each failure
-  - Display the corrected selectors and explanation
-  - "Apply Fix" button that updates the enriched steps or manual script with the suggestion
-  - "Reject" button to dismiss
-
-**Effort**: Large -- new edge function + UI + database changes
+- Each run card gets a clickable expand/collapse toggle
+- When expanded, it fetches `automation_results` for that run (using `useAutomation.loadRunResults`)
+- Shows each test case as a row with status icon, case code, title
+- Each test case row is itself expandable to show the **Execution Log Timeline**:
+  - For runs with `step_log`: renders each step as a timeline entry with human-readable description, input values shown as key-value pairs, duration, and pass/fail status
+  - For older runs without `step_log`: falls back to parsing `ai_script` (the stored intents) into readable descriptions (e.g., "fill_form with fields: Class Name = Test Class Auto")
+- Mobile responsive: stacks vertically on small screens
 
 ---
 
-## Phase 4: Intent-Based Test Instructions ✅ COMPLETED
+## Part 5: Runner.js — Complete Rewrite (your GitHub)
 
-**What**: Instead of generating rigid step-by-step JSON, generate high-level intent descriptions that the runner interprets flexibly.
+The final `runner.js` code will be provided as a complete copy-paste file. Key additions to the current code:
 
-**Current approach** (brittle):
-```text
-Step 1: click "text=Master Data"
-Step 2: click "nav >> text=Curriculum"
-Step 3: assert "text=Curriculum"
-```
+**A. Step Log Builder** — A `StepLogger` utility class that records every action:
+- `navigate_to_page` logs: "Navigated to [target] via [path]"
+- `fill_form` logs: "Filled form: [field1] = [value1], [field2] = [value2]" (captures ALL field names and values entered)
+- `click_element` logs: "Clicked [description] in [context]"
+- `verify_content` logs: "Verified '[text]' is visible on page"
+- `select_option` logs: "Selected '[value]' from '[dropdown]' dropdown"
+- `wait_for` logs: "Waited for [condition]"
+- `scroll` / `press_key` / `hover` similarly logged
 
-**Intent-based approach** (flexible):
-```text
-Step 1: Navigate to the "Curriculum" page via the sidebar (under "Master Data")
-Step 2: Verify the Curriculum page loaded successfully
-```
+**B. Intent Execution Engine** — Enhanced `executeIntent()` function that:
+- Handles ALL intent types (navigate_to_page, fill_form, click_element, verify_content, select_option, wait_for, scroll, press_key, hover)
+- For `fill_form`: iterates over all fields, tries label-based discovery (getByLabel, getByPlaceholder, getByRole), records each field's name and value
+- For `navigate_to_page`: clicks through navigation_path items sequentially (handles multi-level sidebar menus)
+- For `select_option`: supports both native `<select>` and custom dropdown components (click to open, then click option)
+- For `verify_content`: checks text visibility with fallback strategies
 
-The runner then figures out HOW to navigate -- click parent menu, wait for submenu, click child, wait for page load. If the menu structure changes, the runner adapts.
+**C. Smart Element Discovery** — Enhanced `smartFind()` and `smartFindInput()`:
+- Uses selector_knowledge from Phase 5 learning loop first
+- Falls back to role-based, label-based, text-based, placeholder-based discovery
+- Records selector attempts for the learning loop
 
-**Changes**:
+**D. Backward Compatibility** — Detects `instruction_format`:
+- `"intent"` format: uses the new intent interpreter
+- Legacy format (playwright_steps): uses the existing step executor
+- Both paths build step_log
 
-1. **New prompt strategy in prepare-automation**:
-   - Generate intent descriptions instead of selector-level steps
-   - Each intent includes: goal, context, success criteria
-   ```text
-   {
-     "intent": "navigate_to_page",
-     "target_page": "Curriculum",
-     "navigation_path": ["Master Data", "Curriculum"],
-     "success_criteria": "Page title or heading contains 'Curriculum'"
-   }
-   ```
-
-2. **Runner interprets intents**:
-   - For "navigate_to_page": runner looks for the target in sidebar, clicks through menu hierarchy
-   - For "fill_form": runner finds inputs by label/placeholder, fills values
-   - For "verify_content": runner checks page text/heading matches
-
-**Effort**: Large -- requires runner redesign + prompt rewrite
+**E. Step Log in Results** — The `step_log` array is included in each test case result sent to the webhook, alongside existing fields (screenshots, error_message, etc.)
 
 ---
 
-## Phase 5: Learning Loop (Auto-Improvement) ✅ COMPLETED
+## Files Modified (Lovable side)
 
-**What**: Track which selectors work and which fail across runs. Use this history to improve future script generation.
+| File | Change |
+|------|--------|
+| New migration | Add `step_log jsonb` column to `automation_results` |
+| `supabase/functions/automation-webhook/index.ts` | Accept and save `step_log` field |
+| `src/types/automation.ts` | Add `StepLogEntry` interface and `step_log` to `AutomationResult` |
+| `src/pages/qa/AutomationTestRuns.tsx` | Add expand/collapse per run, load results, show execution log timeline |
+| `src/components/qa/automation/AutomationResultsView.tsx` | Add human-readable step log rendering with fallback for older runs |
 
-**Database Migration**:
-```text
-New table: selector_history
-  - id (uuid)
-  - project_id (uuid)
-  - target_text (text) -- what we were trying to find
-  - selector_used (text) -- the selector that was tried
-  - worked (boolean) -- did it find the element?
-  - page_url (text) -- on which page
-  - created_at (timestamptz)
-```
+## External File (your GitHub)
 
-**How it works**:
-- Runner reports every selector attempt (success or failure) via webhook
-- Before generating scripts, `prepare-automation` queries selector_history:
-  "For 'Curriculum' on this app, what selectors have worked before?"
-- Uses proven selectors first, avoids known-broken ones
-- Over time, the system builds a "selector knowledge base" per application
-
-**Effort**: Large -- runner changes + new table + query logic in prepare-automation
+| File | Change |
+|------|--------|
+| `runner.js` | Complete rewrite with StepLogger, intent execution engine, smart element discovery, and step_log reporting. Full copy-paste code provided. |
 
 ---
 
-## Implementation Priority
+## How It Will Look
 
-| Phase | Feature | Effort | Impact | Dependencies |
-|-------|---------|--------|--------|-------------|
-| 1 | Smart Runner (auto-wait + fallbacks) | Medium | Very High | Runner code (Railway) |
-| 2 | Rich Failure Context | Small-Medium | High | Phase 1 (runner sends richer data) |
-| 3 | Healer (AI failure analysis) | Large | Very High | Phase 2 (needs failure context) |
-| 4 | Intent-Based Instructions | Large | High | Phase 1 (runner must support intents) |
-| 5 | Learning Loop | Large | Medium | Phase 2 + 3 (needs history data) |
+When you open the Automation Test Runs page and expand a run like "TR-036 Curriculum CRUD Operations":
 
-## Recommended Starting Point
+```
+TC-004: Add New Class                                    PASSED  2.2s
+  Step 1: Navigated to Curriculum page via Master Data > Curriculum    0.8s
+  Step 2: Clicked first curriculum tab                                  0.3s  
+  Step 3: Clicked '+' button in Class panel header                      0.2s
+  Step 4: Filled form: Class Name = "Test Class Auto"                   0.4s
+  Step 5: Clicked 'Save' button                                         0.3s
+  Step 6: Verified "Test Class Auto" appears in Class panel             0.2s
 
-**Phase 1 + Phase 2 together** -- these give the biggest immediate improvement:
-- Tests stop failing due to timing issues (auto-wait)
-- Failed tests give useful debugging context (rich failure data)
-- No AI changes needed yet -- just smarter execution
+TC-005: Delete Class                                     FAILED  3.1s
+  Step 1: Navigated to Curriculum page via Master Data > Curriculum    0.8s
+  Step 2: Clicked "Test Class Auto" row                                 0.3s
+  Step 3: Clicked 'Delete' button                                       0.2s
+  Step 4: Clicked 'Confirm' in delete dialog                  FAILED   1.8s
+    Error: No element found matching "Confirm" button in dialog
+    URL at failure: /admin/curriculum
+```
 
-## Files Summary
-
-| File | Action | Phase |
-|------|--------|-------|
-| Railway.app runner (external) | Major refactor (auto-wait, fallbacks, rich error capture) | 1 |
-| Migration (automation_results new columns) | Create | 2 |
-| `supabase/functions/automation-webhook/index.ts` | Modify (accept richer failure data) | 2 |
-| `src/pages/qa/AutomationBugs.tsx` | Modify (show rich failure context) | 2 |
-| `supabase/functions/heal-automation/index.ts` | Create (new edge function) | 3 |
-| Migration (heal_suggestion columns) | Create | 3 |
-| `src/pages/qa/AutomationBugs.tsx` | Modify (show AI suggestions) | 3 |
-| `supabase/functions/prepare-automation/index.ts` | Rewrite (intent-based generation) | 4 |
-| Migration (selector_history table) | Create | 5 |
-| `supabase/functions/prepare-automation/index.ts` | Modify (query selector history) | 5 |
-
-## Important Note
-
-Phase 1 requires changes to the **external Playwright runner on Railway.app** -- this is outside the Lovable codebase. I can help you design the runner code structure, but you would need to deploy it to Railway separately. Phases 2-5 are all within the Lovable project and can be implemented here directly.
-
-Shall I start with Phase 2 (rich failure context in webhook + UI) since that is fully within our control, while you update the runner for Phase 1 in parallel?
+This gives you complete visibility into what the automation did, what values it entered, and exactly where it failed — for both simple and complex multi-step flows like exam creation wizards.
 
