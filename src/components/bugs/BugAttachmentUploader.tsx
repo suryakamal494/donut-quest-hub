@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { Upload, X, Loader2 } from "lucide-react";
+import { useState, useRef, useCallback, useMemo } from "react";
+import { Upload, X, Loader2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -35,13 +35,15 @@ export function BugAttachmentUploader({
     }
 
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    const allowedTypes = ['image/', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     const validFiles = filesToUpload.filter(file => {
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} is not an image`);
+      const isAllowed = allowedTypes.some(type => file.type.startsWith(type));
+      if (!isAllowed) {
+        toast.error(`${file.name} is not a supported file type`);
         return false;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 5MB)`);
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 10MB)`);
         return false;
       }
       return true;
@@ -122,7 +124,7 @@ export function BugAttachmentUploader({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           multiple
           onChange={(e) => handleFileSelect(e.target.files)}
           className="hidden"
@@ -139,31 +141,42 @@ export function BugAttachmentUploader({
             <span className="text-sm">
               {attachments.length >= maxFiles 
                 ? `Maximum ${maxFiles} attachments reached`
-                : "Drop screenshots here or click to upload"}
+                : "Drop files here or click to upload"}
             </span>
-            <span className="text-xs">Max 5MB per file • {attachments.length}/{maxFiles} files</span>
+            <span className="text-xs">Images, PDF, Word • Max 10MB per file • {attachments.length}/{maxFiles} files</span>
           </div>
         )}
       </div>
 
       {attachments.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {attachments.map((url, index) => (
-            <div key={url} className="relative group aspect-video rounded-lg overflow-hidden border bg-muted">
-              <img
-                src={url}
-                alt={`Attachment ${index + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
-              />
-              <button
-                onClick={(e) => { e.stopPropagation(); removeAttachment(url); }}
-                className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+          {attachments.map((url, index) => {
+            const isDoc = /\.(pdf|doc|docx)(\?|$)/i.test(url);
+            const fileName = decodeURIComponent(url.split('/').pop()?.split('?')[0] || `File ${index + 1}`);
+            return (
+              <div key={url} className="relative group aspect-video rounded-lg overflow-hidden border bg-muted">
+                {isDoc ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center w-full h-full gap-1 hover:bg-accent/50 transition-colors" onClick={(e) => e.stopPropagation()}>
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground text-center px-2 truncate w-full">{fileName}</span>
+                  </a>
+                ) : (
+                  <img
+                    src={url}
+                    alt={`Attachment ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
+                  />
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeAttachment(url); }}
+                  className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
