@@ -1,70 +1,92 @@
 
 
-# Bug Detail Page Enhancements — Comment Attachments, Date Display, and Verify & Close Audit
+# Bug Workflow Fix, Reopened-By Attribution, and Daily Activity Stats
 
-## What You Asked For (Summary)
+## Part 1: Fix QA Users Cannot Verify or Reopen Bugs (ROOT CAUSE FOUND)
 
-1. **Comment attachments** — In the Activity section, allow attaching images alongside comments so that when retesting/reopening a bug, you can share visual evidence of the issue.
+### The Bug
+The database security policy on the `bugs` table only allows updates by:
+- The original reporter
+- The assigned developer
+- Users with admin role
+- Users with developer role
 
-2. **Proper date display throughout** — Show actual dates (not just "3 hours ago") for key events: when the bug was created, when the developer fixed it, when it was reopened, when it was verified, etc. The history timeline should display full dates alongside relative times.
+QA testers have role "user" -- if a QA person (e.g., Akshay) is **not** the original reporter and **not** the assignee, the database silently rejects their update. The UI shows the buttons, the click fires, but the database returns an error.
 
-3. **Developer Fix Notes with date** — The developer fix notes section should show the date when the fix was submitted.
+### The Fix
+Update the RLS policy for UPDATE on `bugs` to also allow users with the "user" role (QA testers) to update bugs. This is necessary because QA testers need to verify fixes and reopen bugs as part of their core workflow.
 
-4. **Verify & Close audit** — Confirm that clicking "Verify & Close" on the Pending Retest page correctly moves the bug to Closed Bugs (status: closed, fix_status: verified) and removes it from the Pending Retest list.
+**Database change:**
+```sql
+DROP POLICY "Reporters assignees and developers can update bugs" ON public.bugs;
+CREATE POLICY "Reporters assignees and developers can update bugs" ON public.bugs
+  FOR UPDATE TO authenticated
+  USING (
+    auth.uid() = reported_by
+    OR auth.uid() = assigned_to
+    OR has_role(auth.uid(), 'admin'::app_role)
+    OR has_role(auth.uid(), 'developer'::app_role)
+    OR has_role(auth.uid(), 'user'::app_role)
+  );
+```
+
+### UI Fix (BugFixActions.tsx)
+Currently `canVerify` and `canReopen` only allow `isReporter || isAdmin`. Update to also allow QA role ("user"):
+- `canVerify`: Allow reporter, admin, OR QA user role
+- `canReopen`: Allow reporter, admin, OR QA user role
+
+This matches the PendingRetest.tsx page which already checks `role === "admin" || role === "user"`.
 
 ---
 
-## Implementation Plan
+## Part 2: "Reopened By" Attribution in Active Bugs
 
-### 1. Add Attachments to Bug Comments
+### Problem
+When Suryakamal reopens a bug originally reported by Harsha, the Active Bugs list still shows "Reported by Harsha". There is no indication of who reopened it.
 
-**Database change**: Add an `attachments` column (text array) to the `bug_comments` table to store image URLs per comment.
+### Solution
 
+**Database change:** Add a `reopened_by` column to the `bugs` table:
 ```sql
-ALTER TABLE bug_comments ADD COLUMN attachments text[] DEFAULT '{}'::text[];
+ALTER TABLE bugs ADD COLUMN reopened_by uuid DEFAULT NULL;
 ```
 
-A storage bucket `bug-attachments` already exists and is public, so we reuse it for comment attachments too (stored under a `comments/` subfolder path).
+**Code changes:**
+- **PendingRetest.tsx** `handleReopen`: Set `reopened_by: user.id` when reopening
+- **BugFixActions.tsx** `handleReopen`: Set `reopened_by: user.id` when reopening
+- **BugList.tsx**: Fetch `reopened_by` profile name. If `fix_status === "reopened"` and `reopened_by` exists, display "Reopened by [Name]" instead of "Reported by [Name]"
+- **BugDetail.tsx**: Show "Reopened by" in sidebar when applicable
 
-**BugComments component updates**:
-- Add a small attachment button (paperclip icon) next to the send button
-- When clicked, open a file picker for images (max 3 per comment, max 5MB each)
-- Upload files to `bug-attachments` storage bucket under `comments/{userId}/{commentId}/` path
-- Save the URLs in the comment's `attachments` array
-- Display attached images as thumbnail previews below each comment text (clickable to enlarge, reusing the existing `AttachmentGallery` component pattern)
+When a bug is marked as fixed again, clear `reopened_by` so it doesn't persist into the next cycle.
 
-### 2. Show Full Dates in Change History Timeline
+---
 
-**BugHistoryTimeline updates**:
-- Change from showing only relative time ("3 hours ago") to showing both the actual date/time AND relative time
-- Format: `16 Feb 2026, 1:30 PM (3 hours ago)`
-- This makes the fix-reopen-fix cycle clearly trackable with exact dates
+## Part 3: Daily Activity Stats Dashboard
 
-### 3. Developer Fix Notes with Date
+### For Admin (QA Dashboard view)
+Add a **"Daily Activity"** section to the Admin QA Dashboard with:
+- A date picker (defaulting to today)
+- For the selected date, show per-person stats:
 
-**BugDetail page update**:
-- Show the `resolved_at` date alongside the Developer Fix Notes section
-- Format: `Developer Fix Notes - Fixed on 16 Feb 2026, 1:30 PM`
-- When a bug is reopened and fixed again, the new resolved_at date automatically reflects the latest fix
+**QA Testers table (for selected date):**
+| Name | Bugs Reported | Test Runs | Retests Done |
+|------|--------------|-----------|--------------|
 
-### 4. Sidebar Date Display Enhancement
+**Developers table (for selected date):**
+| Name | New Bugs Fixed | Reopened Bugs Fixed |
+|------|---------------|-------------------|
 
-**BugDetail sidebar update**:
-- Show full formatted dates (not just relative times) for:
-  - Created date
-  - Resolved date
-  - Verified date
-- Format: `16 Feb 2026` with relative time below
+### For QA/Developer individual dashboards
+On the QA Dashboard (when role is "user" or "developer"), add a **"My Today" card** showing:
+- **QA**: Bugs reported today, test runs today, retests completed today
+- **Developer**: New bugs fixed today, reopened bugs fixed today
 
-### 5. Verify & Close Audit
-
-I will review the `handleVerify` function in `PendingRetest.tsx` and `handleVerifyFix` in `BugFixActions.tsx`. Based on my code review:
-
-- **PendingRetest.handleVerify**: Sets `fix_status: "verified"` and `status: "closed"` -- this is correct
-- **PendingRetest.loadBugs**: Filters by `fix_status: "fixed"` AND `status: "resolved"` -- so once verified (status becomes "closed"), the bug disappears from this list -- correct
-- **Closed bugs page**: Should query for `status: "closed"` -- I will verify this loads correctly
-
-The flow is architecturally correct. The bug moves from Pending Retest to Closed Bugs as expected.
+Data sources (all filtered by selected date):
+- Bugs reported: `bugs` table filtered by `created_at` date and `reported_by`
+- Test runs: `test_runs` table filtered by `started_at` date and `executed_by`
+- Retests done: `bug_history` where `field_changed = 'fix_status'` and `new_value = 'verified'` and `changed_by` on selected date
+- Bugs fixed: `bug_history` where `field_changed = 'fix_status'` and `new_value = 'fixed'` and `changed_by` on selected date
+- Reopened bugs fixed: Bugs where `fix_status` went from `reopened` to `fixed` (tracked via bug_history old_value)
 
 ---
 
@@ -72,14 +94,17 @@ The flow is architecturally correct. The bug moves from Pending Retest to Closed
 
 | File | Change |
 |------|--------|
-| New migration | Add `attachments` column to `bug_comments` table |
-| `src/components/bugs/BugComments.tsx` | Add image upload capability, display comment attachments |
-| `src/components/bugs/BugHistoryTimeline.tsx` | Show full dates alongside relative times |
-| `src/pages/bugs/BugDetail.tsx` | Show fix date on Developer Fix Notes, enhance sidebar dates |
-| `src/types/bugs.ts` | Add `attachments` to `BugComment` interface |
+| New migration | Update bugs UPDATE RLS policy to include "user" role; add `reopened_by` column |
+| `src/components/bugs/BugFixActions.tsx` | Allow QA users to verify/reopen; set `reopened_by` on reopen; clear on fix |
+| `src/pages/bugs/PendingRetest.tsx` | Set `reopened_by` on reopen |
+| `src/pages/bugs/BugList.tsx` | Show "Reopened by [Name]" for reopened bugs instead of "Reported by" |
+| `src/pages/bugs/BugDetail.tsx` | Show "Reopened by" in sidebar |
+| `src/types/bugs.ts` | Add `reopened_by` to Bug interface |
+| `src/components/dashboard/AdminQADashboard.tsx` | Add date picker and daily activity tables for QA and developers |
+| `src/components/dashboard/DeveloperDashboard.tsx` | Add "My Today" stats card |
+| `src/pages/qa/QADashboard.tsx` | Add "My Today" stats card for QA role |
 
 ## No Impact On
-- PendingRetest.tsx -- already working correctly (verified by code audit)
-- Bug creation flow -- unchanged
 - Notification system -- unchanged
-
+- Automation pipeline -- unchanged
+- Closed Bugs page -- already works correctly (verified: queries `status IN (resolved, closed, wont_fix)` excluding `fix_status = fixed`)
