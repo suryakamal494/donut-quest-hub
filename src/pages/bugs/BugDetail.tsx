@@ -22,7 +22,7 @@ import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import type { Bug as BugType, BugStatus } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 
 interface Profile {
   user_id: string;
@@ -333,7 +333,14 @@ export default function BugDetail() {
           {/* Developer fix notes */}
           {bug.developer_response && (
             <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-              <h4 className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Developer Fix Notes</h4>
+              <h4 className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                Developer Fix Notes
+                {bug.resolved_at && (
+                  <span className="font-normal ml-1">
+                    — Fixed on {format(new Date(bug.resolved_at), "dd MMM yyyy, h:mm a")}
+                  </span>
+                )}
+              </h4>
               <p className="text-foreground text-sm">{bug.developer_response}</p>
             </div>
           )}
@@ -451,27 +458,39 @@ export default function BugDetail() {
               <Separator />
 
               {/* Meta */}
-              <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div className="space-y-2 text-xs text-muted-foreground">
                 {reporterName && (
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3" />
                     Reported by {reporterName}
                   </div>
                 )}
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}
-                </div>
-                {bug.resolved_at && (
+                <div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Resolved {formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
+                    Created
+                  </div>
+                  <p className="ml-4 text-foreground font-medium">{format(new Date(bug.created_at), "dd MMM yyyy, h:mm a")}</p>
+                  <p className="ml-4">{formatDistanceToNow(new Date(bug.created_at), { addSuffix: true })}</p>
+                </div>
+                {bug.resolved_at && (
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Resolved
+                    </div>
+                    <p className="ml-4 text-foreground font-medium">{format(new Date(bug.resolved_at), "dd MMM yyyy, h:mm a")}</p>
+                    <p className="ml-4">{formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}</p>
                   </div>
                 )}
                 {verifierName && bug.verified_at && (
-                  <div className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    Verified by {verifierName}
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      Verified by {verifierName}
+                    </div>
+                    <p className="ml-4 text-foreground font-medium">{format(new Date(bug.verified_at), "dd MMM yyyy, h:mm a")}</p>
+                    <p className="ml-4">{formatDistanceToNow(new Date(bug.verified_at), { addSuffix: true })}</p>
                   </div>
                 )}
               </div>

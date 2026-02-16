@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Clock, Wrench, CheckCircle, RotateCcw, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 
 interface HistoryEntry {
   id: string;
@@ -151,6 +151,8 @@ export function BugHistoryTimeline({ bugId }: BugHistoryTimelineProps) {
                     <span className="font-medium">{newLabel}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">
+                    {format(new Date(entry.created_at), "dd MMM yyyy, h:mm a")}
+                    {" • "}
                     {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
                   </p>
                 </div>

@@ -49,6 +49,7 @@ export interface BugComment {
   bug_id: string;
   user_id: string;
   comment: string;
+  attachments: string[];
   created_at: string;
   // Joined
   profile?: { full_name: string; email: string };

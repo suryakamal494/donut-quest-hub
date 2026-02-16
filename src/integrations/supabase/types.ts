@@ -214,6 +214,7 @@ export type Database = {
       }
       bug_comments: {
         Row: {
+          attachments: string[] | null
           bug_id: string
           comment: string
           created_at: string
@@ -221,6 +222,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attachments?: string[] | null
           bug_id: string
           comment: string
           created_at?: string
@@ -228,6 +230,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attachments?: string[] | null
           bug_id?: string
           comment?: string
           created_at?: string
