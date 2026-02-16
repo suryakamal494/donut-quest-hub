@@ -1,56 +1,85 @@
 
 
-# Script Caching Hardening — Normalized Hashing, Model Versioning, and Safe Cache Updates
+# Bug Detail Page Enhancements — Comment Attachments, Date Display, and Verify & Close Audit
 
-## What Changes
+## What You Asked For (Summary)
 
-### 1. Improved Hash Function (`computeContentHash`)
+1. **Comment attachments** — In the Activity section, allow attaching images alongside comments so that when retesting/reopening a bug, you can share visual evidence of the issue.
 
-Current hash just does `JSON.stringify` which is sensitive to key ordering and whitespace. The upgrade:
+2. **Proper date display throughout** — Show actual dates (not just "3 hours ago") for key events: when the bug was created, when the developer fixed it, when it was reopened, when it was verified, etc. The history timeline should display full dates alongside relative times.
 
-- **Normalize all values** — sort object keys, trim strings, normalize arrays
-- **Include AI model version and prompt version** in the hash fingerprint so that switching models or updating prompts automatically triggers regeneration
-- This eliminates false positives from formatting noise (extra spaces, reordered JSON keys, etc.)
+3. **Developer Fix Notes with date** — The developer fix notes section should show the date when the fix was submitted.
 
-### 2. Safe Cache Save — Never Overwrite on Failure
+4. **Verify & Close audit** — Confirm that clicking "Verify & Close" on the Pending Retest page correctly moves the bug to Closed Bugs (status: closed, fix_status: verified) and removes it from the Pending Retest list.
 
-Current code saves cache after AI generation but doesn't guard against empty/partial results. The fix:
+---
 
-- Only update `cached_ai_intents` and `ai_intents_hash` when AI successfully returns non-empty intents
-- If AI fails for a test case, keep the existing cached version (if any) and still use it
-- Log a warning when falling back to stale cache
+## Implementation Plan
 
-### 3. Cache Metadata Columns
+### 1. Add Attachments to Bug Comments
 
-Add three columns to `test_cases` for analytics and audit:
+**Database change**: Add an `attachments` column (text array) to the `bug_comments` table to store image URLs per comment.
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `ai_generated_at` | timestamptz | When the script was last generated |
-| `ai_model_used` | text | Which model generated it (e.g. "google/gemini-2.5-flash") |
-| `ai_generation_time_ms` | integer | How long AI generation took |
-
-### 4. Model + Prompt Version Constants
-
-Define constants at the top of `prepare-automation/index.ts`:
-
-```
-AI_MODEL = "google/gemini-2.5-flash"
-INTENT_PROMPT_VERSION = "v3"
+```sql
+ALTER TABLE bug_comments ADD COLUMN attachments text[] DEFAULT '{}'::text[];
 ```
 
-These are included in the hash. Changing either value automatically invalidates all caches and triggers regeneration.
+A storage bucket `bug-attachments` already exists and is public, so we reuse it for comment attachments too (stored under a `comments/` subfolder path).
+
+**BugComments component updates**:
+- Add a small attachment button (paperclip icon) next to the send button
+- When clicked, open a file picker for images (max 3 per comment, max 5MB each)
+- Upload files to `bug-attachments` storage bucket under `comments/{userId}/{commentId}/` path
+- Save the URLs in the comment's `attachments` array
+- Display attached images as thumbnail previews below each comment text (clickable to enlarge, reusing the existing `AttachmentGallery` component pattern)
+
+### 2. Show Full Dates in Change History Timeline
+
+**BugHistoryTimeline updates**:
+- Change from showing only relative time ("3 hours ago") to showing both the actual date/time AND relative time
+- Format: `16 Feb 2026, 1:30 PM (3 hours ago)`
+- This makes the fix-reopen-fix cycle clearly trackable with exact dates
+
+### 3. Developer Fix Notes with Date
+
+**BugDetail page update**:
+- Show the `resolved_at` date alongside the Developer Fix Notes section
+- Format: `Developer Fix Notes - Fixed on 16 Feb 2026, 1:30 PM`
+- When a bug is reopened and fixed again, the new resolved_at date automatically reflects the latest fix
+
+### 4. Sidebar Date Display Enhancement
+
+**BugDetail sidebar update**:
+- Show full formatted dates (not just relative times) for:
+  - Created date
+  - Resolved date
+  - Verified date
+- Format: `16 Feb 2026` with relative time below
+
+### 5. Verify & Close Audit
+
+I will review the `handleVerify` function in `PendingRetest.tsx` and `handleVerifyFix` in `BugFixActions.tsx`. Based on my code review:
+
+- **PendingRetest.handleVerify**: Sets `fix_status: "verified"` and `status: "closed"` -- this is correct
+- **PendingRetest.loadBugs**: Filters by `fix_status: "fixed"` AND `status: "resolved"` -- so once verified (status becomes "closed"), the bug disappears from this list -- correct
+- **Closed bugs page**: Should query for `status: "closed"` -- I will verify this loads correctly
+
+The flow is architecturally correct. The bug moves from Pending Retest to Closed Bugs as expected.
+
+---
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| New migration | Add `ai_generated_at`, `ai_model_used`, `ai_generation_time_ms` columns |
-| `supabase/functions/prepare-automation/index.ts` | Normalized hash function, model/prompt version in hash, safe cache save with metadata, guard against empty AI results |
+| New migration | Add `attachments` column to `bug_comments` table |
+| `src/components/bugs/BugComments.tsx` | Add image upload capability, display comment attachments |
+| `src/components/bugs/BugHistoryTimeline.tsx` | Show full dates alongside relative times |
+| `src/pages/bugs/BugDetail.tsx` | Show fix date on Developer Fix Notes, enhance sidebar dates |
+| `src/types/bugs.ts` | Add `attachments` to `BugComment` interface |
 
 ## No Impact On
-
-- runner.js — unchanged
-- UI — unchanged
-- webhook — unchanged
+- PendingRetest.tsx -- already working correctly (verified by code audit)
+- Bug creation flow -- unchanged
+- Notification system -- unchanged
 
