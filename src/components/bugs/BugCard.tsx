@@ -55,9 +55,11 @@ export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
           {bug.sub_module && (
             <span className="text-xs text-muted-foreground">{bug.sub_module}</span>
           )}
-          {bug.reported_by && reporterNames[bug.reported_by] && (
+          {bug.fix_status === "reopened" && (bug as any).reopened_by && reporterNames[(bug as any).reopened_by] ? (
+            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">• 🔄 Reopened by: {reporterNames[(bug as any).reopened_by]}</span>
+          ) : bug.reported_by && reporterNames[bug.reported_by] ? (
             <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
-          )}
+          ) : null}
         </div>
       </Link>
       <div className="flex flex-col items-end gap-1.5 shrink-0">

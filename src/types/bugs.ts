@@ -37,6 +37,7 @@ export interface Bug {
   developer_response: string | null;
   verified_at: string | null;
   verified_by: string | null;
+  reopened_by: string | null;
   // Joined data
   feature?: { id: string; name: string };
   scenario?: { id: string; scenario_code: string; name: string };

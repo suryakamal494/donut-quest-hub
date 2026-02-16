@@ -81,13 +81,16 @@ export default function BugList() {
       setBugs(bugsData);
       setTotalCount(count || 0);
 
-      // Fetch reporter names
-      const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
-      if (reporterIds.length > 0) {
+      // Fetch reporter + reopener names
+      const userIds = [...new Set([
+        ...bugsData.map(b => b.reported_by).filter(Boolean),
+        ...bugsData.map(b => (b as any).reopened_by).filter(Boolean),
+      ])] as string[];
+      if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", reporterIds);
+          .in("user_id", userIds);
         const nameMap: Record<string, string> = {};
         (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
         setReporterNames(nameMap);
@@ -457,11 +460,15 @@ export default function BugList() {
                                 {bug.sub_module}
                               </p>
                             )}
-                            {bug.reported_by && reporterNames[bug.reported_by] && (
+                            {bug.fix_status === "reopened" && (bug as any).reopened_by && reporterNames[(bug as any).reopened_by] ? (
+                              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 font-medium">
+                                🔄 Reopened by: {reporterNames[(bug as any).reopened_by]}
+                              </p>
+                            ) : bug.reported_by && reporterNames[bug.reported_by] ? (
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 Reported by: {reporterNames[bug.reported_by]}
                               </p>
-                            )}
+                            ) : null}
                           </div>
                         </Link>
                         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

@@ -157,6 +157,7 @@ export default function PendingRetest() {
           resolved_by: null,
           verified_at: null,
           verified_by: null,
+          reopened_by: user.id,
         })
         .eq("id", bug.id);
       if (error) throw error;

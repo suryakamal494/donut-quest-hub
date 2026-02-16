@@ -43,6 +43,7 @@ export default function BugDetail() {
   const [reporterName, setReporterName] = useState<string | null>(null);
   const [assigneeName, setAssigneeName] = useState<string | null>(null);
   const [verifierName, setVerifierName] = useState<string | null>(null);
+  const [reopenerName, setReopenerName] = useState<string | null>(null);
   const [developers, setDevelopers] = useState<Profile[]>([]);
 
   useEffect(() => {
@@ -86,6 +87,12 @@ export default function BugDetail() {
       if (bugData?.verified_by) {
         const { data: vData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.verified_by).maybeSingle();
         setVerifierName(vData?.full_name || null);
+      }
+      if ((bugData as any)?.reopened_by) {
+        const { data: roData } = await supabase.from("profiles").select("full_name").eq("user_id", (bugData as any).reopened_by).maybeSingle();
+        setReopenerName(roData?.full_name || null);
+      } else {
+        setReopenerName(null);
       }
     } catch (error) {
       console.error("Error loading bug:", error);
@@ -463,6 +470,12 @@ export default function BugDetail() {
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3" />
                     Reported by {reporterName}
+                  </div>
+                )}
+                {reopenerName && bug.fix_status === "reopened" && (
+                  <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium">
+                    <User className="h-3 w-3" />
+                    🔄 Reopened by {reopenerName}
                   </div>
                 )}
                 <div>
