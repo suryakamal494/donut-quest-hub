@@ -34,7 +34,7 @@ export default function ClosedBugs() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
-  const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
+  const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -73,15 +73,21 @@ export default function ClosedBugs() {
       setBugs(bugsData);
       setTotalCount(count || 0);
 
-      const reporterIds = [...new Set(bugsData.map(b => b.reported_by).filter(Boolean))] as string[];
-      if (reporterIds.length > 0) {
+      // Collect all user IDs we need names for: resolved_by, verified_by, reported_by
+      const userIds = new Set<string>();
+      bugsData.forEach(b => {
+        if (b.reported_by) userIds.add(b.reported_by);
+        if (b.resolved_by) userIds.add(b.resolved_by);
+        if (b.verified_by) userIds.add(b.verified_by);
+      });
+      if (userIds.size > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", reporterIds);
+          .in("user_id", Array.from(userIds));
         const nameMap: Record<string, string> = {};
         (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
-        setReporterNames(nameMap);
+        setProfileNames(nameMap);
       }
     } catch (error) {
       console.error("Error loading closed bugs:", error);
@@ -236,8 +242,14 @@ export default function ClosedBugs() {
                       <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
-                        {bug.reported_by && reporterNames[bug.reported_by] && (
-                          <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
+                        {bug.resolved_by && profileNames[bug.resolved_by] && (
+                          <span className="text-xs text-emerald-600">• Fixed by: {profileNames[bug.resolved_by]}</span>
+                        )}
+                        {bug.verified_by && profileNames[bug.verified_by] && (
+                          <span className="text-xs text-blue-600">• Closed by: {profileNames[bug.verified_by]}</span>
+                        )}
+                        {!bug.resolved_by && !bug.verified_by && bug.reported_by && profileNames[bug.reported_by] && (
+                          <span className="text-xs text-muted-foreground">• Reported by: {profileNames[bug.reported_by]}</span>
                         )}
                       </div>
                     </div>

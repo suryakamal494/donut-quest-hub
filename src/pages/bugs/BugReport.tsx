@@ -35,6 +35,13 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -459,13 +466,37 @@ export default function BugReport() {
                   className="w-[90px] text-xs cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("status")}
                 >
-                  Status{sortIndicator("status")}
+                  <span className="inline-flex items-center gap-1">
+                    Status{sortIndicator("status")}
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px] text-xs">
+                          Tracks the bug lifecycle: Open, In Progress, Resolved, Closed, Won't Fix
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
                 </TableHead>
                 <TableHead
                   className="w-[80px] text-xs cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("fix_status")}
                 >
-                  Fix{sortIndicator("fix_status")}
+                  <span className="inline-flex items-center gap-1">
+                    Fix{sortIndicator("fix_status")}
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[250px] text-xs">
+                          Tracks fix verification: Unfixed, Fixed (awaiting retest), Verified (QA confirmed), Reopened (fix failed)
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
                 </TableHead>
                 <TableHead className="w-[100px] text-xs">Reporter</TableHead>
                 <TableHead className="w-[130px] text-xs">Assigned To</TableHead>
