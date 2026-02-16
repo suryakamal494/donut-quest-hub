@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Loader2, Bug, CheckCircle2, Clock, AlertTriangle, ArrowRight, FolderKanban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
@@ -169,6 +170,9 @@ export function DeveloperDashboard() {
         <h1 className="text-2xl font-bold text-foreground">Developer Dashboard</h1>
         <p className="text-muted-foreground">Your bug assignments and resolution performance</p>
       </div>
+
+      {/* My Today */}
+      <MyTodayStats />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

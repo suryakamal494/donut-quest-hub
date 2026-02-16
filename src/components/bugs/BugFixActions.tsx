@@ -23,6 +23,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
 
   const isAdmin = role === "admin";
   const isDeveloper = role === "developer";
+  const isQA = role === "user";
   const isReporter = user?.id === bug.reported_by;
   const isAssignee = user?.id === bug.assigned_to;
 
@@ -34,8 +35,8 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
       : (isDeveloper || isAdmin)) &&
     (fixStatus === "unfixed" || fixStatus === "reopened") &&
     bug.status !== "closed";
-  const canVerify = (isReporter || isAdmin) && fixStatus === "fixed";
-  const canReopen = (isReporter || isAdmin) && (fixStatus === "fixed" || fixStatus === "verified") && bug.status !== "open";
+  const canVerify = (isReporter || isAdmin || isQA) && fixStatus === "fixed";
+  const canReopen = (isReporter || isAdmin || isQA) && (fixStatus === "fixed" || fixStatus === "verified") && bug.status !== "open";
 
   const recordHistory = async (field: string, oldVal: string | null, newVal: string) => {
     if (!user) return;
@@ -64,6 +65,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
         developer_response: devResponse,
         resolved_at: new Date().toISOString(),
         resolved_by: user.id,
+        reopened_by: null,
       };
       const { error } = await supabase.from("bugs").update(updates).eq("id", bug.id);
       if (error) throw error;
@@ -138,6 +140,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
         resolved_by: null,
         verified_at: null,
         verified_by: null,
+        reopened_by: user.id,
       };
       const { error } = await supabase.from("bugs").update(updates).eq("id", bug.id);
       if (error) throw error;

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
+import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
 import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 import { AdminQADashboard } from "@/components/dashboard/AdminQADashboard";
@@ -174,6 +175,9 @@ export default function QADashboard() {
           </Button>
         </div>
       </div>
+
+      {/* My Today Stats */}
+      <MyTodayStats />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

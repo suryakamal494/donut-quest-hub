@@ -11,6 +11,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DailyActivityStats } from "@/components/dashboard/DailyActivityStats";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -468,6 +469,9 @@ export function AdminQADashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Daily Activity */}
+      <DailyActivityStats projectId={currentProject.id} teamMembers={teamMembers} />
     </div>
   );
 }
