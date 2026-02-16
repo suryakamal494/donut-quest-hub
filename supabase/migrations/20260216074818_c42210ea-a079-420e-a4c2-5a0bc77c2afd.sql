@@ -1,0 +1,1 @@
+ALTER TABLE public.bug_comments ADD COLUMN attachments text[] DEFAULT '{}'::text[];
