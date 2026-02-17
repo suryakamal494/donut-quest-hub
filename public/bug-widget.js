@@ -37,10 +37,7 @@
     '.bw-submit:disabled{opacity:.6;cursor:not-allowed}',
     '.bw-toast{position:fixed;bottom:80px;right:20px;z-index:100001;padding:12px 20px;border-radius:10px;color:#fff;font-size:14px;font-weight:500;animation:bw-slide .3s ease;max-width:320px}',
     '.bw-toast-ok{background:#22c55e}',
-    '.bw-toast-err{background:#ef4444}',
-    '.bw-sev{display:flex;gap:6px;flex-wrap:wrap}',
-    '.bw-sev-btn{padding:6px 14px;border:1.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}',
-    '.bw-sev-btn.active{border-color:#ef4444;background:#fef2f2;color:#ef4444}'
+    '.bw-toast-err{background:#ef4444}'
   ].join('\n');
   document.head.appendChild(style);
 
@@ -84,13 +81,6 @@
       '<h2 class="bw-title">🐛 Report a Bug</h2>',
       '<div class="bw-group"><label class="bw-label">Title *</label><input class="bw-input" id="bw-title" placeholder="Brief summary of the issue"></div>',
       '<div class="bw-group"><label class="bw-label">Description</label><textarea class="bw-textarea" id="bw-desc" placeholder="What happened? What did you expect?"></textarea></div>',
-      '<div class="bw-group"><label class="bw-label">Severity</label><div class="bw-sev">',
-      '<button class="bw-sev-btn" data-sev="critical">Critical</button>',
-      '<button class="bw-sev-btn" data-sev="major">Major</button>',
-      '<button class="bw-sev-btn active" data-sev="minor">Minor</button>',
-      '<button class="bw-sev-btn" data-sev="trivial">Trivial</button>',
-      '</div></div>',
-      '<div class="bw-group"><label class="bw-label">Your Name (optional)</label><input class="bw-input" id="bw-name" placeholder="e.g. John Doe"></div>',
       '<div class="bw-group"><label class="bw-label">Screenshots (max 3)</label><div class="bw-file-area" id="bw-drop">Click or drag images here<input type="file" accept="image/*" multiple style="display:none" id="bw-file-input"></div><div class="bw-previews" id="bw-previews"></div></div>',
       '<button class="bw-submit" id="bw-submit">Submit Bug Report</button>'
     ].join('');
@@ -98,20 +88,9 @@
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    var severity = 'minor';
-
     // Close handlers
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
     modal.querySelector('.bw-close').addEventListener('click', function() { overlay.remove(); });
-
-    // Severity buttons
-    modal.querySelectorAll('.bw-sev-btn').forEach(function(b) {
-      b.addEventListener('click', function() {
-        modal.querySelectorAll('.bw-sev-btn').forEach(function(x) { x.classList.remove('active'); });
-        b.classList.add('active');
-        severity = b.getAttribute('data-sev');
-      });
-    });
 
     // File upload
     var dropArea = modal.querySelector('#bw-drop');
@@ -160,8 +139,7 @@
           title: titleVal,
           description: modal.querySelector('#bw-desc').value.trim() || null,
           login_type: LOGIN_TYPE,
-          severity: severity,
-          reporter_name: modal.querySelector('#bw-name').value.trim() || null,
+          severity: 'minor',
           page_url: window.location.href,
           browser_info: navigator.userAgent,
           attachments: attArr.length > 0 ? attArr : null
