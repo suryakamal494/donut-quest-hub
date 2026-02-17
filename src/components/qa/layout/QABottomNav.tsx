@@ -10,7 +10,8 @@ import {
   BarChart3,
   RotateCcw,
   Zap,
-  X
+  X,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -97,10 +98,19 @@ export function QABottomNav() {
   const { profile } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const automationEnabled = profile?.automation_enabled === true;
+  const docsEnabled = profile?.docs_enabled === true;
   
-  const filteredMoreItems = moreNavItems.filter(item => 
-    !["Automation", "Automation Bugs", "Auto Test Runs"].includes(item.title) || automationEnabled
-  );
+  const filteredMoreItems = [
+    ...moreNavItems.filter(item => 
+      !["Automation", "Automation Bugs", "Auto Test Runs"].includes(item.title) || automationEnabled
+    ),
+    ...(docsEnabled ? [{
+      title: "Developer Docs",
+      href: "/qa/docs/developer",
+      icon: BookOpen,
+      description: "Integration guide & API reference",
+    }] : []),
+  ];
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;

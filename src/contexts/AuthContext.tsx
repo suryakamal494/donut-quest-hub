@@ -13,6 +13,7 @@ interface Profile {
   email: string;
   approval_status: ApprovalStatus;
   automation_enabled: boolean;
+  docs_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

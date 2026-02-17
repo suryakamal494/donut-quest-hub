@@ -35,7 +35,7 @@ import AutomationTestRuns from "./pages/qa/AutomationTestRuns";
 // Bug Module
 import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport, PendingRetest } from "./pages/bugs";
 import ApiKeyManager from "./pages/admin/ApiKeyManager";
-
+import DeveloperDocs from "./pages/docs/DeveloperDocs";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -98,6 +98,7 @@ const App = () => (
               <Route path="automation/bugs" element={<AutomationGuard><AutomationBugs /></AutomationGuard>} />
               <Route path="automation/runs" element={<AutomationGuard><AutomationTestRuns /></AutomationGuard>} />
               <Route path="coverage" element={<Coverage />} />
+              <Route path="docs/developer" element={<DeveloperDocs />} />
             </Route>
 
             {/* Bug Tracking Routes */}

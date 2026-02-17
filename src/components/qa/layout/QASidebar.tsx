@@ -14,7 +14,8 @@ import {
   XCircle,
   ClipboardList,
   RotateCcw,
-  Zap
+  Zap,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,7 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const [retestCount, setRetestCount] = useState(0);
   
   const automationEnabled = profile?.automation_enabled === true;
-
+  const docsEnabled = profile?.docs_enabled === true;
   useEffect(() => {
     if (currentProject) {
       supabase
@@ -172,6 +173,21 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
             </div>
           );
         })}
+        {docsEnabled && (
+          <div>
+            <NavLink
+              to="/qa/docs/developer"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all",
+                "hover:bg-orange-50",
+                isActive("/qa/docs/developer") && "bg-primary/10 text-primary font-medium"
+              )}
+            >
+              <BookOpen className={cn("h-5 w-5 flex-shrink-0", isActive("/qa/docs/developer") && "text-primary")} />
+              {!collapsed && <span>Developer Docs</span>}
+            </NavLink>
+          </div>
+        )}
       </nav>
       
       {/* Collapse Toggle */}
