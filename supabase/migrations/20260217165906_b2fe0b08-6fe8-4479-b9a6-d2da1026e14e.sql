@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN docs_enabled boolean NOT NULL DEFAULT false;

@@ -548,6 +548,7 @@ export type Database = {
           approval_status: Database["public"]["Enums"]["approval_status"]
           automation_enabled: boolean
           created_at: string
+          docs_enabled: boolean
           email: string
           full_name: string
           id: string
@@ -558,6 +559,7 @@ export type Database = {
           approval_status?: Database["public"]["Enums"]["approval_status"]
           automation_enabled?: boolean
           created_at?: string
+          docs_enabled?: boolean
           email: string
           full_name: string
           id?: string
@@ -568,6 +570,7 @@ export type Database = {
           approval_status?: Database["public"]["Enums"]["approval_status"]
           automation_enabled?: boolean
           created_at?: string
+          docs_enabled?: boolean
           email?: string
           full_name?: string
           id?: string

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Loader2, Check, X, Clock, FolderKanban, Zap } from "lucide-react";
+import { Users, Loader2, Check, X, Clock, FolderKanban, Zap, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,7 @@ interface UserProfile {
   email: string;
   approval_status: "pending" | "approved" | "rejected";
   automation_enabled: boolean;
+  docs_enabled: boolean;
   created_at: string;
 }
 
@@ -42,6 +43,7 @@ const getStatusBadge = (status: string) => {
 export function UserListSection({ users, isLoading, actionLoading, userProjectCounts, onApproval, onAssignProject }: Props) {
   const { toast } = useToast();
   const [automationLoading, setAutomationLoading] = useState<string | null>(null);
+  const [docsLoading, setDocsLoading] = useState<string | null>(null);
 
   const toggleAutomation = async (userId: string, enabled: boolean) => {
     setAutomationLoading(userId);
@@ -54,6 +56,20 @@ export function UserListSection({ users, isLoading, actionLoading, userProjectCo
       toast({ title: "Error", description: "Failed to update automation access", variant: "destructive" });
     } else {
       toast({ title: enabled ? "Automation enabled" : "Automation disabled" });
+    }
+  };
+
+  const toggleDocs = async (userId: string, enabled: boolean) => {
+    setDocsLoading(userId);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ docs_enabled: enabled } as any)
+      .eq("user_id", userId);
+    setDocsLoading(null);
+    if (error) {
+      toast({ title: "Error", description: "Failed to update docs access", variant: "destructive" });
+    } else {
+      toast({ title: enabled ? "Docs access enabled" : "Docs access disabled" });
     }
   };
 
@@ -104,6 +120,15 @@ export function UserListSection({ users, isLoading, actionLoading, userProjectCo
                     checked={user.automation_enabled}
                     onCheckedChange={(checked) => toggleAutomation(user.user_id, checked)}
                     disabled={automationLoading === user.user_id}
+                    className="scale-75"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                  <BookOpen className="h-3.5 w-3.5 text-blue-500" />
+                  <Switch
+                    checked={user.docs_enabled}
+                    onCheckedChange={(checked) => toggleDocs(user.user_id, checked)}
+                    disabled={docsLoading === user.user_id}
                     className="scale-75"
                   />
                 </div>
