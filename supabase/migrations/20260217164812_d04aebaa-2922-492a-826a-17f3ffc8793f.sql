@@ -1,0 +1,1 @@
+ALTER TABLE public.bugs ADD COLUMN external_school_name text;

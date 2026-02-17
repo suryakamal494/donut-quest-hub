@@ -339,6 +339,7 @@ export type Database = {
           external_page_url: string | null
           external_reporter_email: string | null
           external_reporter_name: string | null
+          external_school_name: string | null
           feature_id: string | null
           fix_status: string | null
           id: string
@@ -376,6 +377,7 @@ export type Database = {
           external_page_url?: string | null
           external_reporter_email?: string | null
           external_reporter_name?: string | null
+          external_school_name?: string | null
           feature_id?: string | null
           fix_status?: string | null
           id?: string
@@ -413,6 +415,7 @@ export type Database = {
           external_page_url?: string | null
           external_reporter_email?: string | null
           external_reporter_name?: string | null
+          external_school_name?: string | null
           feature_id?: string | null
           fix_status?: string | null
           id?: string

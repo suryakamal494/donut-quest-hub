@@ -502,6 +502,11 @@ export default function BugDetail() {
                         <span className="text-muted-foreground">Reporter:</span> {bug.external_reporter_name}
                       </p>
                     )}
+                    {(bug as any).external_school_name && (
+                      <p className="text-xs text-foreground">
+                        <span className="text-muted-foreground">School:</span> {(bug as any).external_school_name}
+                      </p>
+                    )}
                     {bug.external_reporter_email && (
                       <p className="text-xs text-foreground">
                         <span className="text-muted-foreground">Email:</span> {bug.external_reporter_email}
@@ -520,10 +525,10 @@ export default function BugDetail() {
 
               {/* Meta */}
               <div className="space-y-2 text-xs text-muted-foreground">
-                {bug.source === "external" && bug.external_reporter_name ? (
+                  {bug.source === "external" && bug.external_reporter_name ? (
                   <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                     <User className="h-3 w-3" />
-                    Reported by {bug.external_reporter_name} (External)
+                    Reported by {bug.external_reporter_name}{(bug as any).external_school_name ? `, ${(bug as any).external_school_name}` : ''} (External)
                   </div>
                 ) : reporterName ? (
                   <div className="flex items-center gap-1">
