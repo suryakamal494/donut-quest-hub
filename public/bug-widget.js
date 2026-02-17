@@ -7,6 +7,8 @@
   var API_KEY = script.getAttribute('data-api-key');
   var LOGIN_TYPE = script.getAttribute('data-login-type') || 'student';
   var API_URL = script.getAttribute('data-api-url') || '';
+  var REPORTER_NAME = script.getAttribute('data-reporter-name') || '';
+  var SCHOOL_NAME = script.getAttribute('data-school-name') || '';
 
   if (!API_KEY) { console.error('[BugWidget] data-api-key is required'); return; }
   if (!API_URL) { console.error('[BugWidget] data-api-url is required'); return; }
@@ -140,6 +142,8 @@
           description: modal.querySelector('#bw-desc').value.trim() || null,
           login_type: LOGIN_TYPE,
           severity: 'minor',
+          reporter_name: REPORTER_NAME || null,
+          school_name: SCHOOL_NAME || null,
           page_url: window.location.href,
           browser_info: navigator.userAgent,
           attachments: attArr.length > 0 ? attArr : null

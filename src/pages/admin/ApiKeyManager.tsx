@@ -146,7 +146,7 @@ export default function ApiKeyManager() {
   const getWidgetUrl = () => `${window.location.origin}/bug-widget.js`;
 
   const getEmbedSnippet = (apiKey: string, loginType: string) =>
-    `<script\n  src="${getWidgetUrl()}"\n  data-api-key="${apiKey}"\n  data-login-type="${loginType}"\n  data-api-url="${getEdgeFunctionUrl()}">\n</script>`;
+    `<script\n  src="${getWidgetUrl()}"\n  data-api-key="${apiKey}"\n  data-login-type="${loginType}"\n  data-reporter-name="{{currentUser.name}}"\n  data-school-name="{{currentUser.schoolName}}"\n  data-api-url="${getEdgeFunctionUrl()}">\n</script>`;
 
   const getProjectName = (projectId: string) =>
     projects.find(p => p.id === projectId)?.name || "Unknown";
@@ -166,6 +166,8 @@ export default function ApiKeyManager() {
     "description": "Clicking login does nothing on Chrome",
     "login_type": "student",
     "severity": "minor",
+    "reporter_name": "Ravi Kumar",
+    "school_name": "Delhi Public School",
     "page_url": "https://lms.example.com/login",
     "browser_info": "Mozilla/5.0 ...",
     "attachments": [
@@ -462,9 +464,14 @@ export default function ApiKeyManager() {
   src="YOUR_PLATFORM_URL/bug-widget.js"
   data-api-key="bk_YOUR_KEY"
   data-login-type="student"
+  data-reporter-name="{{currentUser.name}}"
+  data-school-name="{{currentUser.schoolName}}"
   data-api-url="${getEdgeFunctionUrl()}">
 </script>`}
                     </pre>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Important:</strong> Replace <code className="bg-muted px-1 rounded">{"{{currentUser.name}}"}</code> and <code className="bg-muted px-1 rounded">{"{{currentUser.schoolName}}"}</code> with the actual logged-in user's name and school from your backend/session. This ensures every bug report automatically includes who reported it and from which school.
+                    </p>
                   </div>
                 </div>
 
@@ -507,6 +514,24 @@ export default function ApiKeyManager() {
                       </td>
                     </tr>
                     <tr className="border-t">
+                      <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-reporter-name</code></td>
+                      <td className="p-3"><Badge variant="secondary" className="text-[10px]">Recommended</Badge></td>
+                      <td className="p-3 text-muted-foreground text-xs">
+                        The logged-in user's display name from your LMS session. Injected dynamically — the end-user never sees this field.
+                        <br />
+                        <span className="mt-1 inline-block">Example: <code className="bg-muted px-1 rounded">data-reporter-name="Ravi Kumar"</code></span>
+                      </td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-school-name</code></td>
+                      <td className="p-3"><Badge variant="secondary" className="text-[10px]">Recommended</Badge></td>
+                      <td className="p-3 text-muted-foreground text-xs">
+                        The school/institute name from your LMS session. Helps identify which school the bug originated from.
+                        <br />
+                        <span className="mt-1 inline-block">Example: <code className="bg-muted px-1 rounded">data-school-name="Delhi Public School"</code></span>
+                      </td>
+                    </tr>
+                    <tr className="border-t">
                       <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-api-url</code></td>
                       <td className="p-3"><Badge variant="destructive" className="text-[10px]">Required</Badge></td>
                       <td className="p-3 text-muted-foreground text-xs">The endpoint URL for bug submission. Use the URL shown in the "How It Works" section above.</td>
@@ -520,6 +545,95 @@ export default function ApiKeyManager() {
                 <p className="text-xs text-muted-foreground">
                   When you embed the widget in your <strong>student panel</strong>, set <code className="bg-muted px-1 rounded">data-login-type="student"</code>. When embedding in the <strong>teacher panel</strong>, set it to <code className="bg-muted px-1 rounded">teacher</code>, and so on. The end-user never sees or selects the login type — it's determined by where you place the script tag.
                 </p>
+              </div>
+
+              {/* What Gets Captured */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">📋 What Gets Captured Automatically</h4>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">Data</th>
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">Source</th>
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">User Action?</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs">
+                      <tr className="border-t"><td className="p-2.5">Login Type</td><td className="p-2.5 text-muted-foreground">data-login-type attribute</td><td className="p-2.5"><Badge className="text-[10px] bg-emerald-600 text-white">Auto</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Reporter Name</td><td className="p-2.5 text-muted-foreground">data-reporter-name attribute</td><td className="p-2.5"><Badge className="text-[10px] bg-emerald-600 text-white">Auto</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">School Name</td><td className="p-2.5 text-muted-foreground">data-school-name attribute</td><td className="p-2.5"><Badge className="text-[10px] bg-emerald-600 text-white">Auto</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Page URL</td><td className="p-2.5 text-muted-foreground">window.location.href</td><td className="p-2.5"><Badge className="text-[10px] bg-emerald-600 text-white">Auto</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Browser Info</td><td className="p-2.5 text-muted-foreground">navigator.userAgent</td><td className="p-2.5"><Badge className="text-[10px] bg-emerald-600 text-white">Auto</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Bug Title</td><td className="p-2.5 text-muted-foreground">Form input</td><td className="p-2.5"><Badge variant="secondary" className="text-[10px]">User types</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Description</td><td className="p-2.5 text-muted-foreground">Form input</td><td className="p-2.5"><Badge variant="secondary" className="text-[10px]">User types</Badge></td></tr>
+                      <tr className="border-t"><td className="p-2.5">Screenshots</td><td className="p-2.5 text-muted-foreground">File upload</td><td className="p-2.5"><Badge variant="secondary" className="text-[10px]">User uploads</Badge></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Integration Examples */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">🔧 Integration Examples</h4>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">EJS Template (Node.js backend)</p>
+                    <pre className="text-xs bg-muted p-3 rounded overflow-x-auto font-mono whitespace-pre-wrap">{`<script
+  src="/bug-widget.js"
+  data-api-key="bk_abc123"
+  data-login-type="teacher"
+  data-reporter-name="<%= user.fullName %>"
+  data-school-name="<%= user.schoolName %>"
+  data-api-url="${getEdgeFunctionUrl()}">
+</script>`}</pre>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">React (JSX)</p>
+                    <pre className="text-xs bg-muted p-3 rounded overflow-x-auto font-mono whitespace-pre-wrap">{`<script
+  src="/bug-widget.js"
+  data-api-key="bk_abc123"
+  data-login-type={userRole}
+  data-reporter-name={user.name}
+  data-school-name={user.school}
+  data-api-url="${getEdgeFunctionUrl()}">
+</script>`}</pre>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">Laravel Blade</p>
+                    <pre className="text-xs bg-muted p-3 rounded overflow-x-auto font-mono whitespace-pre-wrap">{`<script
+  src="/bug-widget.js"
+  data-api-key="bk_abc123"
+  data-login-type="institute"
+  data-reporter-name="{{ auth()->user()->name }}"
+  data-school-name="{{ auth()->user()->school->name }}"
+  data-api-url="${getEdgeFunctionUrl()}">
+</script>`}</pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* Troubleshooting */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">🔍 Troubleshooting</h4>
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-foreground">Bugs appear without reporter name</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Ensure <code className="bg-muted px-1 rounded">data-reporter-name</code> is set dynamically from your session, not left empty or hardcoded as a placeholder.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-foreground">Bugs appear without school name</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Same as above — ensure <code className="bg-muted px-1 rounded">data-school-name</code> is populated from the user's session data.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-foreground">Wrong login type on bugs</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Each panel (student, teacher, institute) must have its own script tag with the correct <code className="bg-muted px-1 rounded">data-login-type</code> value.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-foreground">Widget not appearing</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Check browser console for errors. Ensure <code className="bg-muted px-1 rounded">data-api-key</code> and <code className="bg-muted px-1 rounded">data-api-url</code> are set correctly.</p>
+                  </div>
+                </div>
               </div>
             </TabsContent>
 
@@ -652,6 +766,12 @@ export default function ApiKeyManager() {
                         <td className="p-2.5 text-muted-foreground">string</td>
                         <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
                         <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Name of the reporter</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">school_name</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">School/institute name of the reporter</td>
                       </tr>
                       <tr className="border-t">
                         <td className="p-2.5"><code className="font-mono">attachments</code></td>

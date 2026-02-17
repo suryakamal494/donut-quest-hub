@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
       severity = "minor",
       reporter_name,
       reporter_email,
+      school_name,
       page_url,
       browser_info,
       attachments, // array of { data: base64string, filename: string, type: string }
@@ -174,6 +175,7 @@ Deno.serve(async (req) => {
         source: "external",
         external_reporter_name: reporter_name || null,
         external_reporter_email: reporter_email || null,
+        external_school_name: school_name || null,
         external_page_url: page_url || null,
         external_browser_info: browser_info || null,
         attachments: uploadedUrls.length > 0 ? uploadedUrls : null,
