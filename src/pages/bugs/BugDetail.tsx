@@ -464,14 +464,51 @@ export default function BugDetail() {
 
               <Separator />
 
+              {/* External source info */}
+              {bug.source === "external" && (
+                <>
+                  <Separator />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                        External
+                      </span>
+                      <span className="text-xs text-muted-foreground">Source</span>
+                    </div>
+                    {bug.external_reporter_name && (
+                      <p className="text-xs text-foreground">
+                        <span className="text-muted-foreground">Reporter:</span> {bug.external_reporter_name}
+                      </p>
+                    )}
+                    {bug.external_reporter_email && (
+                      <p className="text-xs text-foreground">
+                        <span className="text-muted-foreground">Email:</span> {bug.external_reporter_email}
+                      </p>
+                    )}
+                    {bug.external_page_url && (
+                      <p className="text-xs text-foreground break-all">
+                        <span className="text-muted-foreground">Page:</span> {bug.external_page_url}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <Separator />
+
               {/* Meta */}
               <div className="space-y-2 text-xs text-muted-foreground">
-                {reporterName && (
+                {bug.source === "external" && bug.external_reporter_name ? (
+                  <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <User className="h-3 w-3" />
+                    Reported by {bug.external_reporter_name} (External)
+                  </div>
+                ) : reporterName ? (
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3" />
                     Reported by {reporterName}
                   </div>
-                )}
+                ) : null}
                 {reopenerName && bug.fix_status === "reopened" && (
                   <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium">
                     <User className="h-3 w-3" />

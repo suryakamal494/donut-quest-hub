@@ -48,6 +48,11 @@ export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
           <span className="text-xs font-mono text-muted-foreground">{bug.bug_code}</span>
           <SeverityBadge severity={bug.severity} size="sm" />
           {bug.bug_type && <BugTypeBadge bugType={bug.bug_type} size="sm" />}
+          {bug.source === "external" && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+              External
+            </span>
+          )}
         </div>
         <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
         <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -57,6 +62,8 @@ export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
           )}
           {bug.fix_status === "reopened" && (bug as any).reopened_by && reporterNames[(bug as any).reopened_by] ? (
             <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">• 🔄 Reopened by: {reporterNames[(bug as any).reopened_by]}</span>
+          ) : bug.source === "external" && bug.external_reporter_name ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400">• Reported by: {bug.external_reporter_name} (External)</span>
           ) : bug.reported_by && reporterNames[bug.reported_by] ? (
             <span className="text-xs text-muted-foreground">• Reported by: {reporterNames[bug.reported_by]}</span>
           ) : null}

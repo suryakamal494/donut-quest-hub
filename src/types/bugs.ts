@@ -38,6 +38,12 @@ export interface Bug {
   verified_at: string | null;
   verified_by: string | null;
   reopened_by: string | null;
+  // External bug columns
+  source: 'internal' | 'external';
+  external_reporter_name: string | null;
+  external_reporter_email: string | null;
+  external_page_url: string | null;
+  external_browser_info: string | null;
   // Joined data
   feature?: { id: string; name: string };
   scenario?: { id: string; scenario_code: string; name: string };
