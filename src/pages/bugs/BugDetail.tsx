@@ -147,6 +147,28 @@ export default function BugDetail() {
       if (error) throw error;
       setBug(prev => prev ? { ...prev, ...updateData } : null);
       toast({ title: "Status updated" });
+
+      // Notify reporter about status change
+      if (bug.reported_by && bug.reported_by !== user.id) {
+        await supabase.from("notifications").insert({
+          user_id: bug.reported_by,
+          title: "Bug Status Updated",
+          message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
+          type: newStatus === "resolved" ? "success" : "info",
+          link: `/bugs/${bug.id}`,
+        });
+      }
+
+      // Notify assignee about status change (if different from reporter and current user)
+      if (bug.assigned_to && bug.assigned_to !== user.id && bug.assigned_to !== bug.reported_by) {
+        await supabase.from("notifications").insert({
+          user_id: bug.assigned_to,
+          title: "Bug Status Updated",
+          message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
+          type: newStatus === "resolved" ? "success" : "info",
+          link: `/bugs/${bug.id}`,
+        });
+      }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
