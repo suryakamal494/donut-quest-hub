@@ -1,133 +1,54 @@
 
 
-# Capture Reporter Identity and School Context Automatically + E2E Testing
+# Enable Developer Documentation Access Per User
 
-## Understanding
+## Overview
 
-You want the bug widget to automatically capture WHO reported the bug and FROM WHICH SCHOOL, based on the LMS login session -- not manually entered. When a teacher named "Ravi Kumar" from "Delhi Public School" reports a bug from the teacher panel, that context should flow through automatically. The documentation needs to clearly explain how developers wire this up. Finally, we need to end-to-end test the entire flow.
+Add a per-user toggle in the Admin Dashboard so you can selectively grant developers access to a dedicated "Developer Documentation" page. Only users with documentation enabled will see and access the docs page. The documentation content (widget integration guide, configuration reference, API reference, etc.) will be extracted into its own standalone page.
 
-## What Changes
+## Changes
 
-### 1. New Data Attributes on the Widget
+### 1. Database: Add `docs_enabled` Column to Profiles
 
-The widget script tag will support two new attributes that developers set dynamically from their LMS session:
+Add a new boolean column `docs_enabled` (default `false`) to the `profiles` table -- similar to how `automation_enabled` already works.
 
-- `data-reporter-name` -- The logged-in user's display name (e.g., "Ravi Kumar")
-- `data-school-name` -- The school/institute name (e.g., "Delhi Public School")
+### 2. Admin User List: Add Docs Toggle
 
-Example embed for the teacher panel:
+In the user list on the Admin Dashboard, add a new toggle (with a BookOpen icon) next to the existing automation (Zap) toggle. When the admin flips it on for a developer, that developer gains access to the documentation page.
+
+**Visual layout per user row:**
 ```text
-<script
-  src="https://your-domain/bug-widget.js"
-  data-api-key="bk_YOUR_KEY"
-  data-login-type="teacher"
-  data-reporter-name="{{currentUser.name}}"
-  data-school-name="{{currentUser.schoolName}}"
-  data-api-url="https://...">
-</script>
+[Avatar] [Name] [Status Badge] [Role Selector] [Zap Toggle] [Docs Toggle] [Projects] [Date] [Actions]
 ```
 
-The widget reads these at load time and sends them with every bug submission -- the user never has to type their name or school.
+### 3. New Developer Documentation Page
 
-### 2. Database: Add `external_school_name` Column
+Create a new page at `/docs/developer` that contains all the documentation content currently inside the API Key Manager page (Quick Start, Configuration Reference, What Gets Captured, Integration Examples, Troubleshooting, Bug Flow, API Reference).
 
-The `bugs` table already has `external_reporter_name`. We need one new column:
+This page will:
+- Check if the current user has `docs_enabled = true` in their profile
+- If not enabled, show an access denied message ("Documentation access has not been enabled for your account. Contact your admin.")
+- Be accessible from the sidebar/bottom nav for users who have it enabled
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `external_school_name` | text, nullable | Stores the school/institute name from the LMS session |
+### 4. Route and Navigation
 
-### 3. Update Edge Function (`submit-external-bug`)
+- Add `/docs/developer` route inside the QA layout, protected by authentication
+- Add a "Developer Docs" link in the QA sidebar/bottom nav that only appears when the user's profile has `docs_enabled = true`
 
-- Accept new field: `school_name`
-- Store it in the new `external_school_name` column
-- `reporter_name` already works -- just ensure the widget sends it
+### 5. Update AuthContext Profile Type
 
-### 4. Update Widget (`bug-widget.js`)
-
-- Read `data-reporter-name` and `data-school-name` from the script tag
-- Include `reporter_name` and `school_name` in the POST payload automatically
-- No new form fields -- these are invisible to the end-user
-
-### 5. Rewrite Documentation (ApiKeyManager.tsx)
-
-The documentation section needs significant improvements:
-
-**Quick Start** -- Add a clear section on dynamic attributes, explaining that developers must inject the user's name and school from their backend template engine (e.g., EJS, Blade, Jinja, React state).
-
-**Configuration Reference** -- Add `data-reporter-name` and `data-school-name` to the attributes table with examples showing dynamic injection patterns.
-
-**Integration Examples** -- Add concrete code samples:
-```text
-<!-- Example: EJS template in teacher panel -->
-<script
-  src="/bug-widget.js"
-  data-api-key="bk_abc123"
-  data-login-type="teacher"
-  data-reporter-name="<%= user.fullName %>"
-  data-school-name="<%= user.schoolName %>"
-  data-api-url="https://...">
-</script>
-
-<!-- Example: React component -->
-<script
-  src="/bug-widget.js"
-  data-api-key="bk_abc123"
-  data-login-type={userRole}
-  data-reporter-name={user.name}
-  data-school-name={user.school}
-  data-api-url="https://...">
-</script>
-```
-
-**"What Gets Captured" section** -- A clear table showing what data flows automatically vs. what the user types:
-
-| Data | Source | User Action Needed? |
-|------|--------|-------------------|
-| Login Type | data-login-type attribute | No -- set by developer |
-| Reporter Name | data-reporter-name attribute | No -- from LMS session |
-| School Name | data-school-name attribute | No -- from LMS session |
-| Page URL | window.location.href | No -- auto-captured |
-| Browser Info | navigator.userAgent | No -- auto-captured |
-| Bug Title | Form input | Yes -- user types this |
-| Description | Form input | Yes -- user types this |
-| Screenshots | File upload | Yes -- user attaches these |
-
-**Troubleshooting** section with common issues (e.g., "Bugs appear without reporter name" -> "Ensure data-reporter-name is set dynamically, not left empty").
-
-**API Reference** -- Update the payload table to include `school_name` field.
-
-### 6. Update Bug Detail UI
-
-Show the school name alongside the reporter name for external bugs (e.g., "Reported by: Ravi Kumar, Delhi Public School").
-
-### 7. End-to-End Testing Plan
-
-We will test the API directly using the edge function invocation tool:
-
-**Test 1 -- Happy Path**: Submit a bug with all fields (api_key, title, description, login_type, reporter_name, school_name) and verify a bug_code is returned.
-
-**Test 2 -- Missing Title**: Submit without title, expect 400 error.
-
-**Test 3 -- Invalid API Key**: Submit with a fake key, expect 401 error.
-
-**Test 4 -- Deactivated Key**: If a deactivated key exists, test it returns 403.
-
-**Test 5 -- Invalid Login Type**: Submit with login_type="invalid", expect 400.
-
-**Test 6 -- Verify Data in DB**: After Test 1 succeeds, query the bugs table to confirm the bug was created with correct project_id, login_type, reporter_name, and school_name.
-
-**Test 7 -- Without Optional Fields**: Submit with only api_key, title, login_type -- verify it works with nulls for optional fields.
-
-After implementing the changes, I will deploy the edge function and run all these tests live.
+Add `docs_enabled: boolean` to the Profile interface so it's available throughout the app.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `public/bug-widget.js` | Read `data-reporter-name` and `data-school-name`, send in payload |
-| `supabase/functions/submit-external-bug/index.ts` | Accept and store `school_name` field |
-| `src/pages/admin/ApiKeyManager.tsx` | Rewrite documentation with dynamic attribute examples, integration patterns, troubleshooting |
-| `src/pages/bugs/BugDetail.tsx` | Show school name for external bugs |
-| Database migration | Add `external_school_name` column to `bugs` table |
+| Database migration | Add `docs_enabled` boolean column to `profiles` |
+| `src/integrations/supabase/types.ts` | Auto-updated after migration |
+| `src/contexts/AuthContext.tsx` | Add `docs_enabled` to Profile interface |
+| `src/components/admin/UserListSection.tsx` | Add docs toggle (BookOpen icon + Switch) next to automation toggle |
+| `src/pages/docs/DeveloperDocs.tsx` | New page with full documentation content (extracted from ApiKeyManager) |
+| `src/App.tsx` | Add `/docs/developer` route |
+| `src/components/qa/layout/QASidebar.tsx` | Add "Developer Docs" nav link (visible only when docs_enabled) |
+| `src/components/qa/layout/QABottomNav.tsx` | Add "Docs" nav item for mobile (visible only when docs_enabled) |
 
