@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Key, Plus, Copy, Trash2, ToggleLeft, ToggleRight, Loader2, Code, Shield, FolderOpen, Calendar, User } from "lucide-react";
+import { ArrowLeft, Key, Plus, Copy, Trash2, ToggleLeft, ToggleRight, Loader2, Code, Shield, FolderOpen, Calendar, User, BookOpen, Terminal, Settings2, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -63,7 +65,6 @@ export default function ApiKeyManager() {
     const keysList = (data || []) as ApiKey[];
     setKeys(keysList);
 
-    // Fetch creator names
     const creatorIds = [...new Set(keysList.map(k => k.created_by))];
     if (creatorIds.length > 0) {
       const { data: profiles } = await supabase
@@ -144,8 +145,8 @@ export default function ApiKeyManager() {
 
   const getWidgetUrl = () => `${window.location.origin}/bug-widget.js`;
 
-  const getEmbedSnippet = (key: ApiKey, loginType: string) =>
-    `<script\n  src="${getWidgetUrl()}"\n  data-api-key="${key.api_key}"\n  data-login-type="${loginType}"\n  data-api-url="${getEdgeFunctionUrl()}">\n</script>`;
+  const getEmbedSnippet = (apiKey: string, loginType: string) =>
+    `<script\n  src="${getWidgetUrl()}"\n  data-api-key="${apiKey}"\n  data-login-type="${loginType}"\n  data-api-url="${getEdgeFunctionUrl()}">\n</script>`;
 
   const getProjectName = (projectId: string) =>
     projects.find(p => p.id === projectId)?.name || "Unknown";
@@ -156,6 +157,31 @@ export default function ApiKeyManager() {
 
   const activeCount = keys.filter(k => k.is_active).length;
   const inactiveCount = keys.filter(k => !k.is_active).length;
+
+  const curlExample = `curl -X POST "${getEdgeFunctionUrl()}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "api_key": "bk_YOUR_API_KEY_HERE",
+    "title": "Login button not working",
+    "description": "Clicking login does nothing on Chrome",
+    "login_type": "student",
+    "severity": "minor",
+    "page_url": "https://lms.example.com/login",
+    "browser_info": "Mozilla/5.0 ...",
+    "attachments": [
+      {
+        "data": "base64_encoded_image_data...",
+        "filename": "screenshot.png",
+        "type": "image/png"
+      }
+    ]
+  }'`;
+
+  const jsonResponse = `{
+  "success": true,
+  "message": "Bug reported successfully",
+  "bug_code": "BUG-0042"
+}`;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -274,14 +300,18 @@ export default function ApiKeyManager() {
             <Card key={key.id} className="glass">
               <CardContent className="p-4">
                 <div className="flex flex-col gap-3">
-                  {/* Top row: label, project badge, status, actions */}
+                  {/* Project binding callout */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                    <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium text-foreground">
+                      Bugs reported via this key go to: <span className="text-primary font-semibold">{getProjectName(key.project_id)}</span>
+                    </span>
+                  </div>
+
+                  {/* Top row: label, status, actions */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-medium text-foreground">{key.label}</h4>
-                      <Badge variant="outline" className="text-[10px] gap-1">
-                        <FolderOpen className="h-3 w-3" />
-                        {getProjectName(key.project_id)}
-                      </Badge>
                       <Badge variant={key.is_active ? "default" : "secondary"}>
                         {key.is_active ? "Active" : "Inactive"}
                       </Badge>
@@ -307,12 +337,12 @@ export default function ApiKeyManager() {
                             <div key={lt} className="mb-3">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-xs font-semibold capitalize text-foreground">{lt.replace("_", " ")} Panel</span>
-                                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => copyToClipboard(getEmbedSnippet(key, lt))}>
+                                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => copyToClipboard(getEmbedSnippet(key.api_key, lt))}>
                                   <Copy className="h-3 w-3 mr-1" /> Copy
                                 </Button>
                               </div>
                               <pre className="text-xs bg-muted p-2 rounded overflow-x-auto font-mono whitespace-pre-wrap">
-                                {getEmbedSnippet(key, lt)}
+                                {getEmbedSnippet(key.api_key, lt)}
                               </pre>
                             </div>
                           ))}
@@ -374,7 +404,7 @@ export default function ApiKeyManager() {
         </div>
       )}
 
-      {/* Instructions */}
+      {/* How It Works */}
       <Card className="glass">
         <CardContent className="p-4 space-y-3">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
@@ -386,18 +416,289 @@ export default function ApiKeyManager() {
             <li>Add the script tag to your platform's HTML (one per login type panel)</li>
             <li>Users will see a floating "🐛" button — bugs they report will appear here automatically under the correct project</li>
           </ol>
-          <Separator />
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">API Endpoint (for custom integrations):</p>
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded font-mono text-muted-foreground flex-1 break-all">
-                POST {getEdgeFunctionUrl()}
-              </code>
-              <Button size="sm" variant="ghost" className="shrink-0 h-7" onClick={() => copyToClipboard(getEdgeFunctionUrl())}>
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
+        </CardContent>
+      </Card>
+
+      {/* Developer Documentation */}
+      <Card className="glass">
+        <CardContent className="p-4 space-y-4">
+          <h3 className="font-semibold text-foreground flex items-center gap-2 text-lg">
+            <BookOpen className="h-5 w-5 text-primary" /> Developer Documentation
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Complete reference for integrating the bug reporting widget into your LMS or platform.
+          </p>
+
+          <Tabs defaultValue="quickstart" className="w-full">
+            <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
+              <TabsTrigger value="quickstart" className="text-xs">Quick Start</TabsTrigger>
+              <TabsTrigger value="config" className="text-xs">Configuration</TabsTrigger>
+              <TabsTrigger value="flow" className="text-xs">Bug Flow</TabsTrigger>
+              <TabsTrigger value="api" className="text-xs">API Reference</TabsTrigger>
+            </TabsList>
+
+            {/* Quick Start */}
+            <TabsContent value="quickstart" className="space-y-4 mt-4">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">1</div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Generate an API Key</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Use the form above to create a key. Each key is <strong>bound to a specific project</strong> — all bugs submitted with that key will appear under that project.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">2</div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Add the Script Tag</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Paste the following into the HTML of each panel (student, teacher, etc.). Set <code className="bg-muted px-1 rounded text-[11px]">data-login-type</code> to match the panel.
+                    </p>
+                    <pre className="text-xs bg-muted p-3 rounded mt-2 overflow-x-auto font-mono whitespace-pre-wrap">
+{`<script
+  src="YOUR_PLATFORM_URL/bug-widget.js"
+  data-api-key="bk_YOUR_KEY"
+  data-login-type="student"
+  data-api-url="${getEdgeFunctionUrl()}">
+</script>`}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">3</div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Users Report Bugs</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      A floating 🐛 button appears. Users fill in title, description, and optional screenshots. The bug is automatically tagged with the correct <strong>project</strong> and <strong>login type</strong> — no user selection needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Configuration */}
+            <TabsContent value="config" className="space-y-4 mt-4">
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="text-left p-3 font-medium text-foreground">Attribute</th>
+                      <th className="text-left p-3 font-medium text-foreground">Required</th>
+                      <th className="text-left p-3 font-medium text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-api-key</code></td>
+                      <td className="p-3"><Badge variant="destructive" className="text-[10px]">Required</Badge></td>
+                      <td className="p-3 text-muted-foreground text-xs">Your project-specific API key. Determines which project receives the bug.</td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-login-type</code></td>
+                      <td className="p-3"><Badge variant="secondary" className="text-[10px]">Optional</Badge></td>
+                      <td className="p-3 text-muted-foreground text-xs">
+                        Auto-tags bugs with the login context. Defaults to <code className="bg-muted px-1 rounded">student</code>.
+                        <br />
+                        <span className="mt-1 inline-block">Valid values: <code className="bg-muted px-1 rounded">super_admin</code>, <code className="bg-muted px-1 rounded">institute</code>, <code className="bg-muted px-1 rounded">teacher</code>, <code className="bg-muted px-1 rounded">student</code></span>
+                      </td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="p-3"><code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">data-api-url</code></td>
+                      <td className="p-3"><Badge variant="destructive" className="text-[10px]">Required</Badge></td>
+                      <td className="p-3 text-muted-foreground text-xs">The endpoint URL for bug submission. Use the URL shown in the "How It Works" section above.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-lg bg-accent/50 border border-accent">
+                <p className="text-sm font-medium text-foreground mb-1">💡 Key Concept: Automatic Login Type Detection</p>
+                <p className="text-xs text-muted-foreground">
+                  When you embed the widget in your <strong>student panel</strong>, set <code className="bg-muted px-1 rounded">data-login-type="student"</code>. When embedding in the <strong>teacher panel</strong>, set it to <code className="bg-muted px-1 rounded">teacher</code>, and so on. The end-user never sees or selects the login type — it's determined by where you place the script tag.
+                </p>
+              </div>
+            </TabsContent>
+
+            {/* Bug Flow */}
+            <TabsContent value="flow" className="space-y-4 mt-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-lg">🖥️</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">1. User clicks 🐛 on your LMS</p>
+                    <p className="text-xs text-muted-foreground">The floating button appears on any page where you embed the widget.</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-lg">📝</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">2. User fills title & description</p>
+                    <p className="text-xs text-muted-foreground">Simple form — just title, description, and optional screenshots. No severity or login type selection.</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-lg">🔑</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">3. API key routes bug to the correct project</p>
+                    <p className="text-xs text-muted-foreground">The widget sends the API key + login type automatically. The backend validates and assigns the bug.</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-primary/10">
+                  <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                    <span className="text-lg">✅</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">4. Bug appears in QA Platform</p>
+                    <p className="text-xs text-muted-foreground">Visible under the correct project, tagged with the login type (e.g., "Student"), and marked as an external bug.</p>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* API Reference */}
+            <TabsContent value="api" className="space-y-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                For custom integrations (mobile apps, CI pipelines, etc.), you can call the API directly instead of using the widget.
+              </p>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground">Endpoint</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-600 text-white shrink-0">POST</Badge>
+                  <code className="text-xs bg-muted px-2 py-1.5 rounded font-mono text-muted-foreground flex-1 break-all">
+                    {getEdgeFunctionUrl()}
+                  </code>
+                  <Button size="sm" variant="ghost" className="shrink-0 h-7" onClick={() => copyToClipboard(getEdgeFunctionUrl())}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Request Body */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">Request Body (JSON)</h4>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">Field</th>
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">Type</th>
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs">Required</th>
+                        <th className="text-left p-2.5 font-medium text-foreground text-xs hidden sm:table-cell">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs">
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">api_key</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="destructive" className="text-[10px]">Yes</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Your project-bound API key</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">title</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="destructive" className="text-[10px]">Yes</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Bug title / summary</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">description</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Detailed description</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">login_type</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">One of: super_admin, institute, teacher, student</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">severity</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">critical, major, minor (default), trivial</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">page_url</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">URL where the bug was found</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">browser_info</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">User agent string</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">reporter_name</code></td>
+                        <td className="p-2.5 text-muted-foreground">string</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Name of the reporter</td>
+                      </tr>
+                      <tr className="border-t">
+                        <td className="p-2.5"><code className="font-mono">attachments</code></td>
+                        <td className="p-2.5 text-muted-foreground">array</td>
+                        <td className="p-2.5"><Badge variant="secondary" className="text-[10px]">No</Badge></td>
+                        <td className="p-2.5 text-muted-foreground hidden sm:table-cell">Base64 images (max 3, 5MB each). Each: {"{ data, filename, type }"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* cURL Example */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Terminal className="h-4 w-4" /> cURL Example
+                  </h4>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(curlExample)}>
+                    <Copy className="h-3 w-3 mr-1" /> Copy
+                  </Button>
+                </div>
+                <pre className="text-xs bg-muted p-3 rounded-lg overflow-x-auto font-mono whitespace-pre-wrap text-muted-foreground">
+                  {curlExample}
+                </pre>
+              </div>
+
+              <Separator />
+
+              {/* Response */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">Success Response (200)</h4>
+                <pre className="text-xs bg-muted p-3 rounded-lg overflow-x-auto font-mono whitespace-pre-wrap text-muted-foreground">
+                  {jsonResponse}
+                </pre>
+              </div>
+
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <p className="text-sm font-medium text-foreground mb-1">⚠️ Rate Limiting</p>
+                <p className="text-xs text-muted-foreground">
+                  Maximum <strong>10 submissions per minute</strong> per API key. Exceeding this will return a <code className="bg-muted px-1 rounded">429</code> status.
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
