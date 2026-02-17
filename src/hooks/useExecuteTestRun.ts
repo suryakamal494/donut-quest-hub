@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { isWorkflowType } from "@/lib/workflow-utils";
+import { notifyTestRunCompleted, createNotification } from "@/lib/notifications";
 import type { TestRun, TestResult, TestCase, TestStep, TestStatus, ScenarioType } from "@/types/qa";
 
 export interface TestResultWithCase extends TestResult {
@@ -158,11 +159,36 @@ export function useExecuteTestRun(id: string | undefined) {
   };
 
   const completeRun = async () => {
-    if (!run) return;
+    if (!run || !user) return;
     try {
       setSaving(true);
       await supabase.from("test_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", run.id);
       toast({ title: "Test run completed", description: `${passedCount} passed, ${failedCount} failed` });
+
+      // Notify the run executor about completion
+      if (run.executed_by) {
+        await notifyTestRunCompleted(run.executed_by, run.name, run.id, passedCount, failedCount);
+      }
+
+      // Notify admins about failed tests in this run
+      if (failedCount > 0) {
+        const failedResults = results.filter(r => r.status === "fail");
+        const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+        const adminIds = (admins || []).map(a => a.user_id).filter(id => id !== user.id);
+        
+        for (const failedResult of failedResults) {
+          for (const adminId of adminIds) {
+            await createNotification({
+              userId: adminId,
+              title: "Test Failed",
+              message: `"${failedResult.test_case?.title}" failed in run "${run.name}"`,
+              type: "error",
+              link: `/qa/runs/${run.id}`,
+            });
+          }
+        }
+      }
+
       navigate(`/qa/runs/${run.id}`);
     } catch (error: any) {
       toast({ title: "Error completing run", description: error.message, variant: "destructive" });
