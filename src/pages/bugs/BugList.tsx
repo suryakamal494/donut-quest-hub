@@ -451,6 +451,11 @@ export default function BugList() {
                               <span className="text-xs font-mono text-muted-foreground shrink-0">
                                 {bug.bug_code}
                               </span>
+                              {(bug as any).source === "external" && (
+                                <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                  Ext
+                                </span>
+                              )}
                               <span className="font-medium text-foreground text-sm truncate">
                                 {bug.title}
                               </span>
@@ -463,6 +468,10 @@ export default function BugList() {
                             {bug.fix_status === "reopened" && (bug as any).reopened_by && reporterNames[(bug as any).reopened_by] ? (
                               <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 font-medium">
                                 🔄 Reopened by: {reporterNames[(bug as any).reopened_by]}
+                              </p>
+                            ) : (bug as any).source === "external" && (bug as any).external_reporter_name ? (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                                Reported by: {(bug as any).external_reporter_name} (External)
                               </p>
                             ) : bug.reported_by && reporterNames[bug.reported_by] ? (
                               <p className="text-xs text-muted-foreground mt-0.5">

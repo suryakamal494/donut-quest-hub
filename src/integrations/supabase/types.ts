@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          label: string
+          project_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          label: string
+          project_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_configs: {
         Row: {
           created_at: string
@@ -297,6 +335,10 @@ export type Database = {
           developer_response: string | null
           environment: string | null
           expected_behavior: string | null
+          external_browser_info: string | null
+          external_page_url: string | null
+          external_reporter_email: string | null
+          external_reporter_name: string | null
           feature_id: string | null
           fix_status: string | null
           id: string
@@ -309,6 +351,7 @@ export type Database = {
           resolved_by: string | null
           scenario_id: string | null
           severity: Database["public"]["Enums"]["bug_severity"]
+          source: string
           status: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce: string[] | null
           sub_module: string | null
@@ -329,6 +372,10 @@ export type Database = {
           developer_response?: string | null
           environment?: string | null
           expected_behavior?: string | null
+          external_browser_info?: string | null
+          external_page_url?: string | null
+          external_reporter_email?: string | null
+          external_reporter_name?: string | null
           feature_id?: string | null
           fix_status?: string | null
           id?: string
@@ -341,6 +388,7 @@ export type Database = {
           resolved_by?: string | null
           scenario_id?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
+          source?: string
           status?: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce?: string[] | null
           sub_module?: string | null
@@ -361,6 +409,10 @@ export type Database = {
           developer_response?: string | null
           environment?: string | null
           expected_behavior?: string | null
+          external_browser_info?: string | null
+          external_page_url?: string | null
+          external_reporter_email?: string | null
+          external_reporter_name?: string | null
           feature_id?: string | null
           fix_status?: string | null
           id?: string
@@ -373,6 +425,7 @@ export type Database = {
           resolved_by?: string | null
           scenario_id?: string | null
           severity?: Database["public"]["Enums"]["bug_severity"]
+          source?: string
           status?: Database["public"]["Enums"]["bug_status"]
           steps_to_reproduce?: string[] | null
           sub_module?: string | null

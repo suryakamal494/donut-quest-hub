@@ -34,6 +34,7 @@ import AutomationTestRuns from "./pages/qa/AutomationTestRuns";
 
 // Bug Module
 import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport, PendingRetest } from "./pages/bugs";
+import ApiKeyManager from "./pages/admin/ApiKeyManager";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,7 @@ const App = () => (
               <Route path="report" element={<BugReport />} />
               <Route path="create" element={<CreateBug />} />
               <Route path=":id" element={<BugDetail />} />
+              <Route path="api-keys" element={<ApiKeyManager />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
