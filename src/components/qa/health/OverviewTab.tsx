@@ -1,16 +1,41 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle, Shield, HelpCircle } from "lucide-react";
 import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
-import type { HealthData, RiskLevel } from "./HealthCell";
-import { MaturityScore } from "./MaturityScore";
-import { LifecycleStageBadge } from "./LifecycleStageSelector";
+import type { HealthData } from "./HealthCell";
+import { computeHealth, healthConfig } from "./HealthCell";
 import { cn } from "@/lib/utils";
-import { getScoreColor } from "./HealthCell";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student"];
+
+const STATUS_DOT_COLORS: Record<string, string> = {
+  cleared: "bg-emerald-600",
+  healthy: "bg-green-500",
+  mostly_good: "bg-lime-400",
+  needs_attention: "bg-yellow-400",
+  problematic: "bg-orange-500",
+  critical: "bg-red-600",
+  untested: "bg-gray-300 dark:bg-gray-600",
+};
 
 interface OverviewTabProps {
   allHealthData: HealthData[];
@@ -18,120 +43,105 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ allHealthData, onFeatureClick }: OverviewTabProps) {
-  const stats = useMemo(() => {
-    const total = allHealthData.length;
-    const avgScore = total > 0
-      ? Math.round(allHealthData.reduce((s, d) => s + d.maturityScore, 0) / total)
-      : 0;
-    const highRisk = allHealthData.filter((d) => d.riskLevel === "high").length;
-    const untested = allHealthData.filter((d) => d.scenarioCount === 0 && d.totalBugs === 0).length;
-    return { total, avgScore, highRisk, untested };
-  }, [allHealthData]);
-
-  const loginScores = useMemo(() => {
+  const loginGroups = useMemo(() => {
     return LOGIN_TYPES.map((lt) => {
       const items = allHealthData.filter((d) => d.loginType === lt);
-      const score = items.length > 0
-        ? Math.round(items.reduce((s, d) => s + d.maturityScore, 0) / items.length)
-        : 0;
-      return { login: lt, label: LOGIN_TYPE_LABELS[lt], score, count: items.length };
-    });
-  }, [allHealthData]);
-
-  // Top features sorted by score ascending (weakest first)
-  const leaderboard = useMemo(() => {
-    return [...allHealthData].sort((a, b) => a.maturityScore - b.maturityScore).slice(0, 10);
+      return { login: lt, label: LOGIN_TYPE_LABELS[lt], items };
+    }).filter((g) => g.items.length > 0);
   }, [allHealthData]);
 
   return (
-    <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-4 flex flex-col items-center gap-1">
-            <Shield className="h-5 w-5 text-primary" />
-            <p className="text-2xl font-bold">{stats.total}</p>
-            <p className="text-[10px] text-muted-foreground">Total Features</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col items-center gap-1">
-            <MaturityScore score={stats.avgScore} size="sm" showLabel={false} />
-            <p className="text-[10px] text-muted-foreground mt-1">Avg Health Score</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col items-center gap-1">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <p className="text-2xl font-bold text-destructive">{stats.highRisk}</p>
-            <p className="text-[10px] text-muted-foreground">High Risk</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col items-center gap-1">
-            <HelpCircle className="h-5 w-5 text-muted-foreground" />
-            <p className="text-2xl font-bold">{stats.untested}</p>
-            <p className="text-[10px] text-muted-foreground">Untested</p>
-          </CardContent>
-        </Card>
+    <TooltipProvider>
+      <div className="space-y-3">
+        {loginGroups.map((group) => (
+          <Collapsible key={group.login} defaultOpen>
+            <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardContent className="p-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">{group.label} ({group.items.length})</h3>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CardContent>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-3 pb-3 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Feature</TableHead>
+                        <TableHead className="text-xs text-center w-20">
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help">Reported</TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-52 text-xs">
+                              Total bugs reported for this feature (all statuses)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-xs text-center w-20">
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help">Solved</TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-52 text-xs">
+                              Bugs that have been closed (verified fixed)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-xs text-center w-28">
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help">Status</TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-64 text-xs">
+                              Health status based on active bugs and test coverage. Green = Healthy, Yellow = Needs Attention, Red = Critical, Gray = Untested (no bugs or scenarios exist).
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.items
+                        .sort((a, b) => a.maturityScore - b.maturityScore)
+                        .map((d) => {
+                          const status = computeHealth(d);
+                          const config = healthConfig[status];
+                          const dotColor = STATUS_DOT_COLORS[status] || "bg-gray-300";
+                          return (
+                            <TableRow
+                              key={d.featureId}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => onFeatureClick(d)}
+                            >
+                              <TableCell className="text-xs font-medium py-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", dotColor)} />
+                                  {d.featureName}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs text-center py-2">{d.totalBugs}</TableCell>
+                              <TableCell className="text-xs text-center py-2">{d.resolvedBugs}</TableCell>
+                              <TableCell className="text-xs text-center py-2">
+                                <span className={cn(
+                                  "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white",
+                                  dotColor
+                                )}>
+                                  {config.label}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        ))}
+
+        {loginGroups.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground text-sm">
+              No features found. Add features to see the health overview.
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      {/* Login Health Comparison */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Login Health Scores</h3>
-          {loginScores.map((ls) => (
-            <div key={ls.login} className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium">{ls.label}</span>
-                <span className={cn("font-bold", getScoreColor(ls.score))}>{ls.score}%</span>
-              </div>
-              <Progress value={ls.score} className="h-2" />
-              <p className="text-[10px] text-muted-foreground">{ls.count} features</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Feature Leaderboard (weakest first) */}
-      <Card>
-        <CardContent className="p-4 space-y-2">
-          <h3 className="text-sm font-semibold">Features Needing Attention</h3>
-          {leaderboard.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">No features found.</p>
-          ) : (
-            <div className="space-y-2">
-              {leaderboard.map((d) => (
-                <button
-                  key={d.featureId}
-                  onClick={() => onFeatureClick(d)}
-                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors text-left"
-                >
-                  <MaturityScore score={d.maturityScore} size="sm" showLabel={false} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{d.featureName}</p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] text-muted-foreground">
-                        {LOGIN_TYPE_LABELS[d.loginType as LoginType]}
-                      </span>
-                      <LifecycleStageBadge stage={d.lifecycleStage} />
-                      {d.riskLevel === "high" && (
-                        <Badge variant="destructive" className="text-[9px] h-4 px-1">HIGH RISK</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={cn("text-xs font-bold", d.activeBugs > 0 ? "text-destructive" : "text-muted-foreground")}>
-                      {d.activeBugs} bugs
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{d.scenarioCount} scenarios</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    </TooltipProvider>
   );
 }

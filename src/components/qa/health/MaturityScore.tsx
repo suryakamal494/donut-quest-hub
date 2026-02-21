@@ -50,7 +50,7 @@ export function MaturityScore({ score, size = "md", showLabel = true }: Maturity
           fontSize,
           getScoreColor(score)
         )}>
-          {score}
+          {score}%
         </span>
       </div>
       {showLabel && (
