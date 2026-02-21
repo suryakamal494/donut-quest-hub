@@ -1,124 +1,92 @@
 
 
-# Health Map UX Fixes and Tooltip Clarity
+# Overview Tab Redesign: Column-Based Feature Tile Map
 
-## Issues Identified
+## What Changes
 
-### Bug 1: Pop-up stays open when switching tabs
-The detail panel (fixed bottom-right or mobile sheet) remains visible when you switch between Overview / By Login / Cross-Login Grid / Risk & Aging tabs. The `selectedCell` state is not cleared on tab change.
+Replace the current collapsible table sections with a **4-column grid layout** where each column represents a login type (Super Admin, Institute, Teacher, Student). Features are displayed as **colored tiles** within each column.
 
-**Fix:** In `HealthMap.tsx`, add `setSelectedCell(null)` to the `onValueChange` handler of the top-level `Tabs` component.
+## Tile Design
 
-### Bug 2: Score number is confusing (shows "10" not "10%")
-The `MaturityScore` ring component displays just the number (e.g., "10") without a percent sign. Combined with no explanation, users see "Score: 10" and don't understand what it means.
+Each feature tile contains:
+- **Feature name** as the tile title
+- **Bug counts**: Reported (red text) and Solved (green text) as small numbers
+- **Tile background color** reflects health status:
+  - Green shades = Healthy / Cleared / Mostly Good
+  - Yellow = Needs Attention
+  - Orange = Problematic
+  - Red = Critical
+  - Gray = Untested (no bugs, no scenarios)
 
-**Fix:** Add "%" after the number inside `MaturityScore.tsx`. Add a tooltip wrapper explaining what the score represents.
+Clicking a tile opens the detail panel (same as current behavior).
 
-### Bug 3: "Clear Feature" has no explanation
-The Clear button in the detail panel and By Login tab has no tooltip explaining what it does. Admins don't know that clearing marks a feature as manually verified/approved.
+## Layout
 
-**Fix:** Add tooltip to the Clear button: "Mark this feature as manually reviewed and approved by admin. This status auto-reverts if a new bug is reported."
-
-### Bug 4: No tooltips anywhere
-Score, Stage, Risk badges, Login Health Scores, High Risk count -- none have explanations.
-
-**Fix:** Add info tooltips (using the existing `FormTooltip` pattern with `HelpCircle` icon) to:
-- Score ring in detail panel: "Maturity Score (0-100%) calculated from: Coverage (30%) = test scenarios created, Stability (40%) = test pass rate, Resolution (30%) = bugs closed vs total."
-- Risk badge: "HIGH RISK = Score below 30% or active bugs with no test scenarios. MEDIUM RISK = Score 30-60%. LOW RISK = Score above 60%."
-- Stage selector: "Lifecycle stage set by admin to track feature development progress."
-- Clear button: "Admin approval marking this feature as reviewed. Auto-reverts on new bugs."
-- Login Health Scores (Overview): "Average maturity score across all features for this login type."
-- High Risk count (Overview): "Features with score below 30% or active bugs with zero test scenarios."
-- 0% score explanation: "0% means no test scenarios, no test results, and no resolved bugs exist for this feature."
-
-### Bug 5: Overview tab needs redesign
-The user wants:
-- **Remove** the 4 summary cards (Total Features, Avg Health Score, High Risk, Untested)
-- **Remove** the Login Health Scores progress bars
-- **Replace with:** A per-login-type table layout where each login type (Super Admin, Institute, Teacher, Student) has its own section showing all features under it with: feature name, bug count (reported/solved), color indicator dot, and "Untested" label if zero bugs and zero scenarios
-
-**New Overview layout:**
 ```text
-Super Admin
-+------------------------------------------+
-| Feature        | Bugs | Solved | Status   |
-|----------------|------|--------|----------|
-| Curriculum     |  3   |   2    | [yellow] |
-| Content Library|  0   |   0    | Untested |
-+------------------------------------------+
-
-Institute
-+------------------------------------------+
-| Feature        | Bugs | Solved | Status   |
-...
++------------------+------------------+------------------+------------------+
+| Super Admin      | Institute        | Teacher          | Student          |
++------------------+------------------+------------------+------------------+
+| [Curriculum    ] | [Question Bank ] | [Assignments   ] | [My Courses    ] |
+| R:3  S:2         | R:5  S:4         | R:0  S:0         | R:1  S:1         |
+| (yellow tile)    | (green tile)     | (gray/untested)  | (green tile)     |
++------------------+------------------+------------------+------------------+
+| [Content Lib   ] | [Exams         ] | [Timetable     ] | [Exams         ] |
+| R:0  S:0         | R:8  S:2         | R:2  S:1         | R:0  S:0         |
+| (gray/untested)  | (red tile)       | (yellow tile)    | (gray/untested)  |
++------------------+------------------+------------------+------------------+
 ```
 
-Each feature row gets a color indicator dot based on health status (green/yellow/orange/red/gray for untested). This replaces both the summary cards and the login health bars.
+- On **desktop**: 4 equal columns side by side
+- On **tablet**: 2 columns (2x2 grid)
+- On **mobile**: 1 column with login type headers, tiles stacked vertically
 
-### Bug 6: Stage and Clear should be admin-only
-In `ByLoginTab.tsx`, the Stage selector and Clear button are already admin-gated (`isAdmin` prop). In `FeatureHealthDetail.tsx`, the Clear button is already admin-gated. This is correct -- no change needed for the table view.
+## File to Modify
 
-However, in the detail pop-up panel, we should also hide the lifecycle stage badge's edit capability for non-admins (currently it just shows a badge, which is fine).
-
-**Verified:** Already implemented correctly. No code change needed.
-
-### Bug 7: Health Map button should be a labeled button, not just an icon
-Currently the header shows only a `Map` icon with no label. The user wants a visible text button saying "Health Map."
-
-**Fix:** In `QAHeader.tsx`, change from `size="icon"` ghost button to a small outlined button with text "Health Map" and the Map icon.
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/qa/HealthMap.tsx` | Clear `selectedCell` on tab change |
-| `src/components/qa/health/MaturityScore.tsx` | Add "%" suffix to score number |
-| `src/components/qa/health/FeatureHealthDetail.tsx` | Add tooltips for Score, Risk, Stage, Clear button |
-| `src/components/qa/health/OverviewTab.tsx` | Complete redesign: remove cards and progress bars; add per-login feature tables with bug counts, solved counts, color dots, and untested labels |
-| `src/components/qa/health/RiskAgingTab.tsx` | Add section header tooltips explaining what High Risk and Bug Aging mean |
-| `src/components/qa/layout/QAHeader.tsx` | Change Health Map from icon button to labeled button |
-
-No database changes required. No new files needed.
-
----
+`src/components/qa/health/OverviewTab.tsx` -- complete rewrite of the component body.
 
 ## Technical Details
 
-### Tab change clearing (HealthMap.tsx)
-```typescript
-<Tabs value={activeTab} onValueChange={(v) => {
-  setActiveTab(v);
-  setSelectedCell(null);  // Close detail panel on tab switch
-}}>
+### Component structure
+
+```text
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  {LOGIN_TYPES.map(login => (
+    <div key={login}>
+      <h3>{LOGIN_TYPE_LABELS[login]}</h3>
+      <div className="space-y-2">
+        {features.map(feature => (
+          <FeatureTile ... />  // colored card with name + bug counts
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
 ```
 
-### MaturityScore.tsx percent suffix
-Change the inner `<span>` from `{score}` to `{score}%`.
+### Tile color mapping
 
-### Overview redesign (OverviewTab.tsx)
-Replace the entire component body. For each login type, filter `allHealthData`, then render a collapsible section with a simple table:
-- Column 1: Color dot (from `computeHealth` status) + Feature name
-- Column 2: Reported bugs count (`totalBugs`)
-- Column 3: Solved bugs count (`resolvedBugs`)
-- Column 4: Status label -- "Untested" if zero scenarios and zero bugs, otherwise the health status label (Healthy/Needs Attention/etc.)
+Uses the existing `computeHealth()` function to determine status, then maps to tile background colors:
+- cleared: emerald-100 border-emerald-500
+- healthy: green-100 border-green-500
+- mostly_good: lime-100 border-lime-400
+- needs_attention: yellow-100 border-yellow-400
+- problematic: orange-100 border-orange-500
+- critical: red-100 border-red-500
+- untested: gray-100 border-gray-300
 
-Each row remains clickable to open the detail panel.
+The tile uses a left border accent (4px) in the status color, with a light tinted background. This keeps feature names readable while clearly conveying status through color.
 
-### Tooltip implementation
-Use a lightweight approach: wrap labels with a `HelpCircle` icon inside a Radix `Tooltip` (single tooltip per label, not per grid cell, so performance is fine). Import from `@/components/ui/tooltip`.
+### Bug count display
 
-### QAHeader.tsx button
-```typescript
-<Button
-  variant="outline"
-  size="sm"
-  onClick={() => navigate("/qa/health-map")}
-  className="text-xs h-8 gap-1.5"
->
-  <Map className="h-3.5 w-3.5" />
-  Health Map
-</Button>
-```
+Inside each tile:
+- Feature name in bold
+- Below: "R: 3" in red-600 text, "S: 2" in green-600 text (compact inline)
+- If both are 0 and no scenarios: show "Untested" label in gray
 
+### Empty columns
+
+If a login type has no features, the column shows a muted "No features" placeholder so the column structure remains consistent.
+
+### No other files change
+
+Only `src/components/qa/health/OverviewTab.tsx` needs modification. The props interface stays the same (`allHealthData` and `onFeatureClick`).
