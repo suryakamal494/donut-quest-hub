@@ -48,12 +48,11 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
               <MaturityScore score={data.maturityScore} size="md" />
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-72 text-xs">
-              <p className="font-semibold mb-1">Maturity Score (0-100%)</p>
-              <p>Coverage (30%) = test scenarios created</p>
-              <p>Stability (40%) = test pass rate</p>
-              <p>Resolution (30%) = bugs closed vs total</p>
+              <p className="font-semibold mb-1">Bug Resolution Rate (0-100%)</p>
+              <p>Formula: (Closed Bugs / Total Bugs) × 100</p>
+              <p className="mt-1">Higher score = more bugs have been resolved.</p>
               {data.maturityScore === 0 && (
-                <p className="mt-1 text-muted-foreground">0% means no scenarios, no results, and no resolved bugs.</p>
+                <p className="mt-1 text-muted-foreground">0% means no bugs reported yet or none resolved.</p>
               )}
             </TooltipContent>
           </Tooltip>
@@ -71,7 +70,7 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
                   <Badge variant="destructive" className="text-[9px]">HIGH RISK</Badge>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-64 text-xs">
-                  Score below 30% or active bugs with no test scenarios.
+                  Resolution rate below 30% or more than 15 active bugs.
                 </TooltipContent>
               </Tooltip>
             )}
@@ -81,7 +80,7 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
                   <Badge className="bg-warning text-warning-foreground text-[9px] border-0">MED RISK</Badge>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-64 text-xs">
-                  Score between 30-60%. Feature needs improvement.
+                  Resolution rate between 30-60%. Feature needs more bug fixes.
                 </TooltipContent>
               </Tooltip>
             )}

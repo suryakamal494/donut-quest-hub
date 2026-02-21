@@ -58,7 +58,7 @@ export function RiskAgingTab({ allHealthData, onFeatureClick }: RiskAgingTabProp
                   <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-72 text-xs">
-                  Features with maturity score below 30%, or features with active bugs but zero test scenarios. These need immediate attention.
+                  Features with bug resolution rate below 30% or more than 15 active bugs. These need immediate attention.
                 </TooltipContent>
               </Tooltip>
             </div>

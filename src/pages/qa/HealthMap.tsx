@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Loader2, Map } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Loader2, Map, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,7 @@ import { computeMaturityScore, computeRiskLevel } from "@/components/qa/health/H
 import type { HealthData, LifecycleStage } from "@/components/qa/health/HealthCell";
 import type { LoginType } from "@/types/qa";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
@@ -153,10 +155,7 @@ export default function HealthMap() {
     }
   }, [currentProject]);
 
-  const loadedRef = useRef(false);
   useEffect(() => {
-    if (loadedRef.current) return;
-    loadedRef.current = true;
     loadData();
   }, [loadData]);
 
@@ -169,10 +168,6 @@ export default function HealthMap() {
     const cleared = clearedMap[feature.id];
 
     const maturityScore = computeMaturityScore({
-      scenarioCount: sc,
-      testCaseCount: tc,
-      passRate: pr.passRate,
-      hasResults: pr.hasResults,
       totalBugs: bugs.total,
       closedBugs: bugs.resolved,
     });
@@ -180,7 +175,6 @@ export default function HealthMap() {
     const riskLevel = computeRiskLevel({
       maturityScore,
       activeBugs: bugs.active,
-      scenarioCount: sc,
     });
 
     return {
@@ -222,7 +216,6 @@ export default function HealthMap() {
           .insert({ feature_id: featureId, project_id: currentProject.id, status: "cleared", cleared_at: new Date().toISOString(), cleared_by: userId });
       }
       toast.success("Feature marked as cleared");
-      loadedRef.current = false;
       loadData();
       setSelectedCell(null);
     } catch {
@@ -243,7 +236,6 @@ export default function HealthMap() {
           .insert({ feature_id: featureId, project_id: currentProject.id, lifecycle_stage: stage });
       }
       toast.success("Lifecycle stage updated");
-      loadedRef.current = false;
       loadData();
     } catch {
       toast.error("Failed to update stage");
@@ -273,6 +265,9 @@ export default function HealthMap() {
       <div className="flex items-center gap-2">
         <Map className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Platform Health Map</h1>
+        <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={() => loadData()} disabled={loading}>
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedCell(null); }}>
