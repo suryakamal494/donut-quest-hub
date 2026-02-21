@@ -62,7 +62,7 @@ export default function HealthMap() {
         { data: testResultData },
       ] = await Promise.all([
         supabase.from("features").select("id, name, login_type").eq("project_id", currentProject.id).order("order_index"),
-        supabase.from("bugs").select("id, feature_id, status, created_at, severity").eq("project_id", currentProject.id).not("feature_id", "is", null),
+        supabase.from("bugs").select("id, feature_id, status, created_at, severity, login_type").eq("project_id", currentProject.id),
         supabase.from("test_scenarios").select("id, feature_id, last_tested_at").eq("project_id", currentProject.id).not("feature_id", "is", null),
         supabase.from("feature_health_status").select("*").eq("project_id", currentProject.id),
         supabase.from("test_cases").select("id, scenario_id").order("id"),
@@ -72,22 +72,33 @@ export default function HealthMap() {
       setFeatures(featureData || []);
 
       // Bug counts per feature
+      // Build a map of "Others" feature IDs by login_type
+      const othersFeatureByLogin: Record<string, string> = {};
+      (featureData || []).forEach((f) => {
+        if (f.name === "Others") othersFeatureByLogin[f.login_type] = f.id;
+      });
+
       const counts: Record<string, { active: number; pendingRetest: number; resolved: number; wontFix: number; total: number; oldestOpenDays: number }> = {};
       (bugData || []).forEach((bug) => {
-        if (!bug.feature_id) return;
-        if (!counts[bug.feature_id]) counts[bug.feature_id] = { active: 0, pendingRetest: 0, resolved: 0, wontFix: 0, total: 0, oldestOpenDays: 0 };
-        counts[bug.feature_id].total++;
+        // Map NULL-feature bugs to the "Others" feature for their login_type
+        let featureId = bug.feature_id;
+        if (!featureId) {
+          featureId = bug.login_type ? othersFeatureByLogin[bug.login_type] : null;
+          if (!featureId) return; // no matching "Others" feature
+        }
+        if (!counts[featureId]) counts[featureId] = { active: 0, pendingRetest: 0, resolved: 0, wontFix: 0, total: 0, oldestOpenDays: 0 };
+        counts[featureId].total++;
         if (bug.status === "open" || bug.status === "in_progress") {
-          counts[bug.feature_id].active++;
+          counts[featureId].active++;
           const days = Math.floor((Date.now() - new Date(bug.created_at).getTime()) / 86400000);
-          if (days > counts[bug.feature_id].oldestOpenDays) counts[bug.feature_id].oldestOpenDays = days;
+          if (days > counts[featureId].oldestOpenDays) counts[featureId].oldestOpenDays = days;
         } else if (bug.status === "resolved") {
-          counts[bug.feature_id].pendingRetest++;
-          counts[bug.feature_id].active++;
+          counts[featureId].pendingRetest++;
+          counts[featureId].active++;
         } else if (bug.status === "wont_fix") {
-          counts[bug.feature_id].wontFix++;
+          counts[featureId].wontFix++;
         } else {
-          counts[bug.feature_id].resolved++;
+          counts[featureId].resolved++;
         }
       });
       setBugCounts(counts);
