@@ -469,6 +469,57 @@ export type Database = {
           },
         ]
       }
+      feature_health_status: {
+        Row: {
+          cleared_at: string | null
+          cleared_by: string | null
+          created_at: string
+          feature_id: string
+          id: string
+          notes: string | null
+          project_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cleared_at?: string | null
+          cleared_by?: string | null
+          created_at?: string
+          feature_id: string
+          id?: string
+          notes?: string | null
+          project_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cleared_at?: string | null
+          cleared_by?: string | null
+          created_at?: string
+          feature_id?: string
+          id?: string
+          notes?: string | null
+          project_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_health_status_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feature_health_status_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       features: {
         Row: {
           created_at: string

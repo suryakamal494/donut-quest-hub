@@ -31,6 +31,7 @@ import Failures from "./pages/qa/Failures";
 import AutomationDashboard from "./pages/qa/AutomationDashboard";
 import AutomationBugs from "./pages/qa/AutomationBugs";
 import AutomationTestRuns from "./pages/qa/AutomationTestRuns";
+import HealthMap from "./pages/qa/HealthMap";
 
 // Bug Module
 import { BugList, CreateBug, BugDetail, ClosedBugs, BugReport, PendingRetest } from "./pages/bugs";
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="automation/bugs" element={<AutomationGuard><AutomationBugs /></AutomationGuard>} />
               <Route path="automation/runs" element={<AutomationGuard><AutomationTestRuns /></AutomationGuard>} />
               <Route path="coverage" element={<Coverage />} />
+              <Route path="health-map" element={<HealthMap />} />
               <Route path="docs/developer" element={<DeveloperDocs />} />
             </Route>
 
