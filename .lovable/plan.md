@@ -1,154 +1,93 @@
 
 
-# Platform Health Map -- Cross-Login Feature Health Dashboard
+# Health Map Audit Fix Plan
 
-## What This Solves
+## What Already Exists (No Changes Needed)
 
-Right now you have bugs scattered across lists and coverage numbers in a separate page, but no single view that answers: "Across all 4 logins, which features are healthy, which are problematic, and which haven't been touched at all?" This Health Map gives you that answer at a glance.
+Your platform already has a complete, production-grade bug tracking system:
+- Full bug lifecycle (Open, In Progress, Resolved, Closed, Won't Fix)
+- Fix-Verify-Close workflow with Pending Retest queue
+- Role-based permissions for fixing, verifying, and reopening
+- Bug Report management view, Active Bugs, Pending Retest, Closed Bugs
+- History tracking, comments, attachments, notifications, bulk assignment
+- External bug reporting widget
 
-## The Concept
+There is nothing missing from the bug tracker itself. The "Jira-like bug reporting" is already fully implemented.
 
-A **heatmap-style grid** where each row is a feature and each column grouping represents a login type. Each cell is color-coded from red (many active bugs) through yellow (some issues) to green (tested, bugs resolved) to gray (untested/unknown). The admin can also manually mark a feature as "Cleared" once they're satisfied it's been thoroughly tested.
+---
 
-### How the Colors Work
+## Health Map Audit Results: 4 Issues to Fix
 
-The health score for each feature is computed automatically:
+### Issue 1 (Critical): Resolved bugs incorrectly counted as "green"
 
-- **Dark Green (Cleared)**: Admin has manually marked this feature as cleared -- fully tested and stable
-- **Green (Healthy)**: Has test scenarios, bugs exist but all resolved/verified, no active bugs
-- **Yellow-Green (Mostly Good)**: Has scenarios, few active bugs remaining (1-3)
-- **Yellow (Needs Attention)**: Active bugs present (4-10), or has bugs but no test scenarios
-- **Orange (Problematic)**: Many active bugs (10+)  
-- **Red (Critical)**: Many active bugs AND no test scenarios written
-- **Gray (Untested)**: No bugs reported AND no test scenarios -- completely untouched
+**Problem:** The health map counts bugs as "resolved" (green) if their status is anything other than `open` or `in_progress`. This means bugs with `status: 'resolved'` and `fix_status: 'fixed'` -- which are sitting in **Pending Retest** waiting for QA verification -- are counted as resolved. The map shows a feature as healthier than it actually is.
 
-### Over Time Behavior
+**Fix:** Only count bugs as truly resolved when `status = 'closed'`. Bugs in `resolved` state are still pending verification and should be counted as active (or a new "pending" category).
 
-As bugs get resolved and verified, cells automatically shift from red/orange toward green. When the admin clicks "Clear" on a feature, it turns dark green -- signaling that it's production-ready. If a new bug is later reported against a cleared feature, it automatically loses its cleared status and shifts back to yellow/orange, alerting the team.
+**Code change in `HealthMap.tsx` lines 97-102:**
+```
+// CURRENT (wrong):
+const activeStatuses = ["open", "in_progress"];
 
-## The UI Layout
-
-### Page Structure
-
-```text
-+------------------------------------------------------------------+
-|  Platform Health Map                              [Filter] [Export]|
-+------------------------------------------------------------------+
-|                                                                    |
-|  Summary Bar: 32 features | 12 healthy | 8 at-risk | 12 untested |
-|                                                                    |
-|  [Super Admin] [Institute] [Teacher] [Student]  <-- login tabs    |
-|                                                                    |
-|  +----------------------------------------------+                 |
-|  | Feature Name    | Bugs  | Resolved | Health   | Actions       |
-|  |-----------------|-------|----------|----------|---------------|
-|  | [====] Exams    | 37    | 21       | [ORANGE] | [Clear] [->]  |
-|  | [====] Q.Bank   | 30    | 12       | [ORANGE] | [Clear] [->]  |
-|  | [==] Institutes | 20    | 15       | [YELLOW] | [Clear] [->]  |
-|  | [==] Curriculum | 15    | 8        | [YELLOW] | [Clear] [->]  |
-|  | [=] Roles       | 11    | 3        | [ORANGE] | [Clear] [->]  |
-|  | [=] Courses     | 8     | 6        | [YEL-GR] | [Clear] [->]  |
-|  | [=] Content Lib | 6     | 0        | [RED]    | [Clear] [->]  |
-|  | [ ] Tier Mgmt   | 2     | 1        | [GREEN]  | [Clear] [->]  |
-|  | [ ] UI/Resp     | 1     | 0        | [YELLOW] | [Clear] [->]  |
-|  | [ ] Mobile Resp | 0     | 0        | [GRAY]   | [Clear] [->]  |
-|  +----------------------------------------------+                 |
-|                                                                    |
-|  Compact Heatmap Grid (all logins at once):                       |
-|  +------------------+-------+-------+-------+-------+            |
-|  | Feature          | SA    | Inst  | Teach | Stud  |            |
-|  |------------------|-------|-------|-------|-------|            |
-|  | Exams            | [ORG] | [RED] | [YEL] | [GRY] |            |
-|  | Content Library  | [RED] | [YEL] | [GRY] | [GRY] |            |
-|  | Question Bank    | [ORG] | [YEL] | [---] | [---] |            |
-|  | Batches          | [---] | [ORG] | [---] | [---] |            |
-|  | ...              |       |       |       |       |            |
-|  +------------------+-------+-------+-------+-------+            |
-+------------------------------------------------------------------+
+// FIXED:
+const activeStatuses = ["open", "in_progress", "resolved"];
+// Only 'closed' and 'wont_fix' count as resolved
 ```
 
-### Key Interactions
+This means: Pending Retest bugs (resolved but not verified) will show as active, keeping the cell orange/yellow until QA actually verifies and closes them.
 
-1. **Click any cell** in the heatmap to see a breakdown: active bugs, resolved bugs, test scenario count, last tested date
-2. **"Clear Feature" button** (admin only): Marks a feature as thoroughly tested. Stored in the database so it persists
-3. **Click feature name**: Navigates to the filtered bug list for that feature
-4. **Future: "Highlight Affected"**: When a new feature is released, admin can select features that need re-testing, turning their cells to a pulsing/highlighted state
+### Issue 2 (Critical): Database trigger for auto-revert was never created
 
-## Database Changes
+**Problem:** The `revert_health_on_new_bug()` function exists in the database, but the actual trigger that binds it to the `bugs` table was never created. When a new bug is reported against a "Cleared" feature, the cleared status does NOT revert -- it stays green forever.
 
-A new `feature_health_status` table to store admin-set "cleared" state per feature:
+**Fix:** Create the missing trigger via a database migration:
+```sql
+CREATE TRIGGER trigger_revert_health_on_new_bug
+  AFTER INSERT ON public.bugs
+  FOR EACH ROW
+  EXECUTE FUNCTION public.revert_health_on_new_bug();
+```
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| id | uuid | Primary key |
-| feature_id | uuid | FK to features |
-| project_id | uuid | FK to projects |
-| status | text | 'cleared' or 'needs_retest' |
-| cleared_by | uuid | Admin who cleared it |
-| cleared_at | timestamp | When it was cleared |
-| notes | text | Optional admin notes |
-| created_at | timestamp | Record creation |
-| updated_at | timestamp | Last update |
+### Issue 3 (Enhancement): Add "pending verification" count to the health detail
 
-When a new bug is created against a "cleared" feature, a database trigger automatically sets the status back to 'needs_retest'.
+**Problem:** Currently the detail panel shows "Active Bugs" and "Resolved". There's no visibility into how many bugs are in Pending Retest (waiting for QA to verify the developer's fix).
 
-## Technical Implementation
+**Fix:** Add a third metric "Pending Retest" to the `FeatureHealthDetail` component and the tooltip in `HealthCell`. This gives admins a clearer picture: "5 active, 3 pending retest, 12 closed."
 
-### New Files
+Changes needed:
+- Update `HealthData` interface to include `pendingRetestBugs: number`
+- Update `buildHealthData()` in HealthMap.tsx to count bugs where `status = 'resolved'` separately
+- Update the detail panel grid from 2x2 to 2x3 or 3x2 to show the new metric
 
-| File | Purpose |
-|------|---------|
-| `src/pages/qa/HealthMap.tsx` | Main health map page with heatmap grid and detailed list view |
-| `src/components/qa/health/HealthCell.tsx` | Individual heatmap cell with color logic and tooltip |
-| `src/components/qa/health/HealthLegend.tsx` | Color legend explaining what each color means |
-| `src/components/qa/health/FeatureHealthDetail.tsx` | Expandable detail panel for a feature showing bugs, scenarios, test coverage |
-| `src/components/qa/health/index.ts` | Barrel export |
-| Database migration | Create `feature_health_status` table with RLS and auto-revert trigger |
+### Issue 4 (Enhancement): Show "won't fix" separately instead of as resolved
 
-### Modified Files
+**Problem:** Bugs marked as "Won't Fix" are counted as resolved (green), but they represent known issues that were deprioritized -- not actually fixed. This inflates the "resolved" count.
+
+**Fix:** Count `wont_fix` bugs separately or exclude them from the resolved count. In the health detail panel, show a small "Won't Fix: 2" label so admins can see how many issues were deprioritized vs actually fixed.
+
+---
+
+## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/App.tsx` | Add `/qa/health-map` route |
-| `src/components/qa/layout/QASidebar.tsx` | Add "Health Map" nav item with a Map icon |
-| `src/components/qa/layout/QABottomNav.tsx` | Add "Health Map" to the More menu |
+| `src/pages/qa/HealthMap.tsx` | Fix active/resolved counting logic; add pending retest and won't fix counts |
+| `src/components/qa/health/HealthCell.tsx` | Update `HealthData` interface to add `pendingRetestBugs` and `wontFixBugs`; update tooltip |
+| `src/components/qa/health/FeatureHealthDetail.tsx` | Add pending retest and won't fix metrics to the detail panel |
+| Database migration | Create the missing `trigger_revert_health_on_new_bug` trigger on the `bugs` table |
 
-### Health Score Algorithm
+---
 
-```text
-function computeHealth(feature):
-  if feature.cleared AND feature.activeBugs == 0:
-    return "cleared"       // Dark green
-  
-  if feature.activeBugs == 0 AND feature.totalBugs == 0 AND feature.scenarios == 0:
-    return "untested"      // Gray
-  
-  if feature.activeBugs == 0 AND feature.totalBugs > 0:
-    return "healthy"       // Green
-    
-  if feature.activeBugs <= 3 AND feature.scenarios > 0:
-    return "mostly_good"   // Yellow-green
-    
-  if feature.activeBugs <= 10:
-    return "needs_attention"  // Yellow
-    
-  if feature.activeBugs > 10 AND feature.scenarios == 0:
-    return "critical"      // Red
-    
-  return "problematic"     // Orange
-```
+## Summary of Behavior After Fix
 
-### Mobile-First Design
-
-- On mobile: The heatmap grid scrolls horizontally with sticky feature names
-- Login type tabs stack vertically on small screens
-- Feature detail panels open as bottom sheets on mobile
-- Touch-friendly cell sizes (minimum 44x44px tap targets)
-
-## What You Get
-
-1. **Instant visibility**: One glance tells you Super Admin Exams is orange (16 active bugs), Institute features are mostly red/orange (no scenarios, many bugs), and Teacher/Student are gray (untested)
-2. **Progress tracking**: As your team resolves bugs, cells automatically turn greener
-3. **Admin sign-off**: The "Clear" button lets you formally mark features as production-ready
-4. **Future-proof**: When a new LMS feature is released, you can mark affected features for re-testing, and the map highlights them for the team
+| Bug Lifecycle Event | Health Map Reaction |
+|---------------------|---------------------|
+| New bug created (open) | Cell turns more red/orange; if feature was "Cleared", auto-reverts to needs_retest |
+| Bug assigned (in_progress) | Still counts as active -- no color change |
+| Developer marks Fixed (resolved, pending retest) | Still counts as active -- cell stays yellow/orange until QA verifies |
+| QA Verifies and Closes (closed) | Now counts as resolved -- cell shifts toward green |
+| QA Reopens bug (reopened, open) | Counts as active again -- cell shifts back toward red/orange |
+| Admin marks Won't Fix | Counted separately; does not inflate "resolved" count |
+| Admin clicks "Clear Feature" | Cell turns dark green (Cleared) |
+| New bug reported on cleared feature | Trigger auto-reverts to needs_retest; cell shifts back to yellow/orange |
 
