@@ -41,14 +41,18 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-3 gap-2 text-sm">
         <div className="bg-muted rounded-lg p-2 text-center">
           <p className="text-lg font-bold text-destructive">{data.activeBugs}</p>
           <p className="text-[10px] text-muted-foreground">Active Bugs</p>
         </div>
         <div className="bg-muted rounded-lg p-2 text-center">
+          <p className="text-lg font-bold text-yellow-600">{data.pendingRetestBugs}</p>
+          <p className="text-[10px] text-muted-foreground">Pending Retest</p>
+        </div>
+        <div className="bg-muted rounded-lg p-2 text-center">
           <p className="text-lg font-bold text-green-600">{data.resolvedBugs}</p>
-          <p className="text-[10px] text-muted-foreground">Resolved</p>
+          <p className="text-[10px] text-muted-foreground">Closed</p>
         </div>
         <div className="bg-muted rounded-lg p-2 text-center">
           <p className="text-lg font-bold">{data.totalBugs}</p>
@@ -58,6 +62,12 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
           <p className="text-lg font-bold text-primary">{data.scenarioCount}</p>
           <p className="text-[10px] text-muted-foreground">Scenarios</p>
         </div>
+        {data.wontFixBugs > 0 && (
+          <div className="bg-muted rounded-lg p-2 text-center">
+            <p className="text-lg font-bold text-muted-foreground">{data.wontFixBugs}</p>
+            <p className="text-[10px] text-muted-foreground">Won't Fix</p>
+          </div>
+        )}
       </div>
 
       {data.lastTestedAt && (
