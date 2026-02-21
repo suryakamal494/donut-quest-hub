@@ -15,7 +15,8 @@ import {
   ClipboardList,
   RotateCcw,
   Zap,
-  BookOpen
+  BookOpen,
+  Map
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,11 @@ const navItems = [
     title: "Coverage",
     href: "/qa/coverage",
     icon: BarChart3,
+  },
+  {
+    title: "Health Map",
+    href: "/qa/health-map",
+    icon: Map,
   },
 ];
 
