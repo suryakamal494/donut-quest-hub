@@ -1,4 +1,11 @@
-export { HealthCell, computeHealth, healthConfig } from "./HealthCell";
-export type { HealthData, HealthStatus } from "./HealthCell";
+export { HealthCell, computeHealth, healthConfig, computeMaturityScore, computeRiskLevel, getScoreColor, getScoreBg } from "./HealthCell";
+export type { HealthData, HealthStatus, RiskLevel, LifecycleStage } from "./HealthCell";
+export { LIFECYCLE_LABELS, LIFECYCLE_COLORS } from "./HealthCell";
 export { HealthLegend } from "./HealthLegend";
 export { FeatureHealthDetail } from "./FeatureHealthDetail";
+export { MaturityScore } from "./MaturityScore";
+export { LifecycleStageSelector, LifecycleStageBadge } from "./LifecycleStageSelector";
+export { OverviewTab } from "./OverviewTab";
+export { ByLoginTab } from "./ByLoginTab";
+export { CrossLoginTab } from "./CrossLoginTab";
+export { RiskAgingTab } from "./RiskAgingTab";

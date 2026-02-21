@@ -476,6 +476,7 @@ export type Database = {
           created_at: string
           feature_id: string
           id: string
+          lifecycle_stage: string | null
           notes: string | null
           project_id: string | null
           status: string
@@ -487,6 +488,7 @@ export type Database = {
           created_at?: string
           feature_id: string
           id?: string
+          lifecycle_stage?: string | null
           notes?: string | null
           project_id?: string | null
           status?: string
@@ -498,6 +500,7 @@ export type Database = {
           created_at?: string
           feature_id?: string
           id?: string
+          lifecycle_stage?: string | null
           notes?: string | null
           project_id?: string | null
           status?: string

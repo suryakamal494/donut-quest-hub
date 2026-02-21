@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, ShieldCheck, X } from "lucide-react";
 import { HealthData, computeHealth, healthConfig } from "./HealthCell";
+import { MaturityScore } from "./MaturityScore";
+import { LifecycleStageBadge } from "./LifecycleStageSelector";
 import { cn } from "@/lib/utils";
 import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
 
@@ -32,15 +34,27 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Badge className={cn("text-white border-0", config.bg)}>{config.label}</Badge>
-        {data.isCleared && (
-          <Badge variant="outline" className="text-emerald-600 border-emerald-300">
-            <ShieldCheck className="h-3 w-3 mr-1" /> Admin Cleared
-          </Badge>
-        )}
+      {/* Maturity Score + Badges */}
+      <div className="flex items-center gap-3">
+        <MaturityScore score={data.maturityScore} size="md" />
+        <div className="flex flex-col gap-1">
+          <Badge className={cn("text-white border-0", config.bg)}>{config.label}</Badge>
+          {data.isCleared && (
+            <Badge variant="outline" className="text-emerald-600 border-emerald-300">
+              <ShieldCheck className="h-3 w-3 mr-1" /> Cleared
+            </Badge>
+          )}
+          <LifecycleStageBadge stage={data.lifecycleStage} />
+          {data.riskLevel === "high" && (
+            <Badge variant="destructive" className="text-[9px]">HIGH RISK</Badge>
+          )}
+          {data.riskLevel === "medium" && (
+            <Badge className="bg-warning text-warning-foreground text-[9px] border-0">MED RISK</Badge>
+          )}
+        </div>
       </div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-2 text-sm">
         <div className="bg-muted rounded-lg p-2 text-center">
           <p className="text-lg font-bold text-destructive">{data.activeBugs}</p>
@@ -55,26 +69,28 @@ export function FeatureHealthDetail({ data, onClose, onClear, isAdmin }: Feature
           <p className="text-[10px] text-muted-foreground">Closed</p>
         </div>
         <div className="bg-muted rounded-lg p-2 text-center">
-          <p className="text-lg font-bold">{data.totalBugs}</p>
-          <p className="text-[10px] text-muted-foreground">Total Bugs</p>
-        </div>
-        <div className="bg-muted rounded-lg p-2 text-center">
           <p className="text-lg font-bold text-primary">{data.scenarioCount}</p>
           <p className="text-[10px] text-muted-foreground">Scenarios</p>
         </div>
-        {data.wontFixBugs > 0 && (
-          <div className="bg-muted rounded-lg p-2 text-center">
-            <p className="text-lg font-bold text-muted-foreground">{data.wontFixBugs}</p>
-            <p className="text-[10px] text-muted-foreground">Won't Fix</p>
-          </div>
-        )}
+        <div className="bg-muted rounded-lg p-2 text-center">
+          <p className="text-lg font-bold">{data.testCaseCount}</p>
+          <p className="text-[10px] text-muted-foreground">Test Cases</p>
+        </div>
+        <div className="bg-muted rounded-lg p-2 text-center">
+          <p className="text-lg font-bold">{Math.round(data.passRate * 100)}%</p>
+          <p className="text-[10px] text-muted-foreground">Pass Rate</p>
+        </div>
       </div>
 
-      {data.lastTestedAt && (
-        <p className="text-xs text-muted-foreground">
-          Last tested: {new Date(data.lastTestedAt).toLocaleDateString()}
-        </p>
-      )}
+      {/* Time info */}
+      <div className="text-xs text-muted-foreground space-y-0.5">
+        {data.lastTestedAt && (
+          <p>Last tested: {new Date(data.lastTestedAt).toLocaleDateString()}</p>
+        )}
+        {data.oldestOpenBugDays > 0 && (
+          <p>Oldest open bug: {data.oldestOpenBugDays} days</p>
+        )}
+      </div>
 
       <div className="flex gap-2 pt-1">
         <Button
