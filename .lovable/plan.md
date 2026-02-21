@@ -1,150 +1,154 @@
 
-# Automation Still Not Executing — Root Cause Found (Definitive)
 
-## The Hard Evidence
+# Platform Health Map -- Cross-Login Feature Health Dashboard
 
-The database does not lie. From the most recent run (Feb 17, the one after you updated runner.js):
+## What This Solves
 
-| Test Case | Intents in Script | Steps Actually Logged | Execution Time |
-|-----------|------------------|-----------------------|----------------|
-| TC-011 | 5 intents | **2 steps (navigate + login only)** | 2,926ms |
-| TC-012 | 6 intents | **2 steps (navigate + login only)** | 2,252ms |
-| TC-013 | 7 intents | **2 steps (navigate + login only)** | 2,298ms |
-| TC-014 | 8 intents | **2 steps (navigate + login only)** | 2,275ms |
+Right now you have bugs scattered across lists and coverage numbers in a separate page, but no single view that answers: "Across all 4 logins, which features are healthy, which are problematic, and which haven't been touched at all?" This Health Map gives you that answer at a glance.
 
-This is **identical behavior** to before the runner.js update. The runner update on Railway.app has **not taken effect** yet, OR the real root cause is something different.
+## The Concept
 
----
+A **heatmap-style grid** where each row is a feature and each column grouping represents a login type. Each cell is color-coded from red (many active bugs) through yellow (some issues) to green (tested, bugs resolved) to gray (untested/unknown). The admin can also manually mark a feature as "Cleared" once they're satisfied it's been thoroughly tested.
 
-## The Actual Root Cause: Field Name Mismatch That Was Missed
+### How the Colors Work
 
-Looking at the exact intent stored in the database for TC-012's first intent:
+The health score for each feature is computed automatically:
 
-```json
-{
-  "intent": "navigate_to_page",
-  "navigation_path": ["Master Data", "Curriculum"],
-  "target_page": "Curriculum management page",
-  "success_criteria": "..."
-}
+- **Dark Green (Cleared)**: Admin has manually marked this feature as cleared -- fully tested and stable
+- **Green (Healthy)**: Has test scenarios, bugs exist but all resolved/verified, no active bugs
+- **Yellow-Green (Mostly Good)**: Has scenarios, few active bugs remaining (1-3)
+- **Yellow (Needs Attention)**: Active bugs present (4-10), or has bugs but no test scenarios
+- **Orange (Problematic)**: Many active bugs (10+)  
+- **Red (Critical)**: Many active bugs AND no test scenarios written
+- **Gray (Untested)**: No bugs reported AND no test scenarios -- completely untouched
+
+### Over Time Behavior
+
+As bugs get resolved and verified, cells automatically shift from red/orange toward green. When the admin clicks "Clear" on a feature, it turns dark green -- signaling that it's production-ready. If a new bug is later reported against a cleared feature, it automatically loses its cleared status and shifts back to yellow/orange, alerting the team.
+
+## The UI Layout
+
+### Page Structure
+
+```text
++------------------------------------------------------------------+
+|  Platform Health Map                              [Filter] [Export]|
++------------------------------------------------------------------+
+|                                                                    |
+|  Summary Bar: 32 features | 12 healthy | 8 at-risk | 12 untested |
+|                                                                    |
+|  [Super Admin] [Institute] [Teacher] [Student]  <-- login tabs    |
+|                                                                    |
+|  +----------------------------------------------+                 |
+|  | Feature Name    | Bugs  | Resolved | Health   | Actions       |
+|  |-----------------|-------|----------|----------|---------------|
+|  | [====] Exams    | 37    | 21       | [ORANGE] | [Clear] [->]  |
+|  | [====] Q.Bank   | 30    | 12       | [ORANGE] | [Clear] [->]  |
+|  | [==] Institutes | 20    | 15       | [YELLOW] | [Clear] [->]  |
+|  | [==] Curriculum | 15    | 8        | [YELLOW] | [Clear] [->]  |
+|  | [=] Roles       | 11    | 3        | [ORANGE] | [Clear] [->]  |
+|  | [=] Courses     | 8     | 6        | [YEL-GR] | [Clear] [->]  |
+|  | [=] Content Lib | 6     | 0        | [RED]    | [Clear] [->]  |
+|  | [ ] Tier Mgmt   | 2     | 1        | [GREEN]  | [Clear] [->]  |
+|  | [ ] UI/Resp     | 1     | 0        | [YELLOW] | [Clear] [->]  |
+|  | [ ] Mobile Resp | 0     | 0        | [GRAY]   | [Clear] [->]  |
+|  +----------------------------------------------+                 |
+|                                                                    |
+|  Compact Heatmap Grid (all logins at once):                       |
+|  +------------------+-------+-------+-------+-------+            |
+|  | Feature          | SA    | Inst  | Teach | Stud  |            |
+|  |------------------|-------|-------|-------|-------|            |
+|  | Exams            | [ORG] | [RED] | [YEL] | [GRY] |            |
+|  | Content Library  | [RED] | [YEL] | [GRY] | [GRY] |            |
+|  | Question Bank    | [ORG] | [YEL] | [---] | [---] |            |
+|  | Batches          | [---] | [ORG] | [---] | [---] |            |
+|  | ...              |       |       |       |       |            |
+|  +------------------+-------+-------+-------+-------+            |
++------------------------------------------------------------------+
 ```
 
-The platform sends the field as **`"intent"`** (not `"intent_type"`).
+### Key Interactions
 
-Now look at the runner payload structure (line 806 of prepare-automation):
+1. **Click any cell** in the heatmap to see a breakdown: active bugs, resolved bugs, test scenario count, last tested date
+2. **"Clear Feature" button** (admin only): Marks a feature as thoroughly tested. Stored in the database so it persists
+3. **Click feature name**: Navigates to the filtered bug list for that feature
+4. **Future: "Highlight Affected"**: When a new feature is released, admin can select features that need re-testing, turning their cells to a pulsing/highlighted state
 
-```javascript
-ai_instructions: {
-  test_cases: [
-    { test_case_id: "...", intents: [...] }
-  ]
-}
-```
+## Database Changes
 
-The runner checks:
-```javascript
-const instructionFormat = payload.instruction_format || 'legacy';  // ✅ Fixed correctly
-const aiCase = ai_instructions?.test_cases?.find(tc => tc.test_case_id === testCase.test_case_id);
-const intents = aiCase?.intents || aiCase?.playwright_steps || [];  // ✅ This part is fine
-```
+A new `feature_health_status` table to store admin-set "cleared" state per feature:
 
-But then in `executeIntent`:
-```javascript
-// REWRITTEN runner does this:
-const normalizedIntent = {
-  ...intent,
-  intent_type: intent.intent_type || intent.intent,  // ✅ This fix was included
-};
-```
+| Column | Type | Purpose |
+|--------|------|---------|
+| id | uuid | Primary key |
+| feature_id | uuid | FK to features |
+| project_id | uuid | FK to projects |
+| status | text | 'cleared' or 'needs_retest' |
+| cleared_by | uuid | Admin who cleared it |
+| cleared_at | timestamp | When it was cleared |
+| notes | text | Optional admin notes |
+| created_at | timestamp | Record creation |
+| updated_at | timestamp | Last update |
 
-So the rewritten runner **should** handle this. This means one of two things is true:
+When a new bug is created against a "cleared" feature, a database trigger automatically sets the status back to 'needs_retest'.
 
-**Theory A: The Railway deployment hasn't picked up the new runner.js yet.** The execution times (2.2–2.9 seconds across ALL test cases with 5–8 intents each) are identical to the old behavior — there is no way 5–8 real intent steps including navigation and DOM interactions could complete in 2.9 seconds. Real navigation + menu clicks + form fill + verify = minimum 15–30 seconds.
+## Technical Implementation
 
-**Theory B: The runner.js was updated but the `test_cases` array in the payload uses a different field name than what the runner looks up.** The runner looks up: `ai_instructions.test_cases.find(tc => tc.test_case_id === testCase.test_case_id)`. The `testCase` object comes from the top-level `test_cases` array. Let me check what field name is used there.
+### New Files
 
----
+| File | Purpose |
+|------|---------|
+| `src/pages/qa/HealthMap.tsx` | Main health map page with heatmap grid and detailed list view |
+| `src/components/qa/health/HealthCell.tsx` | Individual heatmap cell with color logic and tooltip |
+| `src/components/qa/health/HealthLegend.tsx` | Color legend explaining what each color means |
+| `src/components/qa/health/FeatureHealthDetail.tsx` | Expandable detail panel for a feature showing bugs, scenarios, test coverage |
+| `src/components/qa/health/index.ts` | Barrel export |
+| Database migration | Create `feature_health_status` table with RLS and auto-revert trigger |
 
-## Secondary Issue Confirmed: The `test_case_id` Field Name
-
-Looking at `prepare-automation` line 804:
-```javascript
-test_cases: testPayload,  // This is the top-level test_cases array
-```
-
-And in `ai_instructions`:
-```javascript
-ai_instructions: {
-  test_cases: [
-    { test_case_id: i.test_case_id, intents: i.intents }
-  ]
-}
-```
-
-The runner does:
-```javascript
-for (const testCase of test_cases) {  // testCase comes from TOP-LEVEL test_cases
-  // ...
-  const aiCase = (ai_instructions?.test_cases || []).find(
-    (tc) => tc.test_case_id === testCase.test_case_id
-  );
-```
-
-This means `testCase.test_case_id` must exist in the top-level payload. I need to check what fields are in `testPayload`.
-
----
-
-## What Needs to Happen
-
-### Step 1 — Verify the Railway Deployment
-The most likely issue is the **Railway deployment hasn't restarted with the new code**. Railway sometimes requires a manual redeploy or has a build cache. You need to:
-1. Go to Railway dashboard
-2. Trigger a **manual redeploy** (not just push — click "Redeploy" in the Railway UI)
-3. Check the Railway build logs to confirm the new `runner.js` was picked up
-
-### Step 2 — Add a Debug Log to Confirm Runner Version
-To instantly know if the new runner is running, I will add a **version marker** to the `prepare-automation` edge function's runner payload response. When you trigger a new automation, you'll see the runner version in the response.
-
-More importantly, I will add a **diagnostic log line at the very top of `runTests()`** in the runner that prints the payload structure — so you can see in Railway logs whether the runner sees `instruction_format = "intent"` and how many intents it found per case.
-
-### Step 3 — Fix a Critical Field Name in `testPayload`
-
-Looking at the prepare-automation code, the `testPayload` is built from `casePayload` objects. I need to verify the `test_case_id` field is present. If it's stored as `id` instead of `test_case_id` in the top-level `test_cases` array, the runner's `find()` call will always return `undefined`, meaning `aiCase` is always null, meaning `intents.length === 0`, meaning the runner goes into the "No instructions" fallback every time and immediately reports "All steps completed successfully."
-
-### Step 4 — Update `prepare-automation` to Add Version Logging
-I will update the edge function to:
-1. Add a `runner_version: "v2-intent"` field to the payload so you can see it in the response
-2. Log the full intent count per test case to confirm the data is correct before dispatch
-
----
-
-## Files to Change
+### Modified Files
 
 | File | Change |
 |------|--------|
-| `supabase/functions/prepare-automation/index.ts` | Add version marker + log the `testPayload` structure to confirm `test_case_id` field names match what runner expects |
+| `src/App.tsx` | Add `/qa/health-map` route |
+| `src/components/qa/layout/QASidebar.tsx` | Add "Health Map" nav item with a Map icon |
+| `src/components/qa/layout/QABottomNav.tsx` | Add "Health Map" to the More menu |
 
-The runner.js change itself stays on the Railway side — we cannot edit it here. But I will give you exact diagnostic additions to make to runner.js as well.
+### Health Score Algorithm
 
----
-
-## What You Need to Do on Railway
-
-After I update the platform side, you need to add **two console.log lines** at the very top of `runTests()` in your Railway runner.js:
-
-```javascript
-async function runTests(payload) {
-  // ADD THESE TWO LINES AT THE TOP:
-  console.log('[Runner v2] instruction_format:', payload.instruction_format);
-  console.log('[Runner v2] test_cases sample:', JSON.stringify(payload.test_cases?.[0]).substring(0, 200));
-  console.log('[Runner v2] ai_instructions sample:', JSON.stringify(payload.ai_instructions?.test_cases?.[0]).substring(0, 300));
-  // ... rest of function
+```text
+function computeHealth(feature):
+  if feature.cleared AND feature.activeBugs == 0:
+    return "cleared"       // Dark green
+  
+  if feature.activeBugs == 0 AND feature.totalBugs == 0 AND feature.scenarios == 0:
+    return "untested"      // Gray
+  
+  if feature.activeBugs == 0 AND feature.totalBugs > 0:
+    return "healthy"       // Green
+    
+  if feature.activeBugs <= 3 AND feature.scenarios > 0:
+    return "mostly_good"   // Yellow-green
+    
+  if feature.activeBugs <= 10:
+    return "needs_attention"  // Yellow
+    
+  if feature.activeBugs > 10 AND feature.scenarios == 0:
+    return "critical"      // Red
+    
+  return "problematic"     // Orange
 ```
 
-Then force a redeploy on Railway and check the logs after triggering a run. If you see `[Runner v2]` in the logs, the new code is live. If you don't see it, the old code is still running.
+### Mobile-First Design
 
----
+- On mobile: The heatmap grid scrolls horizontally with sticky feature names
+- Login type tabs stack vertically on small screens
+- Feature detail panels open as bottom sheets on mobile
+- Touch-friendly cell sizes (minimum 44x44px tap targets)
 
-## The Real Fix I Will Implement
+## What You Get
 
-In `prepare-automation`, the `testPayload` object structure needs to be verified and, if needed, corrected so `test_case_id` is always present. I will also add logging that shows the exact payload being sent to the runner, making future debugging much easier.
+1. **Instant visibility**: One glance tells you Super Admin Exams is orange (16 active bugs), Institute features are mostly red/orange (no scenarios, many bugs), and Teacher/Student are gray (untested)
+2. **Progress tracking**: As your team resolves bugs, cells automatically turn greener
+3. **Admin sign-off**: The "Clear" button lets you formally mark features as production-ready
+4. **Future-proof**: When a new LMS feature is released, you can mark affected features for re-testing, and the map highlights them for the team
+
