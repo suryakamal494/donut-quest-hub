@@ -275,7 +275,7 @@ export default function HealthMap() {
         <h1 className="text-xl font-bold">Platform Health Map</h1>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedCell(null); }}>
         <TabsList className="w-full overflow-x-auto flex justify-start">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
           <TabsTrigger value="by-login" className="text-xs">By Login</TabsTrigger>

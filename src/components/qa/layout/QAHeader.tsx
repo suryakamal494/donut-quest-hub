@@ -78,13 +78,13 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
           
           {/* Health Map Button */}
           <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="sm"
             onClick={() => navigate("/qa/health-map")}
-            className="text-muted-foreground hover:text-foreground h-9 w-9"
-            title="Health Map"
+            className="text-xs h-8 gap-1.5"
           >
-            <Map className="h-4 w-4" />
+            <Map className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Health Map</span>
           </Button>
         </div>
 
