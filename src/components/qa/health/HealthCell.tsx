@@ -60,60 +60,30 @@ export interface HealthData {
 }
 
 export function computeMaturityScore(data: {
-  scenarioCount: number;
-  testCaseCount: number;
-  passRate: number;
-  hasResults: boolean;
   totalBugs: number;
   closedBugs: number;
 }): number {
-  // Coverage (30%): expect ~3 scenarios per feature
-  const coverageRatio = Math.min(data.scenarioCount / 3, 1.0);
-  const coverageScore = coverageRatio * 30;
-
-  // Stability (40%): pass rate from test results
-  let stabilityScore = 0;
-  if (data.testCaseCount > 0 && data.hasResults) {
-    stabilityScore = data.passRate * 40;
-  } else if (data.scenarioCount > 0) {
-    stabilityScore = 10; // has scenarios but no results yet
-  }
-
-  // Resolution (30%): bugs being fixed
-  let resolutionScore = 0;
-  if (data.totalBugs > 0) {
-    const resolutionRate = data.closedBugs / data.totalBugs;
-    resolutionScore = resolutionRate * 30;
-  } else if (data.scenarioCount > 0) {
-    resolutionScore = 30; // no bugs = healthy
-  }
-
-  return Math.round(coverageScore + stabilityScore + resolutionScore);
+  if (data.totalBugs === 0) return 0;
+  return Math.round((data.closedBugs / data.totalBugs) * 100);
 }
 
 export function computeRiskLevel(data: {
   maturityScore: number;
   activeBugs: number;
-  scenarioCount: number;
-  hasCriticalBugs?: boolean;
 }): RiskLevel {
-  if (data.maturityScore < 30 || (data.activeBugs > 0 && data.scenarioCount === 0)) {
-    return "high";
-  }
-  if (data.maturityScore < 60) {
-    return "medium";
-  }
+  if (data.maturityScore < 30 || data.activeBugs > 15) return "high";
+  if (data.maturityScore < 60) return "medium";
   return "low";
 }
 
 export function computeHealth(data: HealthData): HealthStatus {
   if (data.isCleared && data.activeBugs === 0) return "cleared";
-  if (data.activeBugs === 0 && data.totalBugs === 0 && data.scenarioCount === 0) return "untested";
+  if (data.totalBugs === 0) return "untested";
   if (data.activeBugs === 0 && data.totalBugs > 0) return "healthy";
-  if (data.activeBugs <= 3 && data.scenarioCount > 0) return "mostly_good";
+  if (data.activeBugs <= 3) return "mostly_good";
   if (data.activeBugs <= 10) return "needs_attention";
-  if (data.activeBugs > 10 && data.scenarioCount === 0) return "critical";
-  return "problematic";
+  if (data.activeBugs <= 20) return "problematic";
+  return "critical";
 }
 
 const healthConfig: Record<HealthStatus, { bg: string; label: string; shortLabel: string }> = {
