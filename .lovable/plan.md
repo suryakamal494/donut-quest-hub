@@ -1,93 +1,67 @@
 
 
-# Health Map Audit Fix Plan
+# Health Map Performance Fix + Header Button Placement
 
-## What Already Exists (No Changes Needed)
+## Problem Summary
 
-Your platform already has a complete, production-grade bug tracking system:
-- Full bug lifecycle (Open, In Progress, Resolved, Closed, Won't Fix)
-- Fix-Verify-Close workflow with Pending Retest queue
-- Role-based permissions for fixing, verifying, and reopening
-- Bug Report management view, Active Bugs, Pending Retest, Closed Bugs
-- History tracking, comments, attachments, notifications, bulk assignment
-- External bug reporting widget
+The Health Map page lags because it renders up to 128+ Tooltip-wrapped buttons simultaneously (32 features x 4 login types in the cross-login grid, plus another 32 in the detailed list). Each Radix Tooltip creates DOM listeners and portal elements. Additionally, the page triggers duplicate network requests (the same features and bugs queries fire twice based on the network logs).
 
-There is nothing missing from the bug tracker itself. The "Jira-like bug reporting" is already fully implemented.
+## Changes
 
----
+### 1. Move Health Map button to the Header (next to Project Selector)
 
-## Health Map Audit Results: 4 Issues to Fix
+Remove the Health Map link from QASidebar and QABottomNav. Add a small icon button in QAHeader right after the ProjectSelector that navigates to `/qa/health-map`.
 
-### Issue 1 (Critical): Resolved bugs incorrectly counted as "green"
+**Files:** `src/components/qa/layout/QAHeader.tsx`, `src/components/qa/layout/QASidebar.tsx`, `src/components/qa/layout/QABottomNav.tsx`
 
-**Problem:** The health map counts bugs as "resolved" (green) if their status is anything other than `open` or `in_progress`. This means bugs with `status: 'resolved'` and `fix_status: 'fixed'` -- which are sitting in **Pending Retest** waiting for QA verification -- are counted as resolved. The map shows a feature as healthier than it actually is.
+### 2. Fix duplicate API calls
 
-**Fix:** Only count bugs as truly resolved when `status = 'closed'`. Bugs in `resolved` state are still pending verification and should be counted as active (or a new "pending" category).
+The network logs show features and bugs queries firing twice on mount. This is caused by React StrictMode double-mounting in development. To prevent actual wasted network calls, wrap `loadData` with a simple loading guard or use `useRef` to skip the second call.
 
-**Code change in `HealthMap.tsx` lines 97-102:**
-```
-// CURRENT (wrong):
-const activeStatuses = ["open", "in_progress"];
+**File:** `src/pages/qa/HealthMap.tsx`
 
-// FIXED:
-const activeStatuses = ["open", "in_progress", "resolved"];
-// Only 'closed' and 'wont_fix' count as resolved
-```
+### 3. Replace Tooltip with lightweight popover-on-click for heatmap cells
 
-This means: Pending Retest bugs (resolved but not verified) will show as active, keeping the cell orange/yellow until QA actually verifies and closes them.
+Instead of wrapping every cell in a Radix Tooltip (which registers hover listeners and creates portals for 100+ elements), make the HealthCell a plain styled button. The detail info already shows via the `selectedCell` panel/sheet when clicked -- the tooltip is redundant. Remove the Tooltip wrapper from HealthCell entirely.
 
-### Issue 2 (Critical): Database trigger for auto-revert was never created
+This eliminates ~130 Tooltip mount/unmount cycles and their associated DOM event listeners, which is the primary cause of the lag.
 
-**Problem:** The `revert_health_on_new_bug()` function exists in the database, but the actual trigger that binds it to the `bugs` table was never created. When a new bug is reported against a "Cleared" feature, the cleared status does NOT revert -- it stays green forever.
+**File:** `src/components/qa/health/HealthCell.tsx`
 
-**Fix:** Create the missing trigger via a database migration:
-```sql
-CREATE TRIGGER trigger_revert_health_on_new_bug
-  AFTER INSERT ON public.bugs
-  FOR EACH ROW
-  EXECUTE FUNCTION public.revert_health_on_new_bug();
-```
+### 4. Memoize HealthCell to prevent unnecessary re-renders
 
-### Issue 3 (Enhancement): Add "pending verification" count to the health detail
+Wrap `HealthCell` in `React.memo` so that cells only re-render when their specific data changes, not when any sibling state updates.
 
-**Problem:** Currently the detail panel shows "Active Bugs" and "Resolved". There's no visibility into how many bugs are in Pending Retest (waiting for QA to verify the developer's fix).
+**File:** `src/components/qa/health/HealthCell.tsx`
 
-**Fix:** Add a third metric "Pending Retest" to the `FeatureHealthDetail` component and the tooltip in `HealthCell`. This gives admins a clearer picture: "5 active, 3 pending retest, 12 closed."
+### 5. Virtualize the heatmap grid for large feature lists (optional optimization)
 
-Changes needed:
-- Update `HealthData` interface to include `pendingRetestBugs: number`
-- Update `buildHealthData()` in HealthMap.tsx to count bugs where `status = 'resolved'` separately
-- Update the detail panel grid from 2x2 to 2x3 or 3x2 to show the new metric
-
-### Issue 4 (Enhancement): Show "won't fix" separately instead of as resolved
-
-**Problem:** Bugs marked as "Won't Fix" are counted as resolved (green), but they represent known issues that were deprioritized -- not actually fixed. This inflates the "resolved" count.
-
-**Fix:** Count `wont_fix` bugs separately or exclude them from the resolved count. In the health detail panel, show a small "Won't Fix: 2" label so admins can see how many issues were deprioritized vs actually fixed.
+For 32 features this is manageable, but if the feature count grows, consider lazy-rendering rows. For now, `React.memo` on cells and removing Tooltips should be sufficient.
 
 ---
 
-## Files to Change
+## Technical Details
 
-| File | Change |
-|------|--------|
-| `src/pages/qa/HealthMap.tsx` | Fix active/resolved counting logic; add pending retest and won't fix counts |
-| `src/components/qa/health/HealthCell.tsx` | Update `HealthData` interface to add `pendingRetestBugs` and `wontFixBugs`; update tooltip |
-| `src/components/qa/health/FeatureHealthDetail.tsx` | Add pending retest and won't fix metrics to the detail panel |
-| Database migration | Create the missing `trigger_revert_health_on_new_bug` trigger on the `bugs` table |
+### QAHeader.tsx changes
+- Import `Map` icon from lucide-react and `useNavigate`
+- Add a button after `<ProjectSelector />`:
+```
+<Button variant="ghost" size="icon" onClick={() => navigate("/qa/health-map")}>
+  <Map className="h-4 w-4" />
+</Button>
+```
 
----
+### HealthCell.tsx changes
+- Remove `Tooltip`, `TooltipContent`, `TooltipTrigger` imports
+- Return a plain `<button>` with the same styling
+- Wrap component in `React.memo`
 
-## Summary of Behavior After Fix
+### QASidebar.tsx changes
+- Remove the "Health Map" nav item from the `navItems` array
 
-| Bug Lifecycle Event | Health Map Reaction |
-|---------------------|---------------------|
-| New bug created (open) | Cell turns more red/orange; if feature was "Cleared", auto-reverts to needs_retest |
-| Bug assigned (in_progress) | Still counts as active -- no color change |
-| Developer marks Fixed (resolved, pending retest) | Still counts as active -- cell stays yellow/orange until QA verifies |
-| QA Verifies and Closes (closed) | Now counts as resolved -- cell shifts toward green |
-| QA Reopens bug (reopened, open) | Counts as active again -- cell shifts back toward red/orange |
-| Admin marks Won't Fix | Counted separately; does not inflate "resolved" count |
-| Admin clicks "Clear Feature" | Cell turns dark green (Cleared) |
-| New bug reported on cleared feature | Trigger auto-reverts to needs_retest; cell shifts back to yellow/orange |
+### QABottomNav.tsx changes  
+- Remove the "Health Map" entry from the `moreNavItems` array
+
+### HealthMap.tsx changes
+- Add `useRef` guard to prevent double-loading on StrictMode mount
 
