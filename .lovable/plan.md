@@ -1,92 +1,49 @@
 
 
-# Overview Tab Redesign: Column-Based Feature Tile Map
+# Overview Tab UI Polish and Legend
 
 ## What Changes
 
-Replace the current collapsible table sections with a **4-column grid layout** where each column represents a login type (Super Admin, Institute, Teacher, Student). Features are displayed as **colored tiles** within each column.
+1. **Add a legend bar** at the top of the Overview explaining:
+   - **R** = Reported (total bugs filed against this feature)
+   - **S** = Solved (bugs resolved/closed)
+   - Color meanings: green = healthy, yellow = needs attention, orange = problematic, red = critical, gray = untested
+   - A short sentence: "Each tile represents a feature. Color indicates health status. Click any tile for details."
 
-## Tile Design
+2. **Improve tile styling** for better visual hierarchy:
+   - Add a subtle `shadow-sm` and rounded corners (`rounded-lg`) for a card-like feel
+   - Use full words "Reported" and "Solved" instead of just "R:" and "S:" for clarity (with small colored dot indicators beside them)
+   - Slightly larger font for the feature name
+   - Add a subtle health status label (e.g., "Healthy", "Critical") as a small badge inside tiles that have bug data
+   - Better spacing and padding inside tiles
 
-Each feature tile contains:
-- **Feature name** as the tile title
-- **Bug counts**: Reported (red text) and Solved (green text) as small numbers
-- **Tile background color** reflects health status:
-  - Green shades = Healthy / Cleared / Mostly Good
-  - Yellow = Needs Attention
-  - Orange = Problematic
-  - Red = Critical
-  - Gray = Untested (no bugs, no scenarios)
-
-Clicking a tile opens the detail panel (same as current behavior).
-
-## Layout
-
-```text
-+------------------+------------------+------------------+------------------+
-| Super Admin      | Institute        | Teacher          | Student          |
-+------------------+------------------+------------------+------------------+
-| [Curriculum    ] | [Question Bank ] | [Assignments   ] | [My Courses    ] |
-| R:3  S:2         | R:5  S:4         | R:0  S:0         | R:1  S:1         |
-| (yellow tile)    | (green tile)     | (gray/untested)  | (green tile)     |
-+------------------+------------------+------------------+------------------+
-| [Content Lib   ] | [Exams         ] | [Timetable     ] | [Exams         ] |
-| R:0  S:0         | R:8  S:2         | R:2  S:1         | R:0  S:0         |
-| (gray/untested)  | (red tile)       | (yellow tile)    | (gray/untested)  |
-+------------------+------------------+------------------+------------------+
-```
-
-- On **desktop**: 4 equal columns side by side
-- On **tablet**: 2 columns (2x2 grid)
-- On **mobile**: 1 column with login type headers, tiles stacked vertically
+3. **Improve column headers** with a bottom border separator for cleaner grouping
 
 ## File to Modify
 
-`src/components/qa/health/OverviewTab.tsx` -- complete rewrite of the component body.
+`src/components/qa/health/OverviewTab.tsx` -- update the component with a legend section and refined tile styling.
 
 ## Technical Details
 
-### Component structure
-
+### Legend bar (top of the grid)
 ```text
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-  {LOGIN_TYPES.map(login => (
-    <div key={login}>
-      <h3>{LOGIN_TYPE_LABELS[login]}</h3>
-      <div className="space-y-2">
-        {features.map(feature => (
-          <FeatureTile ... />  // colored card with name + bug counts
-        ))}
-      </div>
-    </div>
-  ))}
-</div>
++----------------------------------------------------------------------+
+| Legend: R = Reported Bugs | S = Solved Bugs                          |
+| Colors: [green] Healthy  [yellow] Attention  [orange] Problem        |
+|         [red] Critical   [gray] Untested                             |
+| Click any tile to view details.                                      |
++----------------------------------------------------------------------+
 ```
 
-### Tile color mapping
+Rendered as a compact `div` with flex-wrap, showing small colored circles next to each label.
 
-Uses the existing `computeHealth()` function to determine status, then maps to tile background colors:
-- cleared: emerald-100 border-emerald-500
-- healthy: green-100 border-green-500
-- mostly_good: lime-100 border-lime-400
-- needs_attention: yellow-100 border-yellow-400
-- problematic: orange-100 border-orange-500
-- critical: red-100 border-red-500
-- untested: gray-100 border-gray-300
+### Tile improvements
+- Feature name: `text-sm font-semibold` (up from `text-xs`)
+- Bug counts: Show as "Reported: 3" and "Solved: 2" with small colored dots (red dot for reported, green dot for solved), or keep compact "R: 3 S: 2" but add a tooltip on each explaining the full term
+- Add a tiny status badge in the tile corner (e.g., "Healthy" in green text, "Critical" in red text) using `healthConfig` labels
+- `rounded-lg shadow-sm hover:shadow-md` for elevated card effect
+- Slightly more padding: `px-3.5 py-3`
 
-The tile uses a left border accent (4px) in the status color, with a light tinted background. This keeps feature names readable while clearly conveying status through color.
+### No props changes
+Same `allHealthData` and `onFeatureClick` interface -- no other files affected.
 
-### Bug count display
-
-Inside each tile:
-- Feature name in bold
-- Below: "R: 3" in red-600 text, "S: 2" in green-600 text (compact inline)
-- If both are 0 and no scenarios: show "Untested" label in gray
-
-### Empty columns
-
-If a login type has no features, the column shows a muted "No features" placeholder so the column structure remains consistent.
-
-### No other files change
-
-Only `src/components/qa/health/OverviewTab.tsx` needs modification. The props interface stays the same (`allHealthData` and `onFeatureClick`).
