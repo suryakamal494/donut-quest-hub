@@ -48,7 +48,7 @@ export default function HealthMap() {
 
   const [loading, setLoading] = useState(true);
   const [features, setFeatures] = useState<FeatureRow[]>([]);
-  const [bugCounts, setBugCounts] = useState<Record<string, { active: number; resolved: number; total: number }>>({});
+  const [bugCounts, setBugCounts] = useState<Record<string, { active: number; pendingRetest: number; resolved: number; wontFix: number; total: number }>>({});
   const [scenarioCounts, setScenarioCounts] = useState<Record<string, number>>({});
   const [clearedMap, setClearedMap] = useState<ClearedMap>({});
   const [selectedLogin, setSelectedLogin] = useState<LoginType | "all">("all");
@@ -89,15 +89,21 @@ export default function HealthMap() {
       setFeatures(featureData || []);
 
       // Process bug counts per feature
-      const counts: Record<string, { active: number; resolved: number; total: number }> = {};
+      const counts: Record<string, { active: number; pendingRetest: number; resolved: number; wontFix: number; total: number }> = {};
       (bugData || []).forEach((bug) => {
         if (!bug.feature_id) return;
-        if (!counts[bug.feature_id]) counts[bug.feature_id] = { active: 0, resolved: 0, total: 0 };
+        if (!counts[bug.feature_id]) counts[bug.feature_id] = { active: 0, pendingRetest: 0, resolved: 0, wontFix: 0, total: 0 };
         counts[bug.feature_id].total++;
-        const activeStatuses = ["open", "in_progress"];
-        if (activeStatuses.includes(bug.status)) {
+        if (bug.status === "open" || bug.status === "in_progress") {
           counts[bug.feature_id].active++;
+        } else if (bug.status === "resolved") {
+          // Pending retest — counts as active for health scoring
+          counts[bug.feature_id].pendingRetest++;
+          counts[bug.feature_id].active++;
+        } else if (bug.status === "wont_fix") {
+          counts[bug.feature_id].wontFix++;
         } else {
+          // closed — truly resolved
           counts[bug.feature_id].resolved++;
         }
       });
@@ -127,13 +133,15 @@ export default function HealthMap() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const buildHealthData = useCallback((feature: FeatureRow): HealthData => {
-    const bugs = bugCounts[feature.id] || { active: 0, resolved: 0, total: 0 };
+    const bugs = bugCounts[feature.id] || { active: 0, pendingRetest: 0, resolved: 0, wontFix: 0, total: 0 };
     return {
       featureId: feature.id,
       featureName: feature.name,
       loginType: feature.login_type,
       activeBugs: bugs.active,
+      pendingRetestBugs: bugs.pendingRetest,
       resolvedBugs: bugs.resolved,
+      wontFixBugs: bugs.wontFix,
       totalBugs: bugs.total,
       scenarioCount: scenarioCounts[feature.id] || 0,
       isCleared: clearedMap[feature.id]?.status === "cleared",

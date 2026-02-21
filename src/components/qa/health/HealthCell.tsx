@@ -15,7 +15,9 @@ export interface HealthData {
   featureName: string;
   loginType: string;
   activeBugs: number;
+  pendingRetestBugs: number;
   resolvedBugs: number;
+  wontFixBugs: number;
   totalBugs: number;
   scenarioCount: number;
   isCleared: boolean;
@@ -73,7 +75,9 @@ export function HealthCell({ data, compact, onClick }: HealthCellProps) {
         <p className="text-xs text-muted-foreground">{config.label}</p>
         <div className="text-xs mt-1 space-y-0.5">
           <p>Active bugs: {data.activeBugs}</p>
-          <p>Resolved: {data.resolvedBugs}</p>
+          <p>Pending retest: {data.pendingRetestBugs}</p>
+          <p>Closed: {data.resolvedBugs}</p>
+          {data.wontFixBugs > 0 && <p>Won't fix: {data.wontFixBugs}</p>}
           <p>Scenarios: {data.scenarioCount}</p>
         </div>
       </TooltipContent>
