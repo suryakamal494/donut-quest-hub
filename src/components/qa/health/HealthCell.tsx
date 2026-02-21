@@ -1,5 +1,5 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type HealthStatus = 
   | "cleared" 
@@ -50,39 +50,24 @@ interface HealthCellProps {
   onClick?: () => void;
 }
 
-export function HealthCell({ data, compact, onClick }: HealthCellProps) {
+export const HealthCell = memo(function HealthCell({ data, compact, onClick }: HealthCellProps) {
   const status = computeHealth(data);
   const config = healthConfig[status];
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          className={cn(
-            "rounded-md transition-all hover:scale-110 hover:ring-2 hover:ring-ring cursor-pointer",
-            config.bg,
-            compact 
-              ? "w-10 h-10 min-w-[40px] text-[10px] font-bold text-white flex items-center justify-center" 
-              : "w-14 h-10 min-w-[56px] text-xs font-semibold text-white flex items-center justify-center"
-          )}
-        >
-          {compact ? config.shortLabel : config.shortLabel}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[200px]">
-        <p className="font-semibold">{data.featureName}</p>
-        <p className="text-xs text-muted-foreground">{config.label}</p>
-        <div className="text-xs mt-1 space-y-0.5">
-          <p>Active bugs: {data.activeBugs}</p>
-          <p>Pending retest: {data.pendingRetestBugs}</p>
-          <p>Closed: {data.resolvedBugs}</p>
-          {data.wontFixBugs > 0 && <p>Won't fix: {data.wontFixBugs}</p>}
-          <p>Scenarios: {data.scenarioCount}</p>
-        </div>
-      </TooltipContent>
-    </Tooltip>
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-md transition-all hover:scale-110 hover:ring-2 hover:ring-ring cursor-pointer",
+        config.bg,
+        compact 
+          ? "w-10 h-10 min-w-[40px] text-[10px] font-bold text-white flex items-center justify-center" 
+          : "w-14 h-10 min-w-[56px] text-xs font-semibold text-white flex items-center justify-center"
+      )}
+    >
+      {config.shortLabel}
+    </button>
   );
-}
+});
 
 export { healthConfig };

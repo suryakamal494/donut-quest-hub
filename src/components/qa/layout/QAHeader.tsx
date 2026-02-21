@@ -1,4 +1,4 @@
-import { Menu, LogOut, Settings, User } from "lucide-react";
+import { Menu, LogOut, Settings, User, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -75,6 +75,17 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
           
           {/* Project Selector */}
           <ProjectSelector />
+          
+          {/* Health Map Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/qa/health-map")}
+            className="text-muted-foreground hover:text-foreground h-9 w-9"
+            title="Health Map"
+          >
+            <Map className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Right: Actions */}
