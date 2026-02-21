@@ -1,46 +1,65 @@
 
 
-# Overview Tile UI Fix + Final Calculation Audit
+# Add Missing Features + Show "Others" Bugs in Health Map
 
-## Problem
+## What's Missing Today
 
-The status badge ("Needs Attention", "Mostly Good", etc.) inside each tile competes for horizontal space with the feature name, causing names to truncate to "UI & R...", "Questio...", "Cont..." etc. Since the legend bar at the top already explains what each color means, the inline badge is redundant and wastes space.
+1. **"UI & Responsiveness"** only exists under Super Admin. Institute, Teacher, and Student login types don't have it, so UI bugs for those roles have no proper feature to be filed under.
 
-## Calculation Audit Summary (All Clean)
+2. **"Others" bugs are completely invisible** in the Health Map. There are currently **42 bugs** (20 institute, 16 super admin, 6 teacher) with no feature assigned (`feature_id = NULL`). The health map query explicitly excludes them, so they don't appear in any tab or tile.
 
-All three core functions in `HealthCell.tsx` are now bugs-only:
+## Changes
 
-| Function | Inputs Used | Scenario Data? |
-|----------|------------|----------------|
-| `computeMaturityScore` | closedBugs, totalBugs | No |
-| `computeHealth` | activeBugs, totalBugs, isCleared | No |
-| `computeRiskLevel` | maturityScore, activeBugs | No |
+### 1. Insert new features into the database
 
-`buildHealthData` in `HealthMap.tsx` correctly passes only bug counts to these functions. Scenario/test data is still fetched and stored in `HealthData` for display purposes (e.g., "Coverage: S/TC" column in By Login tab) but does not influence any score, health, or risk calculation.
+Add the following features via a database migration:
 
-**One minor issue in RiskAgingTab.tsx**: The "Not Tested in 7+ Days" and "Stale Cleared" sections use `scenarioCount > 0` as a filter condition (lines 31, 42). This is a display filter (showing features that have scenarios but haven't been tested), not a calculation. It does not affect scores or health status. No change needed here as it serves a valid informational purpose.
+| Feature Name | Login Type |
+|---|---|
+| UI & Responsiveness | institute |
+| UI & Responsiveness | teacher |
+| UI & Responsiveness | student |
+| Others | super_admin |
+| Others | institute |
+| Others | teacher |
+| Others | student |
 
-## UI Fix Plan
+### 2. Show "Others" bugs in the Health Map
 
-### File: `src/components/qa/health/OverviewTab.tsx`
+Modify `HealthMap.tsx` to count bugs with `feature_id = NULL` under the "Others" feature for each login type. This requires:
 
-**Remove the status Badge** from tiles entirely. The tile's border-left color already communicates the status, and the legend explains the colors. This frees the full width for the feature name.
+- Fetching bugs WITHOUT a feature_id (currently excluded by the query filter)
+- Mapping them to the corresponding "Others" feature row based on their `login_type`
+- Including those counts in the health calculations so the tiles appear in the overview
 
-**Improved tile layout:**
-```text
-+---------------------------+
-| Feature Name Here         |
-| * R: 30    * S: 12        |
-+---------------------------+
+## Technical Details
+
+### Database migration
+
+```sql
+INSERT INTO features (name, login_type, project_id, order_index)
+VALUES
+  ('UI & Responsiveness', 'institute', '11111111-...', 101),
+  ('UI & Responsiveness', 'teacher',   '11111111-...', 102),
+  ('UI & Responsiveness', 'student',   '11111111-...', 103),
+  ('Others', 'super_admin', '11111111-...', 200),
+  ('Others', 'institute',   '11111111-...', 201),
+  ('Others', 'teacher',     '11111111-...', 202),
+  ('Others', 'student',     '11111111-...', 203);
 ```
 
-Changes:
-- Remove the `Badge` component and its conditional status styling (lines 117-132)
-- Let the feature name span the full width without `truncate` fighting a badge for space
-- Keep the colored left border as the status indicator
-- Keep tooltips on R and S counts (working correctly with `asChild` on `span`)
+### HealthMap.tsx changes
 
-### No other files need changes
+- Remove `.not("feature_id", "is", null)` from the bugs query so all bugs are fetched
+- After building the normal `counts` map, collect bugs where `feature_id IS NULL`, group them by `login_type`, and assign their counts to the matching "Others" feature ID
+- The rest of the pipeline (health score, tiles, tabs) will automatically pick them up since they now have a valid feature association
 
-The calculations are all clean. Only the OverviewTab tile layout needs this one adjustment.
+### Files to modify
+
+| File | Change |
+|---|---|
+| Database migration | Insert 7 new feature rows |
+| `src/pages/qa/HealthMap.tsx` | Include NULL-feature bugs under "Others" features |
+
+No UI component changes needed -- the existing tiles, tabs, and calculations will render the new features automatically once the data flows through.
 
