@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -130,7 +130,12 @@ export default function HealthMap() {
     }
   }, [currentProject]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    loadData();
+  }, [loadData]);
 
   const buildHealthData = useCallback((feature: FeatureRow): HealthData => {
     const bugs = bugCounts[feature.id] || { active: 0, pendingRetest: 0, resolved: 0, wontFix: 0, total: 0 };
