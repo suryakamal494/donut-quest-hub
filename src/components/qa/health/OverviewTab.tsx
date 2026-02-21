@@ -110,27 +110,9 @@ export function OverviewTab({ allHealthData, onFeatureClick }: OverviewTabProps)
                         style.border
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground leading-tight truncate">
-                          {d.featureName}
-                        </p>
-                        {!isUntested && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1.5 py-0 shrink-0 font-medium border-none",
-                              status === "critical" && "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40",
-                              status === "problematic" && "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40",
-                              status === "needs_attention" && "text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40",
-                              status === "mostly_good" && "text-lime-700 dark:text-lime-400 bg-lime-100 dark:bg-lime-900/40",
-                              status === "healthy" && "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40",
-                              status === "cleared" && "text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40",
-                            )}
-                          >
-                            {statusLabel}
-                          </Badge>
-                        )}
-                      </div>
+                      <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
+                        {d.featureName}
+                      </p>
 
                       <div className="mt-1.5 flex items-center gap-4 text-xs">
                         {isUntested ? (
