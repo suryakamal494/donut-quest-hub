@@ -3,7 +3,7 @@ import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
 import type { HealthData } from "./HealthCell";
 import { computeHealth, healthConfig } from "./HealthCell";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Tooltip,
   TooltipContent,

@@ -10,7 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { FeatureHealthDetail } from "@/components/qa/health";
 import { computeMaturityScore, computeRiskLevel } from "@/components/qa/health/HealthCell";
 import type { HealthData, LifecycleStage } from "@/components/qa/health/HealthCell";
-import type { LoginType } from "@/types/qa";
+
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
