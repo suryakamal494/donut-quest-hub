@@ -1,104 +1,101 @@
 
 
-# Fix Reopened Bug Visibility in Active Bugs Page
+# Enhanced Daily Activity Dashboard for Admin
 
 ## Problem
 
-When bugs are reopened during retesting, they return to the Active Bugs page but get buried because the list sorts by original `created_at` date. There is also no filter to isolate reopened bugs. This caused confusion where 16 reopened bugs appeared "missing."
+The current Daily Activity widget only shows per-person counts (bugs reported, test runs, retests done for QA; new/reopened bugs fixed for developers). It lacks a **platform-wide daily summary** that answers: "What happened today across the entire project?"
 
-## Database Audit Summary
+Specifically missing:
+- Total bugs reported that day
+- Total bugs marked as fixed (sent to retest) that day
+- Total retests verified (closed) that day
+- Total bugs reopened that day
+- Total test runs executed that day
+- A clear, at-a-glance summary before drilling into per-person tables
 
-All 60 bugs sent to retest on Feb 21 are fully accounted for:
-- 38 verified and closed (by Akshay)
-- 16 reopened back to open (by Akshay)  
-- 6 still pending retest
+## Solution
 
-The platform data is intact -- the issue is purely a **sort order and filter gap** in the UI.
+Enhance the `DailyActivityStats` component with a **Daily Summary Strip** at the top showing aggregate counts, and expand the per-person tables to include all lifecycle actions (not just partial).
 
 ## Changes
 
-### 1. Sort reopened bugs to the top of Active Bugs list
+### 1. Add Daily Summary Strip
 
-Change the query sort in `BugList.tsx` from:
+Add a row of compact stat cards at the top of the Daily Activity section (below the date picker, above the per-person tables) showing:
 
-```
-.order("created_at", { ascending: false })
-```
+| Metric | Source | Color |
+|---|---|---|
+| Bugs Reported | `bugs.created_at` in range | Red |
+| Sent to Retest | `bug_history.field_changed = 'fix_status'`, `new_value = 'fixed'` | Blue |
+| Retests Verified | `bug_history.field_changed = 'fix_status'`, `new_value = 'verified'` | Green |
+| Bugs Reopened | `bug_history.field_changed = 'fix_status'`, `new_value = 'reopened'` | Orange |
+| Test Runs | `test_runs.started_at` in range | Purple |
 
-To a two-level sort: first by `fix_status` (reopened first), then by `updated_at` descending. This ensures reopened bugs always appear at the top of the list since they need immediate developer attention.
+These will be displayed as a horizontal scrollable strip of mini-cards, mobile-friendly.
 
-### 2. Add a "Fix Status" filter to BugFilters
+### 2. Expand Per-Person Tables
 
-Add a new dropdown filter in `BugFilters.tsx` for fix_status with options:
-- All Fix Statuses
-- Unfixed
-- Reopened
+**QA Testers table** -- add a "Reopened" column showing how many bugs each tester reopened that day.
 
-This lets QA and admins quickly isolate reopened bugs to track re-fix progress.
+**Developers table** -- add a "Sent to Retest" column (showing total bugs they marked as fixed, including both new and reopened) and rename columns for clarity.
 
-### 3. Show reopened count in stats bar
+### 3. Query Enhancement
 
-Add a "Reopened" count badge in the stats section or login-type tabs area so the team can see at a glance how many bugs were sent back to developers.
+The existing `loadStats` function already queries `bugs`, `test_runs`, and `bug_history` for the selected day. We just need to extract additional aggregates from the same data:
+- Count `new_value = 'fixed'` entries for "Sent to Retest"
+- Count `new_value = 'reopened'` entries for "Bugs Reopened"
+- Already counting `new_value = 'verified'` for "Retests Verified"
 
-### 4. Visual highlight for reopened bugs in the list
-
-Add a subtle left-border accent (orange) on reopened bug cards to make them visually distinct from regular open bugs.
+No new database queries needed -- just additional processing of existing data.
 
 ## Technical Details
+
+### File: `src/components/dashboard/DailyActivityStats.tsx`
+
+**State additions:**
+```typescript
+interface DaySummary {
+  bugsReported: number;
+  sentToRetest: number;
+  retestsVerified: number;
+  bugsReopened: number;
+  testRuns: number;
+}
+const [daySummary, setDaySummary] = useState<DaySummary>({ ... });
+```
+
+**In `loadStats()`**, after existing queries, compute:
+```typescript
+const summary: DaySummary = {
+  bugsReported: bugsData?.length || 0,
+  sentToRetest: (historyData || []).filter(h => h.new_value === "fixed").length,
+  retestsVerified: (historyData || []).filter(h => h.new_value === "verified").length,
+  bugsReopened: (historyData || []).filter(h => h.new_value === "reopened").length,
+  testRuns: runsData?.length || 0,
+};
+setDaySummary(summary);
+```
+
+**QA table** -- add `reopened` column:
+```typescript
+// In qaResult mapping:
+reopened: (historyData || []).filter(h => h.changed_by === qa.user_id && h.new_value === "reopened").length,
+```
+
+**Developer table** -- add "Sent to Retest" column showing total `fixed` count per developer:
+```typescript
+sentToRetest: (historyData || []).filter(h =>
+  h.changed_by === dev.user_id && h.new_value === "fixed"
+).length,
+```
+
+**UI** -- Summary strip rendered as a grid of 5 mini-cards (2 columns on mobile, 5 on desktop) with icon, count, and label. Placed between the date picker and the per-person tables.
 
 ### Files to modify
 
 | File | Change |
 |---|---|
-| `src/pages/bugs/BugList.tsx` | Change sort order to prioritize reopened bugs; add fix_status filter state; pass reopened count to stats; add visual accent on reopened cards |
-| `src/components/bugs/BugFilters.tsx` | Add fix_status dropdown filter |
-| `src/components/bugs/BugStatsBar.tsx` | Add reopened count display |
+| `src/components/dashboard/DailyActivityStats.tsx` | Add DaySummary state, compute aggregates, render summary strip, expand table columns |
 
-### Sort logic
-
-Supabase supports multi-column ordering. The query becomes:
-
-```typescript
-query
-  .order("fix_status", { ascending: true, nullsFirst: true })  
-  .order("updated_at", { ascending: false })
-```
-
-Since "reopened" sorts alphabetically after "unfixed", we use a workaround: fetch all and client-sort, or add a computed column. The simplest approach is to sort by `updated_at DESC` (reopened bugs have recent `updated_at` timestamps from the reopen action) which naturally pushes them to the top without database changes.
-
-### Filter addition
-
-```typescript
-// In BugFilters.tsx - new prop
-fixStatusFilter: string;
-onFixStatusChange: (value: string) => void;
-
-// New dropdown
-<Select value={fixStatusFilter} onValueChange={onFixStatusChange}>
-  <SelectTrigger className="w-[140px] h-8 text-sm">
-    <SelectValue placeholder="Fix Status" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">All Fix Status</SelectItem>
-    <SelectItem value="unfixed">Unfixed</SelectItem>
-    <SelectItem value="reopened">Reopened</SelectItem>
-  </SelectContent>
-</Select>
-```
-
-### Query filter
-
-```typescript
-if (fixStatusFilter !== "all") query = query.eq("fix_status", fixStatusFilter);
-```
-
-### Visual accent on reopened cards
-
-```typescript
-// In BugCard or BugList card rendering
-className={cn(
-  "border-l-4",
-  bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent"
-)}
-```
-
+No database changes required. No new files needed.
