@@ -35,6 +35,7 @@ export default function BugList() {
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
   const [assignedFilter, setAssignedFilter] = useState<string>("all");
+  const [fixStatusFilter, setFixStatusFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -44,7 +45,7 @@ export default function BugList() {
       loadBugs();
       loadFeatures();
     }
-  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter]);
+  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter, fixStatusFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
@@ -63,6 +64,7 @@ export default function BugList() {
       if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
       if (assignedFilter === "mine" && user) query = query.eq("assigned_to", user.id);
       if (assignedFilter === "unassigned") query = query.is("assigned_to", null);
+      if (fixStatusFilter !== "all") query = query.eq("fix_status", fixStatusFilter);
 
       // Search filter (ilike on title and bug_code)
       if (search) {
@@ -73,7 +75,7 @@ export default function BugList() {
       const to = from + PAGE_SIZE - 1;
 
       const { data, error, count } = await query
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .range(from, to);
 
       if (error) throw error;
@@ -154,24 +156,27 @@ export default function BugList() {
 
   // Server-side severity stats for BugStatsBar
   const [severityStats, setSeverityStats] = useState<Record<string, number>>({});
-  // Login type counts for tab badges
   const [loginCounts, setLoginCounts] = useState<Record<string, number>>({});
+  const [reopenedCount, setReopenedCount] = useState(0);
 
   useEffect(() => {
     if (!currentProject) return;
     const fetchAggregates = async () => {
-      // Fetch severity counts
+      // Fetch severity + fix_status counts
       const { data: sevData } = await supabase
         .from("bugs")
-        .select("severity")
+        .select("severity, fix_status")
         .eq("project_id", currentProject.id)
         .in("status", ["open", "in_progress"]);
 
       const sevCounts: Record<string, number> = {};
+      let reopened = 0;
       (sevData || []).forEach((b: any) => {
         sevCounts[b.severity] = (sevCounts[b.severity] || 0) + 1;
+        if (b.fix_status === "reopened") reopened++;
       });
       setSeverityStats(sevCounts);
+      setReopenedCount(reopened);
 
       // Fetch login type counts
       const { data: ltData } = await supabase
@@ -265,7 +270,7 @@ export default function BugList() {
         query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
       }
 
-      const { data } = await query.order("created_at", { ascending: false });
+      const { data } = await query.order("updated_at", { ascending: false });
       exportBugsToCSV(data || []);
     } catch (error) {
       console.error("Export error:", error);
@@ -306,7 +311,7 @@ export default function BugList() {
       </div>
 
       {/* Stats */}
-      <BugStatsBar severityStats={severityStats} totalCount={loginCounts.all || totalCount} />
+      <BugStatsBar severityStats={severityStats} totalCount={loginCounts.all || totalCount} reopenedCount={reopenedCount} />
 
       {/* Login Type Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -353,6 +358,8 @@ export default function BugList() {
         assignedFilter={assignedFilter}
         onAssignedChange={(v) => { setAssignedFilter(v); setPage(1); }}
         showAssignedFilter
+        fixStatusFilter={fixStatusFilter}
+        onFixStatusChange={(v) => { setFixStatusFilter(v); setPage(1); }}
       />
 
       {/* Bug List */}
@@ -441,10 +448,11 @@ export default function BugList() {
                       <div
                         key={bug.id}
                         className={cn(
-                          "flex items-center justify-between p-2.5 sm:p-3 pl-8 sm:pl-12 hover:bg-muted/30 transition-colors gap-2",
+                          "flex items-center justify-between p-2.5 sm:p-3 pl-8 sm:pl-12 hover:bg-muted/30 transition-colors gap-2 border-l-4",
+                          bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent",
                           index !== group.bugs.length - 1 && "border-b border-border/50"
                         )}
-                      >
+                        >
                         <Link to={`/bugs/${bug.id}`} className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -504,8 +512,11 @@ export default function BugList() {
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           )}
-          {!loading && bugs.map((bug) => (
-            <Card key={bug.id} className="glass hover:border-primary/30 transition-all">
+           {!loading && bugs.map((bug) => (
+            <Card key={bug.id} className={cn(
+              "glass hover:border-primary/30 transition-all border-l-4",
+              bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent"
+            )}>
               <CardContent className="p-3">
                 <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} />
               </CardContent>
