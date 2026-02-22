@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Bug, FlaskConical, CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Bug, FlaskConical, CheckCircle2, RotateCcw, Loader2, Send, AlertTriangle, PlayCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,6 +14,7 @@ interface PersonStats {
   bugsReported: number;
   testRuns: number;
   retestsDone: number;
+  reopened: number;
 }
 
 interface DevDayStats {
@@ -21,6 +22,15 @@ interface DevDayStats {
   full_name: string;
   newBugsFixed: number;
   reopenedBugsFixed: number;
+  sentToRetest: number;
+}
+
+interface DaySummary {
+  bugsReported: number;
+  sentToRetest: number;
+  retestsVerified: number;
+  bugsReopened: number;
+  testRuns: number;
 }
 
 interface DailyActivityStatsProps {
@@ -33,6 +43,9 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
   const [loading, setLoading] = useState(false);
   const [qaStats, setQaStats] = useState<PersonStats[]>([]);
   const [devStats, setDevStats] = useState<DevDayStats[]>([]);
+  const [daySummary, setDaySummary] = useState<DaySummary>({
+    bugsReported: 0, sentToRetest: 0, retestsVerified: 0, bugsReopened: 0, testRuns: 0,
+  });
 
   useEffect(() => {
     loadStats();
@@ -73,6 +86,16 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
         .gte("created_at", dayStart.toISOString())
         .lte("created_at", dayEnd.toISOString());
 
+      // Compute day summary
+      const summary: DaySummary = {
+        bugsReported: bugsData?.length || 0,
+        sentToRetest: (historyData || []).filter(h => h.new_value === "fixed").length,
+        retestsVerified: (historyData || []).filter(h => h.new_value === "verified").length,
+        bugsReopened: (historyData || []).filter(h => h.new_value === "reopened").length,
+        testRuns: runsData?.length || 0,
+      };
+      setDaySummary(summary);
+
       // QA stats
       const qaResult: PersonStats[] = qaTesters.map(qa => ({
         user_id: qa.user_id,
@@ -80,6 +103,7 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
         bugsReported: (bugsData || []).filter(b => b.reported_by === qa.user_id).length,
         testRuns: (runsData || []).filter(r => r.executed_by === qa.user_id).length,
         retestsDone: (historyData || []).filter(h => h.changed_by === qa.user_id && h.new_value === "verified").length,
+        reopened: (historyData || []).filter(h => h.changed_by === qa.user_id && h.new_value === "reopened").length,
       }));
       setQaStats(qaResult);
 
@@ -93,6 +117,9 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
         reopenedBugsFixed: (historyData || []).filter(h =>
           h.changed_by === dev.user_id && h.new_value === "fixed" && h.old_value === "reopened"
         ).length,
+        sentToRetest: (historyData || []).filter(h =>
+          h.changed_by === dev.user_id && h.new_value === "fixed"
+        ).length,
       }));
       setDevStats(devResult);
     } catch (error) {
@@ -103,6 +130,14 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
   };
 
   const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+
+  const summaryCards = [
+    { label: "Bugs Reported", value: daySummary.bugsReported, icon: Bug, color: "text-red-500", bg: "bg-red-500/10" },
+    { label: "Sent to Retest", value: daySummary.sentToRetest, icon: Send, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Retests Verified", value: daySummary.retestsVerified, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
+    { label: "Reopened", value: daySummary.bugsReopened, icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10" },
+    { label: "Test Runs", value: daySummary.testRuns, icon: PlayCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
+  ];
 
   return (
     <Card className="glass">
@@ -138,6 +173,22 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
           </div>
         ) : (
           <>
+            {/* Daily Summary Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {summaryCards.map(card => {
+                const Icon = card.icon;
+                return (
+                  <div key={card.label} className={cn("rounded-lg p-3 flex items-center gap-2.5", card.bg)}>
+                    <Icon className={cn("h-4 w-4 shrink-0", card.color)} />
+                    <div className="min-w-0">
+                      <p className={cn("text-lg font-bold leading-tight", card.color)}>{card.value}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{card.label}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             {/* QA Testers */}
             {qaStats.length > 0 && (
               <div>
@@ -157,21 +208,26 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
                           <span className="hidden sm:inline">Test Runs</span>
                           <span className="sm:hidden">Runs</span>
                         </th>
-                        <th className="text-center py-2 pl-2 font-medium text-muted-foreground">
+                        <th className="text-center py-2 px-2 font-medium text-muted-foreground">
                           <span className="hidden sm:inline">Retests Done</span>
                           <CheckCircle2 className="h-3.5 w-3.5 sm:hidden inline" />
+                        </th>
+                        <th className="text-center py-2 pl-2 font-medium text-muted-foreground">
+                          <span className="hidden sm:inline">Reopened</span>
+                          <RotateCcw className="h-3.5 w-3.5 sm:hidden inline" />
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {qaStats.map(qa => {
-                        const hasActivity = qa.bugsReported + qa.testRuns + qa.retestsDone > 0;
+                        const hasActivity = qa.bugsReported + qa.testRuns + qa.retestsDone + qa.reopened > 0;
                         return (
                           <tr key={qa.user_id} className={cn("border-b border-border/50 last:border-0", !hasActivity && "opacity-50")}>
                             <td className="py-2.5 pr-3 font-medium text-foreground truncate max-w-[140px]">{qa.full_name}</td>
                             <td className="py-2.5 px-2 text-center text-foreground">{qa.bugsReported}</td>
                             <td className="py-2.5 px-2 text-center text-foreground">{qa.testRuns}</td>
-                            <td className="py-2.5 pl-2 text-center text-foreground">{qa.retestsDone}</td>
+                            <td className="py-2.5 px-2 text-center text-foreground">{qa.retestsDone}</td>
+                            <td className="py-2.5 pl-2 text-center text-orange-500 font-medium">{qa.reopened || 0}</td>
                           </tr>
                         );
                       })}
@@ -193,8 +249,12 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
                       <tr className="border-b border-border">
                         <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Name</th>
                         <th className="text-center py-2 px-2 font-medium text-muted-foreground">
-                          <span className="hidden sm:inline">New Bugs Fixed</span>
-                          <span className="sm:hidden">Fixed</span>
+                          <span className="hidden sm:inline">Sent to Retest</span>
+                          <Send className="h-3.5 w-3.5 sm:hidden inline" />
+                        </th>
+                        <th className="text-center py-2 px-2 font-medium text-muted-foreground">
+                          <span className="hidden sm:inline">New Fixed</span>
+                          <span className="sm:hidden">New</span>
                         </th>
                         <th className="text-center py-2 pl-2 font-medium text-muted-foreground">
                           <span className="hidden sm:inline">Reopened Fixed</span>
@@ -208,6 +268,7 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
                         return (
                           <tr key={dev.user_id} className={cn("border-b border-border/50 last:border-0", !hasActivity && "opacity-50")}>
                             <td className="py-2.5 pr-3 font-medium text-foreground truncate max-w-[140px]">{dev.full_name}</td>
+                            <td className="py-2.5 px-2 text-center text-blue-500 font-medium">{dev.sentToRetest}</td>
                             <td className="py-2.5 px-2 text-center text-emerald-600 font-medium">{dev.newBugsFixed}</td>
                             <td className="py-2.5 pl-2 text-center text-foreground">{dev.reopenedBugsFixed}</td>
                           </tr>
