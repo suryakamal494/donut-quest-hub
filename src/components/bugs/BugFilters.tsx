@@ -16,6 +16,8 @@ interface BugFiltersProps {
   assignedFilter?: string;
   onAssignedChange?: (value: string) => void;
   showAssignedFilter?: boolean;
+  fixStatusFilter?: string;
+  onFixStatusChange?: (value: string) => void;
 }
 
 export function BugFilters({
@@ -28,6 +30,8 @@ export function BugFilters({
   assignedFilter,
   onAssignedChange,
   showAssignedFilter = false,
+  fixStatusFilter,
+  onFixStatusChange,
 }: BugFiltersProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -73,6 +77,18 @@ export function BugFilters({
               <SelectItem value="all">All Bugs</SelectItem>
               <SelectItem value="mine">My Bugs</SelectItem>
               <SelectItem value="unassigned">Unassigned</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {fixStatusFilter && onFixStatusChange && (
+          <Select value={fixStatusFilter} onValueChange={onFixStatusChange}>
+            <SelectTrigger className="w-[140px] h-8 text-sm">
+              <SelectValue placeholder="Fix Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Fix Status</SelectItem>
+              <SelectItem value="unfixed">Unfixed</SelectItem>
+              <SelectItem value="reopened">Reopened</SelectItem>
             </SelectContent>
           </Select>
         )}
