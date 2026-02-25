@@ -1,101 +1,86 @@
 
 
-# Enhanced Daily Activity Dashboard for Admin
+# Audit: Connection Timeout Errors
 
-## Problem
+## Findings
 
-The current Daily Activity widget only shows per-person counts (bugs reported, test runs, retests done for QA; new/reopened bugs fixed for developers). It lacks a **platform-wide daily summary** that answers: "What happened today across the entire project?"
+### Server-Side Logs: No Errors Found
 
-Specifically missing:
-- Total bugs reported that day
-- Total bugs marked as fixed (sent to retest) that day
-- Total retests verified (closed) that day
-- Total bugs reopened that day
-- Total test runs executed that day
-- A clear, at-a-glance summary before drilling into per-person tables
+I checked the database logs, authentication logs, and edge function logs. There are **zero server-side errors**. No database crashes, no auth failures, no edge function timeouts. The database is healthy and responding normally.
+
+### Root Cause: Oversized Client-Side Query URLs
+
+The actual problem is on the **frontend**, not the server. The `AdminQADashboard` component (line 130-134) constructs a `bug_history` query using `.in("bug_id", bugList.map(b => b.id))` -- passing **all 255 bug IDs** as URL parameters in a single GET request.
+
+This creates a URL that is approximately **9,000+ characters long** (visible in the network requests). When multiple users load the dashboard simultaneously, these massive URL requests can:
+1. Hit browser/proxy URL length limits (most proxies cap at 8KB)
+2. Cause the REST API gateway to timeout or reject the request
+3. Compete for limited database connection pool slots
+
+The same pattern exists in the QA Dashboard where `test_results` is fetched with `select("*, test_cases(*)")` for 30 days of data without pagination, and `automation_results` is fetched in its entirety.
+
+### Secondary Issue: Parallel Heavy Queries on Page Load
+
+When the admin dashboard loads, it fires **5+ simultaneous queries** in `loadAdminData()`:
+- `profiles` (full table scan)
+- `user_roles` (full table scan)
+- `user_project_access`
+- `bugs` (all 255 rows with multiple columns)
+- `bug_history` (729 rows filtered by 255 IDs in URL)
+- `test_runs` (last 7 days)
+- `test_scenarios` (all)
+
+Then `DailyActivityStats` fires **3 more queries** on top of that. That is 8+ concurrent requests hitting the database connection pool.
 
 ## Solution
 
-Enhance the `DailyActivityStats` component with a **Daily Summary Strip** at the top showing aggregate counts, and expand the per-person tables to include all lifecycle actions (not just partial).
+### 1. Replace the massive IN clause with a project-scoped query
 
-## Changes
+Instead of fetching all bug IDs then passing them to `bug_history`, query `bug_history` by joining through `bugs` using a project filter. Since `bug_history` has a `bug_id` foreign key, we can filter it directly:
 
-### 1. Add Daily Summary Strip
-
-Add a row of compact stat cards at the top of the Daily Activity section (below the date picker, above the per-person tables) showing:
-
-| Metric | Source | Color |
-|---|---|---|
-| Bugs Reported | `bugs.created_at` in range | Red |
-| Sent to Retest | `bug_history.field_changed = 'fix_status'`, `new_value = 'fixed'` | Blue |
-| Retests Verified | `bug_history.field_changed = 'fix_status'`, `new_value = 'verified'` | Green |
-| Bugs Reopened | `bug_history.field_changed = 'fix_status'`, `new_value = 'reopened'` | Orange |
-| Test Runs | `test_runs.started_at` in range | Purple |
-
-These will be displayed as a horizontal scrollable strip of mini-cards, mobile-friendly.
-
-### 2. Expand Per-Person Tables
-
-**QA Testers table** -- add a "Reopened" column showing how many bugs each tester reopened that day.
-
-**Developers table** -- add a "Sent to Retest" column (showing total bugs they marked as fixed, including both new and reopened) and rename columns for clarity.
-
-### 3. Query Enhancement
-
-The existing `loadStats` function already queries `bugs`, `test_runs`, and `bug_history` for the selected day. We just need to extract additional aggregates from the same data:
-- Count `new_value = 'fixed'` entries for "Sent to Retest"
-- Count `new_value = 'reopened'` entries for "Bugs Reopened"
-- Already counting `new_value = 'verified'` for "Retests Verified"
-
-No new database queries needed -- just additional processing of existing data.
-
-## Technical Details
-
-### File: `src/components/dashboard/DailyActivityStats.tsx`
-
-**State additions:**
 ```typescript
-interface DaySummary {
-  bugsReported: number;
-  sentToRetest: number;
-  retestsVerified: number;
-  bugsReopened: number;
-  testRuns: number;
-}
-const [daySummary, setDaySummary] = useState<DaySummary>({ ... });
+// BEFORE (line 130-134 of AdminQADashboard.tsx):
+const { data: bugHistory } = await supabase
+  .from("bug_history")
+  .select("bug_id, created_at, field_changed, new_value")
+  .in("bug_id", bugList.map(b => b.id))  // 255 IDs in URL!
+  .in("field_changed", ["status", "fix_status"]);
+
+// AFTER: Use an RPC or filter by project via the bugs join
+const { data: bugHistory } = await supabase
+  .from("bug_history")
+  .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
+  .eq("bugs.project_id", currentProject.id)
+  .in("field_changed", ["status", "fix_status"]);
 ```
 
-**In `loadStats()`**, after existing queries, compute:
+This eliminates the 9KB URL entirely and lets the database do the join efficiently.
+
+### 2. Apply the same fix to DailyActivityStats
+
+The `bug_history` query in `DailyActivityStats` (line 82-87) does not have a project filter at all -- it only filters by date and `field_changed`. This means it could return history entries from ALL projects. Add the project-scoped join:
+
 ```typescript
-const summary: DaySummary = {
-  bugsReported: bugsData?.length || 0,
-  sentToRetest: (historyData || []).filter(h => h.new_value === "fixed").length,
-  retestsVerified: (historyData || []).filter(h => h.new_value === "verified").length,
-  bugsReopened: (historyData || []).filter(h => h.new_value === "reopened").length,
-  testRuns: runsData?.length || 0,
-};
-setDaySummary(summary);
+const { data: historyData } = await supabase
+  .from("bug_history")
+  .select("changed_by, field_changed, old_value, new_value, created_at, bugs!inner(project_id)")
+  .eq("bugs.project_id", projectId)
+  .eq("field_changed", "fix_status")
+  .gte("created_at", dayStart.toISOString())
+  .lte("created_at", dayEnd.toISOString());
 ```
 
-**QA table** -- add `reopened` column:
-```typescript
-// In qaResult mapping:
-reopened: (historyData || []).filter(h => h.changed_by === qa.user_id && h.new_value === "reopened").length,
-```
+### 3. Add pagination to QA Dashboard test_results query
 
-**Developer table** -- add "Sent to Retest" column showing total `fixed` count per developer:
-```typescript
-sentToRetest: (historyData || []).filter(h =>
-  h.changed_by === dev.user_id && h.new_value === "fixed"
-).length,
-```
+The QA Dashboard fetches ALL test results for 30 days with full test_case joins (line 76-81). With growing data, this will keep getting worse. Limit to recent results or add server-side aggregation.
 
-**UI** -- Summary strip rendered as a grid of 5 mini-cards (2 columns on mobile, 5 on desktop) with icon, count, and label. Placed between the date picker and the per-person tables.
-
-### Files to modify
+## Files to Modify
 
 | File | Change |
 |---|---|
-| `src/components/dashboard/DailyActivityStats.tsx` | Add DaySummary state, compute aggregates, render summary strip, expand table columns |
+| `src/components/dashboard/AdminQADashboard.tsx` | Replace `.in("bug_id", ...)` with project-scoped join on bug_history |
+| `src/components/dashboard/DailyActivityStats.tsx` | Add project-scoped join to bug_history query |
+| `src/pages/qa/QADashboard.tsx` | Add `.limit(500)` to test_results query to prevent unbounded fetches |
 
-No database changes required. No new files needed.
+No database migrations needed. These are purely frontend query optimizations.
+
