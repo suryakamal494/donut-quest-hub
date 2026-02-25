@@ -194,7 +194,7 @@ export default function BugList() {
       setLoginCounts(ltCounts);
     };
     fetchAggregates();
-  }, [currentProject, bugs]);
+  }, [currentProject, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter, fixStatusFilter, search]);
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
