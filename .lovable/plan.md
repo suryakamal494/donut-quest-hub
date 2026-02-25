@@ -1,75 +1,81 @@
 
 
-# Diagnosis: Login "Failed to Fetch" and Slow Loading
-
-## What Your Teammate Is Experiencing
-
-### Issue 1: Infinite Loading Spinner (Image 1)
-Your teammate visits `https://qa.thedonutai.com` and sees a spinner that never resolves. This is the `Index.tsx` component, which calls `supabase.auth.getSession()` to check if the user is already logged in. If the network request to the backend hangs or times out, the `isLoading` state in `AuthContext` never becomes `false`, so the spinner stays forever.
-
-### Issue 2: "Login failed - Failed to fetch" (Image 2)
-After eventually reaching the login page, your teammate `adi@conquerorstech.net` enters credentials and clicks Sign In. The error **"Failed to fetch"** appears. This is a browser-level network error -- it means the HTTP request to the backend auth endpoint never completed.
+# Performance Audit: Slow Page Loading
 
 ## Root Cause Analysis
 
-**The login request from `adi@conquerorstech.net` never reached the server.** I verified this by checking the backend auth logs -- there are zero login attempts from this email address. The backend only shows successful token refreshes from your admin account (`thedonut.ai@gmail.com`).
+After reviewing the session replay, network requests, and source code, I identified **5 distinct performance bottlenecks** causing the slowness across Dashboard, Bug Report, Active Report, and Report New Bug pages.
 
-The user account exists in the database with `approval_status: approved`, so the credentials themselves are not the problem.
+### Problem 1: Double Data Loading on Every Page
 
-**"Failed to fetch" means one of these:**
-1. The teammate's network blocked or couldn't reach the backend API endpoint
-2. A temporary DNS resolution failure for the backend URL
-3. The backend was briefly unreachable (I confirmed it is working now -- the site loads correctly)
-4. A browser extension or firewall intercepting the request
+**File:** `src/contexts/AuthContext.tsx`
 
-**The site is working right now.** I fetched `https://qa.thedonutai.com` and it loaded the login page correctly. The backend auth service is responsive.
+The `AuthContext` calls both `getSession()` and sets up an `onAuthStateChange` listener. Both fire on mount, causing `user` to be set twice in quick succession. Every dashboard component has a `useEffect` depending on `[user, currentProject]`, so each page's data-loading function fires **twice** on every navigation.
 
-## What Needs Fixing (Code-Level)
+**Evidence from session replay:** The repeated pattern of "spinner → pie chart → spinner → pie chart" confirms double-rendering. The pie chart renders, then the component re-mounts and shows a spinner again.
 
-Even though this was likely a transient network issue, the app handles it poorly. Two problems in the code make this worse than it should be:
+### Problem 2: Sequential (Waterfall) Queries in AdminQADashboard
 
-### Problem A: AuthContext has no timeout -- spinner hangs forever
+**File:** `src/components/dashboard/AdminQADashboard.tsx`
 
-In `AuthContext.tsx`, `supabase.auth.getSession()` has no timeout. If the backend is unreachable, the promise never resolves, and `isLoading` stays `true` forever. The user sees an infinite spinner with no way to recover.
+The `loadAdminData` function makes 5 database calls, but only the first 3 (profiles, roles, access) run in parallel. The remaining queries (bugs, bug_history, test_runs, test_scenarios) run **sequentially** — each one waits for the previous to finish. With network latency, this creates a waterfall of ~2-3 seconds.
 
-**Fix:** Add a timeout to the initial session check. After 8 seconds, set `isLoading = false` regardless, which will redirect to the login page instead of showing an endless spinner.
+### Problem 3: Unbounded bug_history Queries
 
-### Problem B: Login error message is not user-friendly
+**Files:** `AdminQADashboard.tsx`, `DeveloperDashboard.tsx`
 
-In `Login.tsx`, when `signIn()` throws a network error, the raw `error.message` is shown: "Failed to fetch". This is a browser internal error message that means nothing to users.
+Both dashboards fetch **all** bug_history records for the project with no row limit. As the project grows (currently 258 bugs with extensive history), this query returns hundreds or thousands of rows. The DeveloperDashboard fetches ALL status/fix_status history for the entire project even though it only needs history for the developer's assigned bugs.
 
-**Fix:** Detect network errors specifically and show a helpful message like: "Unable to connect to the server. Please check your internet connection and try again."
+### Problem 4: Duplicate Aggregate Queries in BugList
 
-### Problem C: No retry mechanism on initial load
+**File:** `src/pages/bugs/BugList.tsx`
 
-When `Index.tsx` encounters a network failure during the auth check, there's no retry button. The user is stuck on the spinner.
+The `fetchAggregates` function makes **2 separate queries** to count severity stats and login type counts — both query the same `bugs` table with the same base filters. These should be a single query.
 
-**Fix:** Show an error state with a "Retry" button after the timeout, so users can try again without refreshing the browser.
+### Problem 5: Multiple Independent Child Components on Dashboard
+
+The QA Dashboard page renders 5+ child components (`MyTodayStats`, `WeeklyBugTrendsChart`, `CoverageSummaryWidget`, `TodayActivityPanel`, `StaleFailuresAlert`, `FailedTestsReminder`), each making their own independent database calls. Combined with the double-fire issue, this means **10+ database round-trips** on every dashboard load.
+
+---
 
 ## Implementation Plan
 
-### Step 1: Add timeout to AuthContext session check
-In `AuthContext.tsx`, wrap the `getSession()` call with a `Promise.race` against a timeout. After 8 seconds, force `isLoading = false`.
+### Step 1: Prevent Double Data Loading in AuthContext
 
-### Step 2: Improve error handling in Login.tsx
-In the `signIn` error handler, check if `error.message` includes "fetch" or "network" and replace with a user-friendly message.
+Add a guard in `AuthContext.tsx` so the `onAuthStateChange` callback skips the initial `INITIAL_SESSION` event when `getSession()` has already handled it. This prevents every page from loading data twice.
 
-### Step 3: Add error/retry state to Index.tsx
-Add a `hasError` state. When the auth timeout fires without a session, show a card with "Unable to connect" message and a "Try Again" button that reloads the page.
+**Change:** Add a `ref` flag (`initialSessionHandled`) that is set to `true` after `getSession()` resolves. The `onAuthStateChange` handler checks this flag and skips if the event is `INITIAL_SESSION`.
+
+### Step 2: Parallelize AdminQADashboard Queries
+
+Restructure `loadAdminData` to run **all 5 queries in parallel** using `Promise.all` instead of sequentially. Move bugs, bug_history, test_runs, and test_scenarios into the same parallel batch as profiles/roles/access.
+
+### Step 3: Add Limits to bug_history Queries
+
+- **AdminQADashboard:** Add `.limit(1000)` to the bug_history query.
+- **DeveloperDashboard:** Filter bug_history to only the developer's assigned bug IDs using `.in("bug_id", assignedBugIds)` instead of fetching the entire project's history. Add `.limit(500)`.
+
+### Step 4: Combine BugList Aggregate Queries
+
+Merge the two separate aggregate queries (severity counts + login type counts) into a single query that fetches `severity, fix_status, login_type` in one call, then compute both aggregates client-side from the same result set.
+
+### Step 5: Optimize DeveloperDashboard bug_history Scope
+
+Instead of querying all bug_history for the entire project, only query history for the bugs assigned to the current developer. This reduces the query result from potentially thousands of rows to just the relevant subset.
+
+---
 
 ### Technical Details
 
 ```text
-File                        Change
-────────────────────────    ──────────────────────────────────────
-src/contexts/AuthContext.tsx  Add 8s timeout on getSession() call
-src/pages/Login.tsx           Detect "Failed to fetch" and show friendly message
-src/pages/Index.tsx           Add error state with retry button after timeout
+File                                          Change
+─────────────────────────────────────────     ──────────────────────────────────────────
+src/contexts/AuthContext.tsx                   Add ref guard to prevent double-fire
+src/components/dashboard/AdminQADashboard.tsx  Parallelize all 5 queries with Promise.all
+src/components/dashboard/AdminQADashboard.tsx  Add .limit(1000) to bug_history
+src/components/dashboard/DeveloperDashboard.tsx Filter bug_history by assigned bug IDs + .limit(500)
+src/pages/bugs/BugList.tsx                     Combine 2 aggregate queries into 1
 ```
 
-All three changes are small (5-10 lines each) and do not affect existing functionality. They only improve behavior when the backend is unreachable.
-
-## Summary
-
-The root cause is a **transient network connectivity issue** between your teammate's browser and the backend. The site is currently working. However, the app lacks graceful error handling for network failures, causing an infinite spinner and an unhelpful error message. The plan adds timeout handling, friendly error messages, and a retry mechanism.
+**Expected impact:** Page load times should drop from ~3-5 seconds to ~1-1.5 seconds by eliminating the double-load, removing query waterfalls, and reducing data transfer.
 
