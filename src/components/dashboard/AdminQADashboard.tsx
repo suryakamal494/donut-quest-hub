@@ -80,17 +80,42 @@ export function AdminQADashboard() {
     try {
       setLoading(true);
 
-      // 1. Fetch all team members (profiles + roles + project access)
-      const [{ data: profiles }, { data: roles }, { data: projectAccess }] = await Promise.all([
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+
+      // Run ALL queries in parallel
+      const [
+        { data: profiles },
+        { data: roles },
+        { data: projectAccess },
+        { data: bugs },
+        { data: bugHistory },
+        { data: testRuns },
+        { data: scenarios },
+      ] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name").eq("approval_status", "approved"),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("user_project_access").select("user_id").eq("project_id", currentProject.id),
+        supabase.from("bugs")
+          .select("id, status, fix_status, assigned_to, reported_by, created_at, resolved_at")
+          .eq("project_id", currentProject.id),
+        supabase.from("bug_history")
+          .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
+          .eq("bugs.project_id", currentProject.id)
+          .in("field_changed", ["status", "fix_status"])
+          .limit(1000),
+        supabase.from("test_runs")
+          .select("id, executed_by, started_at")
+          .eq("project_id", currentProject.id)
+          .gte("started_at", weekAgo.toISOString()),
+        supabase.from("test_scenarios")
+          .select("id, created_by")
+          .eq("project_id", currentProject.id),
       ]);
 
       const roleMap: Record<string, string> = {};
       (roles || []).forEach((r) => (roleMap[r.user_id] = r.role));
 
-      // Build set of user_ids with access to this project
       const projectUserIds = new Set((projectAccess || []).map((a) => a.user_id));
 
       const allMembers: TeamMember[] = (profiles || []).map((p) => ({
@@ -99,7 +124,6 @@ export function AdminQADashboard() {
         role: roleMap[p.user_id] || "user",
       }));
 
-      // Filter: only show users who have project access OR are admins
       const members = allMembers.filter(
         (m) => m.role === "admin" || projectUserIds.has(m.user_id)
       );
@@ -107,12 +131,6 @@ export function AdminQADashboard() {
 
       const developers = members.filter((m) => m.role === "developer");
       const qaTesters = members.filter((m) => m.role === "user");
-
-      // 2. Fetch all bugs for this project
-      const { data: bugs } = await supabase
-        .from("bugs")
-        .select("id, status, fix_status, assigned_to, reported_by, created_at, resolved_at")
-        .eq("project_id", currentProject.id);
 
       const bugList = bugs || [];
 
@@ -126,13 +144,7 @@ export function AdminQADashboard() {
         bugList.filter((b) => b.status === "open" || b.status === "in_progress").length
       );
 
-      // 3. Developer performance
-      const { data: bugHistory } = await supabase
-        .from("bug_history")
-        .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
-        .eq("bugs.project_id", currentProject.id)
-        .in("field_changed", ["status", "fix_status"]);
-
+      // Developer performance
       const historyByBug: Record<string, typeof bugHistory> = {};
       (bugHistory || []).forEach((h) => {
         if (!historyByBug[h.bug_id]) historyByBug[h.bug_id] = [];
@@ -148,7 +160,6 @@ export function AdminQADashboard() {
           (b) => b.status === "open" || b.status === "in_progress"
         ).length;
 
-        // Avg resolution time
         let totalHours = 0;
         let count = 0;
         devBugs.forEach((bug) => {
@@ -182,22 +193,8 @@ export function AdminQADashboard() {
       });
       setDevPerformance(devPerf);
 
-      // 4. QA performance
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-
-      const { data: testRuns } = await supabase
-        .from("test_runs")
-        .select("id, executed_by, started_at")
-        .eq("project_id", currentProject.id)
-        .gte("started_at", weekAgo.toISOString());
-
+      // QA performance
       setTotalRunsThisWeek(testRuns?.length || 0);
-
-      const { data: scenarios } = await supabase
-        .from("test_scenarios")
-        .select("id, created_by")
-        .eq("project_id", currentProject.id);
 
       const qaPerf: QAPerformance[] = qaTesters.map((qa) => ({
         user_id: qa.user_id,

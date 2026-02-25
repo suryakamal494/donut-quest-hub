@@ -81,12 +81,16 @@ export function DeveloperDashboard() {
       const resolvedCount = bugList.filter((b) => b.status === "resolved" || b.status === "closed").length;
       const reopenedCount = bugList.filter((b) => b.fix_status === "reopened").length;
 
-      // Avg resolution time from bug_history (status changed to resolved)
-      const { data: historyData } = await supabase
-        .from("bug_history")
-        .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
-        .eq("bugs.project_id", currentProject.id)
-        .in("field_changed", ["status", "fix_status"]);
+      // Avg resolution time from bug_history - scoped to assigned bugs only
+      const assignedBugIds = bugList.map(b => b.id);
+      const { data: historyData } = assignedBugIds.length > 0
+        ? await supabase
+            .from("bug_history")
+            .select("bug_id, created_at, field_changed, new_value")
+            .in("bug_id", assignedBugIds.slice(0, 200))
+            .in("field_changed", ["status", "fix_status"])
+            .limit(500)
+        : { data: [] as any[] };
 
       let totalHours = 0;
       let resolvedWithTime = 0;
