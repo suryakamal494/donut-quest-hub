@@ -45,6 +45,7 @@ const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
 const BugDetail = lazy(() => import("./pages/bugs/BugDetail"));
+const EditBug = lazy(() => import("./pages/bugs/EditBug"));
 const ClosedBugs = lazy(() => import("./pages/bugs/ClosedBugs"));
 const BugReport = lazy(() => import("./pages/bugs/BugReport"));
 const PendingRetest = lazy(() => import("./pages/bugs/PendingRetest"));
@@ -140,6 +141,7 @@ const App = () => (
                 <Route path="report" element={<BugReport />} />
                 <Route path="create" element={<CreateBug />} />
                 <Route path=":id" element={<BugDetail />} />
+                <Route path=":id/edit" element={<EditBug />} />
                 <Route path="api-keys" element={<ApiKeyManager />} />
               </Route>
               
