@@ -1,81 +1,93 @@
 
 
-# Performance Audit: Slow Page Loading
+# Plan: Bug Editing & Rich Text Support
 
-## Root Cause Analysis
+## Feature 1: Edit Bug
 
-After reviewing the session replay, network requests, and source code, I identified **5 distinct performance bottlenecks** causing the slowness across Dashboard, Bug Report, Active Report, and Report New Bug pages.
+### Current State
+- No `EditBug` page exists. There is no edit button anywhere on `BugDetail.tsx`.
+- The RLS policy on `bugs` already allows updates by: reporter, assignee, admin, developer, or user roles.
+- The `CreateBug.tsx` form handles all bug fields (title, description, severity, bug_type, login_type, feature, sub-module, steps, expected/actual behavior, environment, attachments).
 
-### Problem 1: Double Data Loading on Every Page
+### What Will Be Built
 
-**File:** `src/contexts/AuthContext.tsx`
+**New file: `src/pages/bugs/EditBug.tsx`**
+- A page nearly identical to `CreateBug.tsx` but pre-populated with existing bug data loaded from the database.
+- Loads the bug by URL param `:id`, fetches features/scenarios/sub-modules to populate dropdowns.
+- On submit, calls `supabase.from("bugs").update(...)` instead of `.insert(...)`.
+- Records changes in `bug_history` for any modified fields.
+- Permission check: only the reporter (`reported_by === user.id`) or admin can access this page. Others see an "Access Denied" message.
 
-The `AuthContext` calls both `getSession()` and sets up an `onAuthStateChange` listener. Both fire on mount, causing `user` to be set twice in quick succession. Every dashboard component has a `useEffect` depending on `[user, currentProject]`, so each page's data-loading function fires **twice** on every navigation.
+**Modified file: `src/pages/bugs/BugDetail.tsx`**
+- Add an "Edit" button (pencil icon) next to the delete button in the header area.
+- Only visible to the reporter or admin (same `canDelete` logic, reused as `canEdit`).
+- Links to `/bugs/:id/edit`.
 
-**Evidence from session replay:** The repeated pattern of "spinner → pie chart → spinner → pie chart" confirms double-rendering. The pie chart renders, then the component re-mounts and shows a spinner again.
+**Modified file: `src/App.tsx`**
+- Add route: `<Route path=":id/edit" element={<EditBug />} />` inside the `/bugs` route group.
 
-### Problem 2: Sequential (Waterfall) Queries in AdminQADashboard
-
-**File:** `src/components/dashboard/AdminQADashboard.tsx`
-
-The `loadAdminData` function makes 5 database calls, but only the first 3 (profiles, roles, access) run in parallel. The remaining queries (bugs, bug_history, test_runs, test_scenarios) run **sequentially** — each one waits for the previous to finish. With network latency, this creates a waterfall of ~2-3 seconds.
-
-### Problem 3: Unbounded bug_history Queries
-
-**Files:** `AdminQADashboard.tsx`, `DeveloperDashboard.tsx`
-
-Both dashboards fetch **all** bug_history records for the project with no row limit. As the project grows (currently 258 bugs with extensive history), this query returns hundreds or thousands of rows. The DeveloperDashboard fetches ALL status/fix_status history for the entire project even though it only needs history for the developer's assigned bugs.
-
-### Problem 4: Duplicate Aggregate Queries in BugList
-
-**File:** `src/pages/bugs/BugList.tsx`
-
-The `fetchAggregates` function makes **2 separate queries** to count severity stats and login type counts — both query the same `bugs` table with the same base filters. These should be a single query.
-
-### Problem 5: Multiple Independent Child Components on Dashboard
-
-The QA Dashboard page renders 5+ child components (`MyTodayStats`, `WeeklyBugTrendsChart`, `CoverageSummaryWidget`, `TodayActivityPanel`, `StaleFailuresAlert`, `FailedTestsReminder`), each making their own independent database calls. Combined with the double-fire issue, this means **10+ database round-trips** on every dashboard load.
+### Editable Fields
+All fields from the create form: title, description, severity, bug_type, login_type, feature, sub-module, steps to reproduce, expected/actual behavior, environment. Attachments will show existing ones with the ability to add more (not remove existing ones, to keep it simple).
 
 ---
 
-## Implementation Plan
+## Feature 2: Rich Text for Description, Expected & Actual Behavior
 
-### Step 1: Prevent Double Data Loading in AuthContext
+### Current State
+- `description`, `expected_behavior`, and `actual_behavior` are stored as `text` columns in the `bugs` table (plain strings).
+- The form uses plain `<Textarea>` components.
+- `BugDetail.tsx` renders these with `whitespace-pre-wrap` (plain text display).
 
-Add a guard in `AuthContext.tsx` so the `onAuthStateChange` callback skips the initial `INITIAL_SESSION` event when `getSession()` has already handled it. This prevents every page from loading data twice.
+### Approach: Lightweight Markdown-Based Rich Text
 
-**Change:** Add a `ref` flag (`initialSessionHandled`) that is set to `true` after `getSession()` resolves. The `onAuthStateChange` handler checks this flag and skips if the event is `INITIAL_SESSION`.
+Instead of a full WYSIWYG editor (which would require new dependencies like TipTap/Quill and significant complexity), I will use a **simple rich text toolbar** built with the existing `<Textarea>` component. This approach:
 
-### Step 2: Parallelize AdminQADashboard Queries
+- Stores content as **Markdown** in the existing text columns (no database changes needed).
+- Adds a small formatting toolbar above the textarea with buttons for: **Bold**, *Italic*, Bullet List, and Numbered List.
+- When a user pastes rich text from Word/Google Docs, it will be accepted as-is (the textarea already accepts pasted text; the issue is that formatting is stripped). To preserve formatting on paste, I will intercept the `paste` event and convert HTML clipboard data to Markdown using a lightweight utility function (no external dependency needed — just a small HTML-to-Markdown converter).
+- On the display side (`BugDetail.tsx`), render these fields using a simple Markdown renderer that converts `**bold**`, `*italic*`, `- bullets`, and `1. numbered lists` to proper HTML elements.
 
-Restructure `loadAdminData` to run **all 5 queries in parallel** using `Promise.all` instead of sequentially. Move bugs, bug_history, test_runs, and test_scenarios into the same parallel batch as profiles/roles/access.
+### New Components
 
-### Step 3: Add Limits to bug_history Queries
+**New file: `src/components/bugs/RichTextarea.tsx`**
+- Wraps the existing `<Textarea>` with a formatting toolbar.
+- Toolbar buttons: Bold (`**text**`), Italic (`*text*`), Bullet List (`- item`), Numbered List (`1. item`).
+- Handles paste events: intercepts `text/html` from clipboard, converts to Markdown (strips tags, preserves bold/italic/lists).
+- No new dependencies required.
 
-- **AdminQADashboard:** Add `.limit(1000)` to the bug_history query.
-- **DeveloperDashboard:** Filter bug_history to only the developer's assigned bug IDs using `.in("bug_id", assignedBugIds)` instead of fetching the entire project's history. Add `.limit(500)`.
+**New file: `src/components/bugs/MarkdownRenderer.tsx`**
+- A small component that takes a Markdown string and renders it as formatted HTML.
+- Supports: `**bold**`, `*italic*`, `- unordered lists`, `1. ordered lists`, line breaks.
+- Uses `dangerouslySetInnerHTML` with a strict whitelist sanitizer (only allows `<strong>`, `<em>`, `<ul>`, `<ol>`, `<li>`, `<br>`, `<p>` tags).
+- No external dependency needed.
 
-### Step 4: Combine BugList Aggregate Queries
+### Files Modified
 
-Merge the two separate aggregate queries (severity counts + login type counts) into a single query that fetches `severity, fix_status, login_type` in one call, then compute both aggregates client-side from the same result set.
+| File | Change |
+|---|---|
+| `src/pages/bugs/CreateBug.tsx` | Replace `<Textarea>` with `<RichTextarea>` for description, expected_behavior, actual_behavior |
+| `src/pages/bugs/EditBug.tsx` | Same — use `<RichTextarea>` for these fields |
+| `src/pages/bugs/BugDetail.tsx` | Replace plain `<p>` rendering with `<MarkdownRenderer>` for description, expected_behavior, actual_behavior |
+| `src/components/bugs/BugComments.tsx` | Optionally use `<RichTextarea>` for the comment composer too |
 
-### Step 5: Optimize DeveloperDashboard bug_history Scope
-
-Instead of querying all bug_history for the entire project, only query history for the bugs assigned to the current developer. This reduces the query result from potentially thousands of rows to just the relevant subset.
+### Backward Compatibility
+- Existing plain text bugs will render correctly since the Markdown renderer treats plain text as-is (no formatting markers = no formatting applied).
+- No database schema changes are needed — Markdown is stored as plain text.
 
 ---
 
-### Technical Details
+## Technical Details
 
 ```text
-File                                          Change
-─────────────────────────────────────────     ──────────────────────────────────────────
-src/contexts/AuthContext.tsx                   Add ref guard to prevent double-fire
-src/components/dashboard/AdminQADashboard.tsx  Parallelize all 5 queries with Promise.all
-src/components/dashboard/AdminQADashboard.tsx  Add .limit(1000) to bug_history
-src/components/dashboard/DeveloperDashboard.tsx Filter bug_history by assigned bug IDs + .limit(500)
-src/pages/bugs/BugList.tsx                     Combine 2 aggregate queries into 1
+File                                    Change
+─────────────────────────────────────   ──────────────────────────────────────
+src/pages/bugs/EditBug.tsx              NEW — Edit bug form page
+src/components/bugs/RichTextarea.tsx     NEW — Textarea with formatting toolbar + paste handler
+src/components/bugs/MarkdownRenderer.tsx NEW — Simple Markdown-to-HTML renderer
+src/App.tsx                             Add /bugs/:id/edit route
+src/pages/bugs/BugDetail.tsx            Add Edit button; use MarkdownRenderer for text fields
+src/pages/bugs/CreateBug.tsx            Use RichTextarea for description/expected/actual
 ```
 
-**Expected impact:** Page load times should drop from ~3-5 seconds to ~1-1.5 seconds by eliminating the double-load, removing query waterfalls, and reducing data transfer.
+No database migrations needed. No new npm dependencies required.
 
