@@ -1123,6 +1123,7 @@ export type Database = {
         Args: { _test_case_id: string }
         Returns: boolean
       }
+      cleanup_old_notifications: { Args: never; Returns: undefined }
       cleanup_old_selector_history: { Args: never; Returns: undefined }
       expire_stale_test_activity: { Args: never; Returns: undefined }
       get_approval_status: {
