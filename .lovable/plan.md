@@ -1,197 +1,64 @@
 
 
-# Platform Scalability Audit: Readiness for Next 3-4 Months
+## Understanding Your Pain Points
 
-## Current Data Volumes (Baseline)
+You have raised two issues:
 
-```text
-Table               Current Rows    3-4 Month Projection (2 projects, 2x usage)
-─────────────────── ──────────────  ────────────────────────────────────────────
-bugs                255             800-1,200
-bug_history         729             3,000-5,000
-test_scenarios      63              150-250
-test_cases          392             900-1,500
-test_runs           47              200-400
-test_results        190             1,500-3,000
-test_steps          150             500-900
-notifications       290             2,000-4,000
-automation_results  61              300-500
-features            39              80-120
-profiles            11              15-25
-```
+**Issue 1: Missing "Master Data" feature for Institute and Teacher login types.**
+Currently, "Master Data" only exists under Super Admin (split into "Master Data - Courses" and "Master Data - Curriculum"). Institute and Teacher login types do not have a Master Data feature, so bugs or scenarios related to master data for those roles cannot be categorized properly.
 
-## Issues Found (Ranked by Impact)
+**Issue 2: "Others" appearing twice in each login type.**
+After investigating the database, each login type actually has two separate catch-all features with no sub-modules:
+- **"Others"** — 0 bugs, 0 scenarios across all login types
+- **"UI & Responsiveness"** — 0 bugs, 0 scenarios (except Super Admin which has 2 bugs and 2 scenarios)
 
-### CRITICAL: 5 Issues That Will Break at Scale
+These two features look very similar in the Health Map tiles because both are generic, have no sub-modules, and sit at the bottom of each column — making it appear like "Others" is listed twice. Additionally, Super Admin has a third similar feature called **"Mobile Responsiveness"** (0 bugs, 1 scenario), which overlaps with "UI & Responsiveness".
 
-**1. DeveloperDashboard: Same IN-clause bug we just fixed elsewhere**
+The 52 orphan bugs (bugs with no feature assigned) are already mapped to the "Others" tile in the Health Map code, but since they go through a code-level mapping and not the database `feature_id`, they show under "Others" correctly.
 
-File: `src/components/dashboard/DeveloperDashboard.tsx` (line 85-89)
-
-The developer dashboard still uses the old pattern we just fixed in AdminQADashboard:
-```typescript
-.in("bug_id", bugList.map((b) => b.id))
-```
-When a developer has 50+ assigned bugs, this creates the same oversized URL problem. With 2 projects and more bugs, this will timeout.
-
-**Fix**: Replace with project-scoped join, same pattern as AdminQADashboard fix.
+**Bottom line:** "Others" is NOT literally duplicated in the database. But "Others" and "UI & Responsiveness" both appear as empty catch-all tiles, creating the visual impression of duplication.
 
 ---
 
-**2. MyTodayStats: bug_history query has NO project filter**
+## Implementation Plan
 
-File: `src/components/dashboard/MyTodayStats.tsx` (lines 48-54)
+### Step 1: Add "Master Data" feature for Institute and Teacher
 
-The `bug_history` query filters by `changed_by` and date but has no project filter at all. As data grows across multiple projects, this will return history from ALL projects, giving wrong counts and getting slower.
+Insert two new feature records:
 
-**Fix**: Add `bugs!inner(project_id)` join with `.eq("bugs.project_id", currentProject.id)`.
+| Login Type | Feature Name | Sub-Modules |
+|---|---|---|
+| Institute | Master Data | Create, Edit, Delete, View, Import |
+| Teacher | Master Data | Create, Edit, Delete, View |
 
----
+These will use the same `project_id` as the existing Donut AI project.
 
-**3. HealthMap: Fetches ALL test_cases and ALL test_results globally**
+### Step 2: Clean up the duplicate-looking catch-all features
 
-File: `src/pages/qa/HealthMap.tsx` (lines 68-69)
+Since "UI & Responsiveness" has 2 bugs and 2 scenarios under Super Admin, it cannot simply be deleted. The plan:
 
-```typescript
-supabase.from("test_cases").select("id, scenario_id").order("id"),
-supabase.from("test_results").select("id, test_case_id, status").order("id"),
-```
+1. **Keep "UI & Responsiveness"** across all login types — it serves a legitimate purpose for UI/layout bugs.
+2. **Keep "Others"** across all login types — it serves as the catch-all for orphan bugs (52 bugs currently map here via the Health Map code).
+3. **Merge "Mobile Responsiveness" into "UI & Responsiveness"** for Super Admin — move the 1 scenario from "Mobile Responsiveness" to "UI & Responsiveness", then delete "Mobile Responsiveness". This reduces the number of similar-looking features.
+4. **Add sub-modules to both** so they look distinct in the UI:
+   - "UI & Responsiveness" → sub-modules: `Layout, Tables, Dialogs, Touch, Filters, Navigation` (borrowing from the existing Mobile Responsiveness sub-modules)
+   - "Others" → sub-modules: `General, Uncategorized`
 
-These two queries fetch **every single test case and test result in the database** with no project filter. At 1,500+ test results and 900+ test cases, this will be a massive payload. With multiple projects, it leaks cross-project data to the client.
+This way, the two features will no longer look identical in the Health Map, and users can distinguish between UI-specific bugs and truly uncategorized bugs.
 
-**Fix**: Filter test_cases through scenario join: `.select("id, scenario_id, test_scenarios!inner(project_id)").eq("test_scenarios.project_id", currentProject.id)`. For test_results, filter through run: `.select("id, test_case_id, status, test_runs!inner(project_id)").eq("test_runs.project_id", ...)` or limit to recent results.
+### Step 3: Reassign the Mobile Responsiveness scenario
 
----
-
-**4. TestRuns: Fetches ALL runs with ALL results (no pagination)**
-
-File: `src/pages/qa/TestRuns.tsx` (lines 39-47)
-
-Fetches all test runs for the project with embedded `test_results (id, status)`. With 200+ runs and 3,000+ results, this query returns a massive nested payload. No pagination, no date limit.
-
-**Fix**: Add pagination (25 runs per page with server-side count) and limit the results join to count-only using a server-side aggregate or limit the query to recent runs.
+Update the 1 test scenario currently pointing to the "Mobile Responsiveness" feature to instead point to the Super Admin "UI & Responsiveness" feature, then delete the "Mobile Responsiveness" record.
 
 ---
 
-**5. TestScenarios: Fetches ALL scenarios with nested test_cases (no pagination)**
+### Technical Details
 
-File: `src/pages/qa/TestScenarios.tsx` (lines 73-81)
+All changes are data-level operations (INSERT, UPDATE, DELETE on the `features` and `test_scenarios` tables). No code changes are required.
 
-Loads all scenarios with `test_cases (id)` embedded. With 250 scenarios and 1,500 test cases, this becomes a heavy payload. Client-side filtering means downloading everything even when searching for one item.
-
-**Fix**: Add server-side pagination and move search/filters to server-side queries.
-
----
-
-### HIGH: 4 Issues That Will Degrade Performance
-
-**6. Missing database indexes on frequently filtered columns**
-
-The following columns are used in WHERE clauses but have NO index:
-- `bugs.project_id` -- every bug query filters by this
-- `bugs.status` -- filtered on every bug list page
-- `bugs.fix_status` -- the new filter we just added
-- `bugs.reported_by` -- daily stats, dashboard
-- `bug_history.bug_id` -- every history lookup joins on this
-- `bug_history.changed_by` -- daily stats per person
-- `bug_history.field_changed` -- filtered in every history query
-- `notifications.user_id` -- every notification check
-- `notifications.is_read` -- unread count badge
-- `test_runs.project_id` -- every run query
-- `test_scenarios.project_id` -- every scenario query
-- `features.project_id` -- every feature query
-
-Without indexes, the database does full table scans. At 5,000 bug_history rows and 3,000 test_results, queries that currently take 200ms will take 2-5 seconds.
-
-**Fix**: Create composite indexes on the most-used filter combinations.
-
----
-
-**7. PendingRetest: No pagination**
-
-File: `src/pages/bugs/PendingRetest.tsx` (line 51-57)
-
-Fetches all bugs with `fix_status = "fixed"` and `status = "resolved"` without pagination. If 60+ bugs pile up awaiting retest, this is fine. But with sustained usage and delays in retesting, this list could grow to 100+ items.
-
-**Fix**: Add pagination matching the pattern already used in BugList and ClosedBugs.
-
----
-
-**8. Notifications table: No cleanup, unbounded growth**
-
-The notifications table has 290 rows already and grows with every bug fix, retest, test run completion, and automation result. At current rate, it will reach 4,000+ rows in 3-4 months. The `NotificationBell` component fetches unread count on every page load for every user, and there is no mechanism to archive or delete old notifications.
-
-**Fix**: Add a scheduled cleanup (database function or cron) to delete notifications older than 30 days, and add an index on `(user_id, is_read)`.
-
----
-
-**9. QADashboard: automation_results fetched without any filter**
-
-File: `src/pages/qa/QADashboard.tsx` (lines 83-85)
-
-```typescript
-supabase.from("automation_results").select("test_result_id")
-```
-
-This fetches ALL automation results in the entire database with no project filter. Used only to build an exclusion set. At 500+ automation results, this is wasteful and leaks cross-project IDs.
-
-**Fix**: Filter by project through the automation_runs join: `.select("test_result_id, automation_runs!inner(project_id)").eq("automation_runs.project_id", currentProject.id)`.
-
----
-
-### MEDIUM: 2 Issues to Address Proactively
-
-**10. BugList aggregate queries fire on every bug list render**
-
-File: `src/pages/bugs/BugList.tsx` (lines 162-197)
-
-The `fetchAggregates` effect depends on `bugs` state, meaning it re-fires every time the bug list loads. This runs 2 additional queries (severity counts + login type counts) on top of the main bug query. At scale, this is 3 queries per page navigation.
-
-**Fix**: Combine aggregate fetching into the main query using Supabase count headers, or debounce the aggregate fetch.
-
----
-
-**11. Coverage page: Client-side joins between features and scenarios**
-
-File: `src/pages/qa/Coverage.tsx` (lines 40-63)
-
-Loads all features and all scenarios, then does client-side `.filter()` to match them. This works fine now but will slow down with 120 features and 250 scenarios. Not critical but could be optimized with a server-side join.
-
----
-
-## Recommended Implementation Priority
-
-### Phase 1: Immediate (Prevent Breakage)
-
-| # | Issue | File | Effort |
-|---|-------|------|--------|
-| 1 | DeveloperDashboard IN-clause | `DeveloperDashboard.tsx` | 10 min |
-| 2 | MyTodayStats missing project filter | `MyTodayStats.tsx` | 10 min |
-| 3 | HealthMap unfiltered global queries | `HealthMap.tsx` | 20 min |
-| 6 | Add database indexes | Migration SQL | 15 min |
-| 9 | QADashboard automation_results no filter | `QADashboard.tsx` | 5 min |
-
-### Phase 2: Soon (Prevent Degradation)
-
-| # | Issue | File | Effort |
-|---|-------|------|--------|
-| 4 | TestRuns pagination | `TestRuns.tsx` | 30 min |
-| 5 | TestScenarios pagination | `TestScenarios.tsx` | 30 min |
-| 8 | Notifications cleanup | Migration SQL | 15 min |
-
-### Phase 3: Proactive (Quality of Life)
-
-| # | Issue | File | Effort |
-|---|-------|------|--------|
-| 7 | PendingRetest pagination | `PendingRetest.tsx` | 20 min |
-| 10 | BugList aggregate optimization | `BugList.tsx` | 15 min |
-| 11 | Coverage server-side join | `Coverage.tsx` | 15 min |
-
-## Summary
-
-The platform has **5 critical query issues** that will cause timeouts or incorrect data as usage grows. Three of them (#1, #2, #9) are the same pattern we just fixed -- queries missing project filters or using oversized IN clauses. The HealthMap (#3) is the most dangerous because it fetches ALL test cases and results globally with zero filtering.
-
-The database also needs **indexes on 12 frequently-filtered columns** that currently have none. Without these, every query does a full table scan, which is fine at 255 rows but will noticeably slow down at 1,000+.
-
-The good news: BugList, ClosedBugs, and the Failures page already use server-side pagination correctly, so those patterns exist in the codebase and can be replicated for TestRuns and TestScenarios.
+**SQL operations:**
+1. `INSERT INTO features` — 2 rows (Master Data for institute + teacher)
+2. `UPDATE test_scenarios SET feature_id = <UI & Responsiveness ID> WHERE feature_id = <Mobile Responsiveness ID>` — 1 row
+3. `DELETE FROM features WHERE id = <Mobile Responsiveness ID>` — 1 row
+4. `UPDATE features SET sub_modules = ...` — update "UI & Responsiveness" across all 4 login types with proper sub-modules, and "Others" across all 4 login types with `General, Uncategorized`
 
