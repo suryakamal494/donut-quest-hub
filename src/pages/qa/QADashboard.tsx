@@ -78,7 +78,8 @@ export default function QADashboard() {
           .from("test_results")
           .select("*, test_cases(*)")
           .gte("executed_at", thirtyDaysAgo.toISOString())
-          .order("executed_at", { ascending: false }),
+          .order("executed_at", { ascending: false })
+          .limit(500),
         supabase
           .from("automation_results")
           .select("test_result_id")
