@@ -65,8 +65,8 @@ export default function HealthMap() {
         supabase.from("bugs").select("id, feature_id, status, created_at, severity, login_type").eq("project_id", currentProject.id),
         supabase.from("test_scenarios").select("id, feature_id, last_tested_at").eq("project_id", currentProject.id).not("feature_id", "is", null),
         supabase.from("feature_health_status").select("*").eq("project_id", currentProject.id),
-        supabase.from("test_cases").select("id, scenario_id").order("id"),
-        supabase.from("test_results").select("id, test_case_id, status").order("id"),
+        supabase.from("test_cases").select("id, scenario_id, test_scenarios!inner(project_id)").eq("test_scenarios.project_id", currentProject.id).order("id"),
+        supabase.from("test_results").select("id, test_case_id, status, test_runs!inner(project_id)").eq("test_runs.project_id", currentProject.id).order("id"),
       ]);
 
       setFeatures(featureData || []);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban, Trash2 } from "lucide-react";
+import { Plus, Search, Loader2, PlayCircle, Clock, CheckCircle, XCircle, FolderKanban, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -16,6 +16,8 @@ import { useProject } from "@/contexts/ProjectContext";
 import type { TestRun, RunStatus } from "@/types/qa";
 import { RUN_STATUS_LABELS } from "@/types/qa";
 
+const PAGE_SIZE = 25;
+
 export default function TestRuns() {
   const { currentProject, isLoading: projectLoading } = useProject();
   const { user, role } = useAuth();
@@ -23,12 +25,19 @@ export default function TestRuns() {
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     if (currentProject) {
       loadRuns();
     }
-  }, [currentProject]);
+  }, [currentProject, page]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
 
   const loadRuns = async () => {
     if (!currentProject) return;
@@ -36,15 +45,23 @@ export default function TestRuns() {
     try {
       setLoading(true);
 
-      const { data: runsData } = await supabase
+      let query = supabase
         .from("test_runs")
-        .select(`
-          *,
-          test_results (id, status)
-        `)
+        .select(`*, test_results (id, status)`, { count: "exact" })
         .eq("project_id", currentProject.id)
         .eq("run_type", "manual")
         .order("started_at", { ascending: false });
+
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,run_code.ilike.%${search}%`);
+      }
+
+      const from = page * PAGE_SIZE;
+      query = query.range(from, from + PAGE_SIZE - 1);
+
+      const { data: runsData, count } = await query;
+
+      setTotalCount(count || 0);
 
       // Calculate stats for each run
       const runsWithStats = runsData?.map(run => {
@@ -68,14 +85,7 @@ export default function TestRuns() {
     }
   };
 
-  const filteredRuns = runs.filter((run) => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      run.name.toLowerCase().includes(searchLower) ||
-      run.run_code.toLowerCase().includes(searchLower)
-    );
-  });
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const getStatusIcon = (status: RunStatus) => {
     switch (status) {
@@ -127,7 +137,7 @@ export default function TestRuns() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Test Runs</h1>
-          <p className="text-muted-foreground">{runs.length} total runs</p>
+          <p className="text-muted-foreground">{totalCount} total runs</p>
         </div>
         <Button asChild>
           <Link to="/qa/runs/create">
@@ -147,25 +157,28 @@ export default function TestRuns() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") loadRuns();
+              }}
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Runs List */}
-      {filteredRuns.length === 0 ? (
+      {runs.length === 0 ? (
         <Card className="glass">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <PlayCircle className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-1">
-              {runs.length === 0 ? "No test runs yet" : "No matching runs"}
+              {totalCount === 0 ? "No test runs yet" : "No matching runs"}
             </h3>
             <p className="text-muted-foreground text-center max-w-sm mb-4">
-              {runs.length === 0
+              {totalCount === 0
                 ? "Start your first test run to begin testing scenarios."
                 : "Try adjusting your search terms."}
             </p>
-            {runs.length === 0 && (
+            {totalCount === 0 && (
               <Button asChild>
                 <Link to="/qa/runs/create">
                   <Plus className="h-4 w-4 mr-2" />
@@ -177,7 +190,7 @@ export default function TestRuns() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {filteredRuns.map((run) => {
+          {runs.map((run) => {
             const completedCount = (run.passed || 0) + (run.failed || 0) + (run.blocked || 0) + (run.skipped || 0);
             const progressPercent = run.total_tests ? (completedCount / run.total_tests) * 100 : 0;
 
@@ -251,6 +264,35 @@ export default function TestRuns() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page + 1} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages - 1}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

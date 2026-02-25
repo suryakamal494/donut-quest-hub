@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search, Filter, Loader2, FileText, Download, FolderKanban, List, FolderTree, X } from "lucide-react";
+import { Plus, Search, Loader2, FileText, Download, FolderKanban, List, FolderTree, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,8 @@ interface ExtendedScenario extends TestScenario {
   tester_name?: string;
 }
 
+const PAGE_SIZE = 25;
+
 export default function TestScenarios() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentProject, isLoading: projectLoading } = useProject();
@@ -29,7 +31,6 @@ export default function TestScenarios() {
   const [scenarios, setScenarios] = useState<ExtendedScenario[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [search, setSearch] = useState(searchParams.get("search") || "");
-  // Default to grouped view for better organization
   const [viewMode, setViewMode] = useState<"list" | "grouped">(
     (searchParams.get("view") as "list" | "grouped") || "grouped"
   );
@@ -39,15 +40,23 @@ export default function TestScenarios() {
   const [loginFilter, setLoginFilter] = useState<LoginType | "all">(
     (searchParams.get("login") as LoginType) || "all"
   );
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  // We need all scenarios (lightweight) for tab counts
+  const [allScenariosMeta, setAllScenariosMeta] = useState<Array<{ id: string; scenario_type: string; login_types: string[] }>>([]);
 
   useEffect(() => {
     if (currentProject) {
       loadData();
     }
-  }, [currentProject]);
+  }, [currentProject, page, typeFilter, loginFilter]);
+
+  // Reset page on filter change
+  useEffect(() => {
+    setPage(0);
+  }, [search, typeFilter, loginFilter]);
 
   useEffect(() => {
-    // Update URL params when filters change
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (viewMode !== "grouped") params.set("view", viewMode);
@@ -62,27 +71,47 @@ export default function TestScenarios() {
     try {
       setLoading(true);
 
-      // Load features for current project
+      // Load features
       const { data: featuresData } = await supabase
         .from("features")
         .select("*")
         .eq("project_id", currentProject.id)
         .order("order_index");
 
-      // Load scenarios with test case count and testing history for current project
-      const { data: scenariosData } = await supabase
+      // Lightweight query for tab counts (all scenarios, minimal fields)
+      const { data: metaData } = await supabase
         .from("test_scenarios")
-        .select(`
-          *,
-          features (id, name, login_type),
-          test_cases (id)
-        `)
+        .select("id, scenario_type, login_types")
+        .eq("project_id", currentProject.id);
+
+      setAllScenariosMeta(metaData || []);
+
+      // Paginated query for display
+      let query = supabase
+        .from("test_scenarios")
+        .select(`*, features (id, name, login_type), test_cases (id)`, { count: "exact" })
         .eq("project_id", currentProject.id)
         .order("created_at", { ascending: false });
 
-      setFeatures(featuresData as Feature[] || []);
+      if (typeFilter !== "all") {
+        query = query.eq("scenario_type", typeFilter);
+      }
+      if (loginFilter !== "all") {
+        query = query.contains("login_types", [loginFilter]);
+      }
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,scenario_code.ilike.%${search}%,description.ilike.%${search}%`);
+      }
 
-      // Get tester names for scenarios that have been tested
+      const from = page * PAGE_SIZE;
+      query = query.range(from, from + PAGE_SIZE - 1);
+
+      const { data: scenariosData, count } = await query;
+
+      setFeatures(featuresData as Feature[] || []);
+      setTotalCount(count || 0);
+
+      // Get tester names
       const testedScenarios = scenariosData?.filter(s => s.last_tested_by) || [];
       const testerIds = [...new Set(testedScenarios.map(s => s.last_tested_by))];
       
@@ -99,7 +128,6 @@ export default function TestScenarios() {
         }, {} as Record<string, string>);
       }
       
-      // Transform to include test_case_count and tester name
       const transformedScenarios = scenariosData?.map(s => ({
         ...s,
         feature: s.features ? {
@@ -123,30 +151,7 @@ export default function TestScenarios() {
     }
   };
 
-  // Filter scenarios
-  const filteredScenarios = scenarios.filter((scenario) => {
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      const matchesSearch =
-        scenario.name.toLowerCase().includes(searchLower) ||
-        scenario.scenario_code.toLowerCase().includes(searchLower) ||
-        scenario.description?.toLowerCase().includes(searchLower);
-      if (!matchesSearch) return false;
-    }
-
-    // Type filter
-    if (typeFilter !== "all" && scenario.scenario_type !== typeFilter) {
-      return false;
-    }
-
-    // Login filter
-    if (loginFilter !== "all" && !scenario.login_types.includes(loginFilter)) {
-      return false;
-    }
-
-    return true;
-  });
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   if (loading || projectLoading) {
     return (
@@ -170,7 +175,6 @@ export default function TestScenarios() {
     );
   }
 
-  // Check if any filters are active
   const hasActiveFilters = search || typeFilter !== "all" || loginFilter !== "all";
 
   const clearAllFilters = () => {
@@ -186,11 +190,11 @@ export default function TestScenarios() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Test Scenarios</h1>
           <p className="text-muted-foreground">
-            {filteredScenarios.length} of {scenarios.length} scenarios
+            {totalCount} of {allScenariosMeta.length} scenarios
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportScenariosToCSV(filteredScenarios)}>
+          <Button variant="outline" size="sm" onClick={() => exportScenariosToCSV(scenarios)}>
             <Download className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Export</span>
           </Button>
@@ -204,9 +208,9 @@ export default function TestScenarios() {
         </div>
       </div>
 
-      {/* Login Type Tabs - Primary filter */}
+      {/* Login Type Tabs */}
       <LoginTypeTabs
-        scenarios={scenarios}
+        scenarios={allScenariosMeta as any}
         selectedLoginType={loginFilter}
         onLoginTypeChange={setLoginFilter}
       />
@@ -215,9 +219,7 @@ export default function TestScenarios() {
       <Card className="glass">
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col gap-3">
-            {/* Search + View Toggle Row */}
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search */}
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -225,10 +227,11 @@ export default function TestScenarios() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 h-9"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") loadData();
+                  }}
                 />
               </div>
-
-              {/* View Toggle */}
               <ToggleGroup
                 type="single"
                 value={viewMode}
@@ -246,15 +249,13 @@ export default function TestScenarios() {
               </ToggleGroup>
             </div>
             
-            {/* Scenario Type Tabs */}
             <div className="flex items-center justify-between gap-3">
               <ScenarioTypeTabs
-                scenarios={scenarios.filter(s => loginFilter === "all" || s.login_types.includes(loginFilter))}
+                scenarios={allScenariosMeta.filter(s => loginFilter === "all" || s.login_types.includes(loginFilter)) as any}
                 selectedType={typeFilter}
                 onTypeChange={setTypeFilter}
               />
               
-              {/* Clear Filters */}
               {hasActiveFilters && (
                 <Button 
                   variant="ghost" 
@@ -272,21 +273,20 @@ export default function TestScenarios() {
       </Card>
 
       {/* Scenario List */}
-      {filteredScenarios.length === 0 ? (
+      {scenarios.length === 0 ? (
         <Card className="glass">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
             <h3 className="text-lg font-medium text-foreground mb-1">
-              {scenarios.length === 0 ? "No scenarios yet" : "No matching scenarios"}
+              {allScenariosMeta.length === 0 ? "No scenarios yet" : "No matching scenarios"}
             </h3>
             <p className="text-muted-foreground text-center max-w-sm mb-4 text-sm">
-              {scenarios.length === 0
+              {allScenariosMeta.length === 0
                 ? "Create your first test scenario to get started with testing."
                 : "Try adjusting your filters or search terms."}
             </p>
             
-            {/* Active Filters Display */}
-            {hasActiveFilters && scenarios.length > 0 && (
+            {hasActiveFilters && allScenariosMeta.length > 0 && (
               <div className="flex flex-col items-center gap-3 mb-4">
                 <p className="text-xs text-muted-foreground">Active filters:</p>
                 <div className="flex flex-wrap gap-2 justify-center">
@@ -312,7 +312,7 @@ export default function TestScenarios() {
               </div>
             )}
             
-            {scenarios.length === 0 && (
+            {allScenariosMeta.length === 0 && (
               <Button asChild>
                 <Link to="/qa/scenarios/create">
                   <Plus className="h-4 w-4 mr-2" />
@@ -323,12 +323,41 @@ export default function TestScenarios() {
           </CardContent>
         </Card>
       ) : viewMode === "grouped" ? (
-        <GroupedScenarioView scenarios={filteredScenarios} features={features} />
+        <GroupedScenarioView scenarios={scenarios} features={features} />
       ) : (
         <div className="grid gap-4">
-          {filteredScenarios.map((scenario) => (
+          {scenarios.map((scenario) => (
             <ScenarioCard key={scenario.id} scenario={scenario} />
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page + 1} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages - 1}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

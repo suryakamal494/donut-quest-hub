@@ -82,7 +82,8 @@ export default function QADashboard() {
           .limit(500),
         supabase
           .from("automation_results")
-          .select("test_result_id")
+          .select("test_result_id, automation_runs!inner(project_id)")
+          .eq("automation_runs.project_id", currentProject.id)
       ]);
 
       // Exclude automation-generated results from dashboard metrics

@@ -47,7 +47,8 @@ export function MyTodayStats() {
           .lte("started_at", dayEnd.toISOString()),
         supabase
           .from("bug_history")
-          .select("field_changed, old_value, new_value")
+          .select("field_changed, old_value, new_value, bugs!inner(project_id)")
+          .eq("bugs.project_id", currentProject.id)
           .eq("changed_by", user.id)
           .eq("field_changed", "fix_status")
           .gte("created_at", dayStart.toISOString())

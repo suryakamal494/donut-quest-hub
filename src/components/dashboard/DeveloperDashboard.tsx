@@ -84,8 +84,8 @@ export function DeveloperDashboard() {
       // Avg resolution time from bug_history (status changed to resolved)
       const { data: historyData } = await supabase
         .from("bug_history")
-        .select("bug_id, created_at, field_changed, new_value")
-        .in("bug_id", bugList.map((b) => b.id))
+        .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
+        .eq("bugs.project_id", currentProject.id)
         .in("field_changed", ["status", "fix_status"]);
 
       let totalHours = 0;
