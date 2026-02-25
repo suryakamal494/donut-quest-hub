@@ -11,9 +11,15 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SeverityBadge, FixStatusBadge } from "@/components/bugs/BugBadges";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+import {
+  Pagination, PaginationContent, PaginationItem, PaginationLink,
+  PaginationNext, PaginationPrevious, PaginationEllipsis,
+} from "@/components/ui/pagination";
 import type { Bug as BugType } from "@/types/bugs";
 import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
+
+const PAGE_SIZE = 25;
 
 const LOGIN_FILTERS: Array<{ value: "all" | LoginType; label: string }> = [
   { value: "all", label: "All" },
@@ -34,31 +40,45 @@ export default function PendingRetest() {
 
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [profileMap, setProfileMap] = useState<ProfileMap>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [reopenNotes, setReopenNotes] = useState<Record<string, string>>({});
   const [showReopenForm, setShowReopenForm] = useState<string | null>(null);
   const [loginTypeFilter, setLoginTypeFilter] = useState<"all" | LoginType>("all");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
-  }, [user, currentProject]);
+  }, [user, currentProject, page, loginTypeFilter]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
+
+      let query = supabase
         .from("bugs")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("project_id", currentProject.id)
         .eq("fix_status", "fixed")
-        .eq("status", "resolved")
-        .order("resolved_at", { ascending: false });
+        .eq("status", "resolved");
+
+      if (loginTypeFilter !== "all") {
+        query = query.eq("login_type", loginTypeFilter);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await query
+        .order("resolved_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       const bugsData = (data || []) as BugType[];
       setBugs(bugsData);
+      setTotalCount(count || 0);
 
       // Fetch profile names
       const userIds = new Set<string>();
@@ -89,7 +109,6 @@ export default function PendingRetest() {
     if (!user) return;
     setActionLoading(bug.id);
     try {
-      // Record history
       await supabase.from("bug_history").insert([
         { bug_id: bug.id, changed_by: user.id, field_changed: "fix_status", old_value: "fixed", new_value: "verified" },
         { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "closed" },
@@ -106,7 +125,6 @@ export default function PendingRetest() {
         .eq("id", bug.id);
       if (error) throw error;
 
-      // Notify developer
       const devId = bug.resolved_by || bug.assigned_to;
       if (devId && devId !== user.id) {
         await supabase.from("notifications").insert({
@@ -141,7 +159,6 @@ export default function PendingRetest() {
         { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "open" },
       ]);
 
-      // Add reopen reason as a comment
       await supabase.from("bug_comments").insert({
         bug_id: bug.id,
         user_id: user.id,
@@ -162,7 +179,6 @@ export default function PendingRetest() {
         .eq("id", bug.id);
       if (error) throw error;
 
-      // Notify developer
       const devId = bug.resolved_by || bug.assigned_to;
       if (devId && devId !== user.id) {
         await supabase.from("notifications").insert({
@@ -186,12 +202,65 @@ export default function PendingRetest() {
   };
 
   const isQAOrAdmin = role === "admin" || role === "user";
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const filteredBugs = loginTypeFilter === "all"
-    ? bugs
-    : bugs.filter((b) => b.login_type === loginTypeFilter);
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
 
-  if (loading) {
+    const getPageNumbers = () => {
+      const pages: (number | "ellipsis")[] = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (page > 3) pages.push("ellipsis");
+        for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+          pages.push(i);
+        }
+        if (page < totalPages - 2) pages.push("ellipsis");
+        pages.push(totalPages);
+      }
+      return pages;
+    };
+
+    return (
+      <Pagination className="mt-6">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className={cn(page === 1 && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+          {getPageNumbers().map((p, i) =>
+            p === "ellipsis" ? (
+              <PaginationItem key={`e-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={p}>
+                <PaginationLink
+                  isActive={page === p}
+                  onClick={() => setPage(p as number)}
+                  className="cursor-pointer"
+                >
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          <PaginationItem>
+            <PaginationNext
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className={cn(page === totalPages && "pointer-events-none opacity-50", "cursor-pointer")}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
+
+  if (loading && page === 1) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -204,7 +273,8 @@ export default function PendingRetest() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Pending Retest</h1>
         <p className="text-sm text-muted-foreground">
-          {filteredBugs.length} of {bugs.length} bug{bugs.length !== 1 ? "s" : ""} awaiting QA verification
+          {totalCount} bug{totalCount !== 1 ? "s" : ""} awaiting QA verification
+          {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
         </p>
       </div>
 
@@ -219,14 +289,14 @@ export default function PendingRetest() {
               "rounded-full text-xs h-8 px-3",
               loginTypeFilter === f.value && "shadow-sm"
             )}
-            onClick={() => setLoginTypeFilter(f.value)}
+            onClick={() => { setLoginTypeFilter(f.value); setPage(1); }}
           >
             {f.label}
           </Button>
         ))}
       </div>
 
-      {filteredBugs.length === 0 ? (
+      {bugs.length === 0 && !loading ? (
         <div className="text-center py-16">
           <CheckCircle className="h-12 w-12 mx-auto text-emerald-500/50 mb-4" />
           <h3 className="font-medium text-foreground">All clear!</h3>
@@ -234,7 +304,7 @@ export default function PendingRetest() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {filteredBugs.map((bug) => {
+          {bugs.map((bug) => {
             const isLoading = actionLoading === bug.id;
             const isReopening = showReopenForm === bug.id;
 
@@ -261,7 +331,6 @@ export default function PendingRetest() {
                         {bug.title}
                       </Link>
 
-                      {/* Developer fix notes */}
                       {bug.developer_response && (
                         <div className="mt-2 p-2.5 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50">
                           <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-0.5">Developer Fix Notes</p>
@@ -269,7 +338,6 @@ export default function PendingRetest() {
                         </div>
                       )}
 
-                      {/* Meta */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
                         {bug.resolved_by && (
                           <span className="flex items-center gap-1">
@@ -359,6 +427,8 @@ export default function PendingRetest() {
           })}
         </div>
       )}
+
+      {renderPagination()}
     </div>
   );
 }

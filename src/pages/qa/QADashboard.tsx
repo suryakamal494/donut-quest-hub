@@ -76,7 +76,8 @@ export default function QADashboard() {
       const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
         supabase
           .from("test_results")
-          .select("*, test_cases(*)")
+          .select("*, test_cases(*), test_runs!inner(project_id)")
+          .eq("test_runs.project_id", currentProject.id)
           .gte("executed_at", thirtyDaysAgo.toISOString())
           .order("executed_at", { ascending: false })
           .limit(500),
