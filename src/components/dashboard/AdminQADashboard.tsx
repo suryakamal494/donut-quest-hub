@@ -129,8 +129,8 @@ export function AdminQADashboard() {
       // 3. Developer performance
       const { data: bugHistory } = await supabase
         .from("bug_history")
-        .select("bug_id, created_at, field_changed, new_value")
-        .in("bug_id", bugList.map((b) => b.id).length > 0 ? bugList.map((b) => b.id) : ["00000000-0000-0000-0000-000000000000"])
+        .select("bug_id, created_at, field_changed, new_value, bugs!inner(project_id)")
+        .eq("bugs.project_id", currentProject.id)
         .in("field_changed", ["status", "fix_status"]);
 
       const historyByBug: Record<string, typeof bugHistory> = {};

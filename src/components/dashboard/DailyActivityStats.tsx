@@ -81,7 +81,8 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
       // Fetch bug_history for retests (verified) and fixes on this date
       const { data: historyData } = await supabase
         .from("bug_history")
-        .select("changed_by, field_changed, old_value, new_value, created_at")
+        .select("changed_by, field_changed, old_value, new_value, created_at, bugs!inner(project_id)")
+        .eq("bugs.project_id", projectId)
         .eq("field_changed", "fix_status")
         .gte("created_at", dayStart.toISOString())
         .lte("created_at", dayEnd.toISOString());
