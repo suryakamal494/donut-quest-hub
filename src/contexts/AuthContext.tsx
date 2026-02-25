@@ -105,14 +105,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Then check for existing session
+    // Then check for existing session with timeout
+    const sessionTimeout = setTimeout(() => {
+      console.warn("Session check timed out after 8 seconds");
+      setIsLoading(false);
+    }, 8000);
+
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      clearTimeout(sessionTimeout);
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       
       if (existingSession?.user) {
         fetchProfile(existingSession.user.id);
       }
+      setIsLoading(false);
+    }).catch((error) => {
+      clearTimeout(sessionTimeout);
+      console.error("Session check failed:", error);
       setIsLoading(false);
     });
 

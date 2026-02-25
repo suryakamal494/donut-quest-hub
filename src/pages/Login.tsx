@@ -43,10 +43,14 @@ const Login: React.FC = () => {
     const { error } = await signIn(email, password);
     
     if (error) {
+      const message = error.message?.toLowerCase();
+      const isNetworkError = message?.includes("fetch") || message?.includes("network") || message?.includes("failed to fetch");
       toast({
         variant: "destructive",
         title: "Login failed",
-        description: error.message || "Invalid email or password",
+        description: isNetworkError
+          ? "Unable to connect to the server. Please check your internet connection and try again."
+          : (error.message || "Invalid email or password"),
       });
       setIsLoading(false);
       return;
