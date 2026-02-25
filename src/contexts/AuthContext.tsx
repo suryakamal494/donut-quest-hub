@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -85,15 +85,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const initialSessionHandled = useRef(false);
+
   useEffect(() => {
     // Set up auth state listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        // Skip INITIAL_SESSION if getSession() already handled it
+        if (event === 'INITIAL_SESSION' && initialSessionHandled.current) {
+          return;
+        }
+
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
-          // Use setTimeout to avoid potential race conditions
           setTimeout(() => {
             fetchProfile(currentSession.user.id);
           }, 0);
@@ -108,11 +114,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Then check for existing session with timeout
     const sessionTimeout = setTimeout(() => {
       console.warn("Session check timed out after 8 seconds");
+      initialSessionHandled.current = true;
       setIsLoading(false);
     }, 8000);
 
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
       clearTimeout(sessionTimeout);
+      initialSessionHandled.current = true;
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       
@@ -122,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }).catch((error) => {
       clearTimeout(sessionTimeout);
+      initialSessionHandled.current = true;
       console.error("Session check failed:", error);
       setIsLoading(false);
     });

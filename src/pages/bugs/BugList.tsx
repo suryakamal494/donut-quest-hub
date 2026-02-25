@@ -162,35 +162,27 @@ export default function BugList() {
   useEffect(() => {
     if (!currentProject) return;
     const fetchAggregates = async () => {
-      // Fetch severity + fix_status counts
-      const { data: sevData } = await supabase
+      // Single query for all aggregate data
+      const { data: aggData } = await supabase
         .from("bugs")
-        .select("severity, fix_status")
+        .select("severity, fix_status, login_type")
         .eq("project_id", currentProject.id)
         .in("status", ["open", "in_progress"]);
 
       const sevCounts: Record<string, number> = {};
+      const ltCounts: Record<string, number> = { all: 0 };
       let reopened = 0;
-      (sevData || []).forEach((b: any) => {
+
+      (aggData || []).forEach((b: any) => {
         sevCounts[b.severity] = (sevCounts[b.severity] || 0) + 1;
         if (b.fix_status === "reopened") reopened++;
-      });
-      setSeverityStats(sevCounts);
-      setReopenedCount(reopened);
-
-      // Fetch login type counts
-      const { data: ltData } = await supabase
-        .from("bugs")
-        .select("login_type")
-        .eq("project_id", currentProject.id)
-        .in("status", ["open", "in_progress"]);
-
-      const ltCounts: Record<string, number> = { all: 0 };
-      (ltData || []).forEach((b: any) => {
         const lt = b.login_type || "unknown";
         ltCounts[lt] = (ltCounts[lt] || 0) + 1;
         ltCounts.all++;
       });
+
+      setSeverityStats(sevCounts);
+      setReopenedCount(reopened);
       setLoginCounts(ltCounts);
     };
     fetchAggregates();
