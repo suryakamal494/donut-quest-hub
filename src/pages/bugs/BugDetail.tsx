@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User, Share2 } from "lucide-react";
+import { ArrowLeft, Loader2, Bug, Clock, Trash2, ExternalLink, User, Share2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,7 @@ import { BugComments } from "@/components/bugs/BugComments";
 import { BugHistoryTimeline } from "@/components/bugs/BugHistoryTimeline";
 import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
+import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
 import type { Bug as BugType, BugStatus } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 import { formatDistanceToNow, format } from "date-fns";
@@ -244,6 +245,7 @@ export default function BugDetail() {
 
   const isAdmin = role === "admin";
   const isReporter = user?.id === bug.reported_by;
+  const canEdit = isAdmin || isReporter;
   const canDelete = isAdmin || isReporter;
   const fixStatus = bug.fix_status || "unfixed";
 
@@ -281,7 +283,13 @@ export default function BugDetail() {
           </div>
           <h1 className="text-lg sm:text-xl font-bold text-foreground">{bug.title}</h1>
         </div>
-        {canDelete && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canEdit && (
+            <Button variant="outline" size="icon" onClick={() => navigate(`/bugs/${id}/edit`)} title="Edit Bug">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="icon" className="text-destructive shrink-0">
@@ -302,6 +310,7 @@ export default function BugDetail() {
             </AlertDialogContent>
           </AlertDialog>
         )}
+        </div>
       </div>
 
       {/* Two-column layout */}
@@ -312,7 +321,7 @@ export default function BugDetail() {
           {bug.description && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1.5">Description</h4>
-              <p className="text-foreground whitespace-pre-wrap">{bug.description}</p>
+              <MarkdownRenderer content={bug.description} className="text-foreground text-sm" />
             </div>
           )}
 
@@ -334,13 +343,13 @@ export default function BugDetail() {
               {bug.expected_behavior && (
                 <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
                   <h4 className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">Expected</h4>
-                  <p className="text-foreground text-sm">{bug.expected_behavior}</p>
+                  <MarkdownRenderer content={bug.expected_behavior} className="text-foreground text-sm" />
                 </div>
               )}
               {bug.actual_behavior && (
                 <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
                   <h4 className="text-xs font-medium text-red-700 dark:text-red-400 mb-1">Actual</h4>
-                  <p className="text-foreground text-sm">{bug.actual_behavior}</p>
+                  <MarkdownRenderer content={bug.actual_behavior} className="text-foreground text-sm" />
                 </div>
               )}
             </div>

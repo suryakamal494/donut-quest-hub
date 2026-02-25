@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Bug, Plus, X, ChevronDown, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -12,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { BugAttachmentUploader } from "@/components/bugs/BugAttachmentUploader";
+import { RichTextarea } from "@/components/bugs/RichTextarea";
 import type { BugSeverity, BugType } from "@/types/bugs";
 import type { Feature, LoginType, TestScenario } from "@/types/qa";
 import { LOGIN_TYPE_LABELS } from "@/types/qa";
@@ -321,10 +321,10 @@ export default function CreateBug() {
             {/* Description */}
             <div>
               <Label htmlFor="description">Description</Label>
-              <Textarea
+              <RichTextarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(v) => setFormData(prev => ({ ...prev, description: v }))}
                 placeholder="Detailed description of the bug"
                 rows={2}
               />
@@ -367,20 +367,20 @@ export default function CreateBug() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="expected">Expected Behavior</Label>
-                <Textarea
+                <RichTextarea
                   id="expected"
                   value={formData.expected_behavior}
-                  onChange={(e) => setFormData(prev => ({ ...prev, expected_behavior: e.target.value }))}
+                  onChange={(v) => setFormData(prev => ({ ...prev, expected_behavior: v }))}
                   placeholder="What should happen?"
                   rows={2}
                 />
               </div>
               <div>
                 <Label htmlFor="actual">Actual Behavior</Label>
-                <Textarea
+                <RichTextarea
                   id="actual"
                   value={formData.actual_behavior}
-                  onChange={(e) => setFormData(prev => ({ ...prev, actual_behavior: e.target.value }))}
+                  onChange={(v) => setFormData(prev => ({ ...prev, actual_behavior: v }))}
                   placeholder="What actually happened?"
                   rows={2}
                 />
