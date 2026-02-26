@@ -1,118 +1,103 @@
 
-## Audit Outcome: What I checked and what I found
 
-### 1) Live behavior and logs checked
-I audited the login flow end-to-end (UI session replay, frontend/network behavior, and backend auth logs).
+## Root Cause Found: A Product Bug, Not a Network Problem
 
-- The captured user session replay for this report only shows the login screen loading; no sign-in click was recorded in that specific capture.
-- I performed a controlled login attempt from the preview environment:
-  - Login request was sent successfully to the backend auth endpoint.
-  - Backend responded normally (invalid credentials test gave HTTP 400 quickly, which proves connectivity).
-- I checked backend auth logs for failures:
-  - No 5xx outage signatures.
-  - No rate-limit (429) signatures.
-  - No evidence of a backend auth service crash.
-- I validated employee accounts (approved status) for your team domain; account approval is not the blocker.
+You are absolutely right. A robust product must work on any network. The real issue is **a bug in our own code** that we introduced in the previous fix.
 
-### 2) Clarification results (from your answers)
-- Affected users are using: `qa.thedonutai.com`.
-- Affected users are mostly on the **same office network**.
-- Pattern is intermittent across days (not continuously broken).
+### What is actually happening
 
-## Root cause assessment (high confidence)
-
-This is most likely a **network path/connectivity issue between your office network and the backend auth endpoint**, not a credentials bug and not a platform-wide auth outage.
-
-Why this conclusion is strong:
-1. Backend is reachable and processing login requests when requests arrive.
-2. During complaint windows, affected users’ requests are often not reaching backend auth logs (symptom of network/DNS/firewall/proxy interruption before backend receives traffic).
-3. Same-office-network impact strongly points to local network policy, DNS resolver instability, SSL inspection/proxy behavior, or intermittent outbound filtering.
-
-## Why this still happens even after previous fixes
-
-Previous fixes improved UX (timeouts/retry screen/friendly error message), but they do **not** solve a true office-network transport issue.  
-So users now see a better message, but the underlying intermittent connectivity can still recur.
-
-## Implementation plan to make this robust (without breaking existing flows)
-
-### Phase A — Immediate diagnostics hardening (safe, low risk)
-1. Add a **preflight connectivity check** on Login submit before calling sign-in:
-   - Lightweight request to backend auth health endpoint.
-   - If unreachable, show precise guidance: “Network cannot reach authentication service.”
-2. Add **network-only retry with exponential backoff** for login:
-   - Retry only for fetch/network failures (not invalid credentials).
-   - 2–3 attempts with jitter.
-3. Add a **diagnostic detail panel** (copyable text) in the error toast/modal:
-   - timestamp, online/offline, current domain, browser, and failure code.
-
-### Phase B — Observability to prove cause next time
-4. Add a small backend logging path for client-side auth transport failures:
-   - Record when browser cannot reach auth endpoint.
-   - Store office/network signature metadata (non-sensitive) for correlation.
-5. Add correlation ID to login attempts so support can match client failures with backend logs.
-
-### Phase C — Office-network resilience guidance in-app
-6. Add user-facing fallback instructions only when transport failure is detected:
-   - “Try alternate network/hotspot”
-   - “Disable VPN/proxy temporarily”
-   - “Contact IT to allow outbound auth endpoint traffic”
-7. Keep mobile-first UI behavior for diagnostics card and error actions.
-
-## Technical implementation details
+The login page has a **strict preflight gate** (Login.tsx, lines 68-78) that works like this:
 
 ```text
-Frontend files
---------------
-src/contexts/AuthContext.tsx
-- Add helper for classifying network transport errors.
-- Expose richer error metadata safely.
-
-src/pages/Login.tsx
-- Add auth preflight reachability check.
-- Add retry (network failures only) with exponential backoff.
-- Add diagnostic payload + copy-to-clipboard support in error UI.
-
-Optional: src/lib/auth-resilience.ts (new)
-- Shared utilities: isNetworkError(), retryWithBackoff(), buildDiagnosticPayload().
-
-Backend (Lovable Cloud)
------------------------
-New table (optional, minimal): auth_client_failures
-- id, created_at, app_domain, online_status, error_type, browser_info, correlation_id
-- RLS: insert allowed for authenticated users and/or via controlled backend function
-- Select restricted to admin role
-
-Optional backend function
-- endpoint to log client transport failures when login preflight/login fetch fails
+User clicks Sign In
+      |
+      v
+Preflight check: GET /auth/v1/health (5-second timeout)
+      |
+      +-- Fails? --> HARD BLOCK. Login never attempted. Show "Unable to reach server."
+      |
+      +-- Passes? --> Proceed to actual sign-in
 ```
 
-## Safety / non-regression strategy
+The `/auth/v1/health` endpoint is a different URL path than the actual login endpoint (`/token`). On some networks, firewalls or DNS resolvers can intermittently block or slow one path while the other works fine. The preflight check failing does **not** mean the login would fail.
 
-- No changes to existing auth provider configuration.
-- No changes to account approval logic.
-- Retry only on transport failures, never on invalid credentials.
-- Existing successful login flow remains unchanged.
-- Error handling remains backwards compatible with current toast UX.
+**Proof from backend logs**: V. Akshay (akshay.main263@gmail.com) successfully logged in at 09:34:10 from IP 49.206.53.34 via `qa.thedonutai.com`. But the `auth_client_failures` table shows a preflight failure logged at 09:34:08 from the same domain. This means the preflight was blocking users who could have logged in successfully.
 
-## Validation checklist (must run)
+**This is a self-inflicted product bug.** The preflight was meant to help, but it became a gatekeeper that blocks legitimate login attempts.
 
-1. Test login end-to-end on:
-   - office Wi-Fi
-   - mobile hotspot
-   - one VPN-enabled machine
-2. Test invalid credentials still shows correct message immediately (no unnecessary retries).
-3. Simulate network block and confirm:
-   - preflight fails
-   - retry executes
-   - final message includes actionable diagnostics.
-4. Test on mobile viewport and desktop viewport for responsive behavior.
-5. Verify backend diagnostics records are written and visible for admin audit.
+### Why other products (TestRail, etc.) don't have this problem
 
-## Expected outcome
+They don't add an extra network check before login. They just attempt login directly and handle errors gracefully. That is what we need to do.
 
-- Faster recovery from transient network blips.
-- Clear differentiation between:
-  - invalid credentials,
-  - backend outage,
-  - office network blockage.
-- Actionable evidence to hand to your IT/network team when the issue recurs.
+---
+
+## Implementation Plan
+
+### Change 1: Remove preflight as a hard blocker (Login.tsx)
+
+**Current behavior** (broken):
+- Preflight fails → return early, never attempt login
+- User sees "Unable to reach authentication server" with no way to actually try
+
+**New behavior**:
+- Preflight runs in background as a **diagnostic signal only**
+- Login is **always attempted** regardless of preflight result
+- If login itself fails with a network error, retry with exponential backoff (2 retries)
+- If all retries fail AND it was a network error, show the diagnostic card with preflight context
+- If login fails with credentials error, show normal "Invalid email or password" immediately (no retries)
+
+### Change 2: Improve retry logic (auth-resilience.ts)
+
+**Current issue**: `retryWithBackoff` only catches thrown exceptions. But `signIn` returns `{ error }` instead of throwing. Network errors from the auth SDK are returned, not thrown.
+
+**Fix**: Make retry logic handle both thrown errors AND returned error objects that look like network failures.
+
+### Change 3: Make preflight non-blocking and parallel
+
+- Run preflight check **in parallel** with the actual login attempt (not sequentially)
+- Use preflight result only to enrich the diagnostic card if login fails
+- This also makes login faster (no 5-second gate before attempting)
+
+---
+
+## Technical Details
+
+### Files to modify
+
+**`src/pages/Login.tsx`** (primary fix):
+- Remove the hard-block gate at lines 68-78
+- Run `checkAuthReachability()` in parallel with `signIn()` using `Promise.allSettled`
+- Only show diagnostic card when the actual login attempt fails with a network-class error
+- Include preflight result as additional context in diagnostics
+
+**`src/lib/auth-resilience.ts`** (retry robustness):
+- Update `retryWithBackoff` to accept a function that returns `{ error }` pattern (not just throws)
+- Add a wrapper that converts returned network errors into thrown errors for retry logic
+- Expand `isNetworkError` to also detect "fetch error" and "request failed" patterns
+
+### No database changes needed
+
+The `auth_client_failures` table and RLS policies are fine as-is.
+
+---
+
+## What this achieves
+
+1. **Login always attempted** -- no more false blocks from flaky preflight
+2. **Automatic retry** on transient network blips (2 retries with backoff)
+3. **Faster login** -- preflight runs in parallel, not as a gate
+4. **Same diagnostic quality** -- if login truly fails, diagnostic card still shows with full context
+5. **Invalid credentials** -- still fail immediately with clear message, no unnecessary retries
+6. **Works on any network** -- just like TestRail and every other robust product
+
+---
+
+## Verification checklist
+
+1. Valid credentials on stable network: login succeeds normally
+2. Invalid credentials: immediate "Invalid email or password" (no retries, no diagnostic card)
+3. Flaky network (preflight fails, login succeeds): login works without showing error
+4. Full network outage: retries 2 times, then shows diagnostic card with troubleshooting steps
+5. Mobile viewport: diagnostic card is responsive
+6. Existing diagnostic logging to `auth_client_failures` continues working
+
