@@ -52,6 +52,42 @@ export type Database = {
           },
         ]
       }
+      auth_client_failures: {
+        Row: {
+          app_domain: string | null
+          browser_info: string | null
+          correlation_id: string
+          created_at: string
+          error_message: string | null
+          error_type: string | null
+          id: string
+          online_status: boolean | null
+          user_agent: string | null
+        }
+        Insert: {
+          app_domain?: string | null
+          browser_info?: string | null
+          correlation_id: string
+          created_at?: string
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          online_status?: boolean | null
+          user_agent?: string | null
+        }
+        Update: {
+          app_domain?: string | null
+          browser_info?: string | null
+          correlation_id?: string
+          created_at?: string
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          online_status?: boolean | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       automation_configs: {
         Row: {
           created_at: string
