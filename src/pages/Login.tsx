@@ -9,7 +9,7 @@ import { Loader2, ClipboardCheck, Mail, Lock, Copy, WifiOff, RefreshCw } from "l
 import { z } from "zod";
 import {
   isNetworkError,
-  retryWithBackoff,
+  retrySignIn,
   checkAuthReachability,
   generateCorrelationId,
   buildDiagnosticPayload,
@@ -64,29 +64,23 @@ const Login: React.FC = () => {
     setIsLoading(true);
     const correlationId = generateCorrelationId();
 
-    // Phase A.1: Preflight connectivity check
-    const reachable = await checkAuthReachability();
-    if (!reachable) {
-      const diag = buildDiagnosticPayload(
-        new Error("Auth endpoint unreachable (preflight failed)"),
-        correlationId
-      );
-      setNetworkDiag(formatDiagnosticText(diag));
-      logAuthFailure(diag);
-      setIsLoading(false);
-      return;
-    }
-
-    // Phase A.2: Attempt login with network-only retry
     try {
-      const { error } = await retryWithBackoff(
+      // Run preflight in parallel (diagnostic only, never blocks login)
+      const preflightPromise = checkAuthReachability().catch(() => false);
+
+      // Always attempt login with network-only retry
+      const { error } = await retrySignIn(
         () => signIn(email, password),
         { maxRetries: 2, baseDelayMs: 1000 }
       );
 
       if (error) {
         if (isNetworkError(error)) {
-          const diag = buildDiagnosticPayload(error, correlationId);
+          const preflightOk = await preflightPromise;
+          const diagError = preflightOk
+            ? error
+            : new Error(`${error.message} (preflight also failed)`);
+          const diag = buildDiagnosticPayload(diagError, correlationId);
           setNetworkDiag(formatDiagnosticText(diag));
           logAuthFailure(diag);
         } else {

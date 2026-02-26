@@ -14,8 +14,39 @@ export function isNetworkError(error: unknown): boolean {
     msg.includes("net::err") ||
     msg.includes("econnrefused") ||
     msg.includes("timeout") ||
-    msg.includes("aborted")
+    msg.includes("aborted") ||
+    msg.includes("fetch error") ||
+    msg.includes("request failed") ||
+    msg.includes("unreachable") ||
+    msg.includes("dns") ||
+    msg.includes("ssl") ||
+    msg.includes("certificate") ||
+    msg.includes("proxy")
   );
+}
+
+/**
+ * Retry a sign-in style function that returns { error } instead of throwing.
+ * Converts network errors into thrown errors so retryWithBackoff can catch them.
+ */
+export async function retrySignIn(
+  fn: () => Promise<{ error: Error | null }>,
+  opts: { maxRetries?: number; baseDelayMs?: number } = {}
+): Promise<{ error: Error | null }> {
+  const wrappedFn = async () => {
+    const result = await fn();
+    if (result.error && isNetworkError(result.error)) {
+      throw result.error; // Convert to thrown so retry logic catches it
+    }
+    return result;
+  };
+
+  try {
+    return await retryWithBackoff(wrappedFn, opts);
+  } catch (err) {
+    // If all retries exhausted, return the error in the expected shape
+    return { error: err instanceof Error ? err : new Error(String(err)) };
+  }
 }
 
 /**
