@@ -15,15 +15,21 @@ export function isNetworkError(error: unknown): boolean {
     msg.includes("load failed") ||
     msg.includes("net::err") ||
     msg.includes("econnrefused") ||
-    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("timeout exceeded") ||
+    msg.includes("request timed out") ||
     msg.includes("aborted") ||
     msg.includes("fetch error") ||
-    msg.includes("request failed") ||
-    msg.includes("unreachable") ||
-    msg.includes("dns") ||
-    msg.includes("ssl") ||
-    msg.includes("certificate") ||
-    msg.includes("proxy")
+    msg.includes("network failure") ||
+    msg.includes("host unreachable") ||
+    msg.includes("getaddrinfo") ||
+    msg.includes("dns_resolution") ||
+    msg.includes("ssl_error") ||
+    msg.includes("ssl_protocol_error") ||
+    msg.includes("cert_") ||
+    msg.includes("certificate_verify") ||
+    msg.includes("proxy error") ||
+    msg.includes("proxy authentication")
   );
 }
 
@@ -85,26 +91,15 @@ export function generateCorrelationId(): string {
 }
 
 /**
- * Lightweight preflight check to verify backend auth endpoint is reachable.
- * Returns true if reachable, false otherwise.
+ * Extract the auth host from environment for diagnostics.
  */
-export async function checkAuthReachability(): Promise<boolean> {
+function getAuthHost(): string {
   try {
     const url = import.meta.env.VITE_SUPABASE_URL;
-    if (!url) return false;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${url}/auth/v1/health`, {
-      method: "GET",
-      signal: controller.signal,
-      headers: {
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-    });
-    clearTimeout(timeoutId);
-    return response.ok;
+    if (!url) return "unknown";
+    return new URL(url).hostname;
   } catch {
-    return false;
+    return "unknown";
   }
 }
 
@@ -116,6 +111,7 @@ export function buildDiagnosticPayload(error: unknown, correlationId: string) {
     timestamp: new Date().toISOString(),
     correlationId,
     domain: window.location.hostname,
+    authHost: getAuthHost(),
     online: navigator.onLine,
     userAgent: navigator.userAgent,
     errorType: isNetworkError(error) ? "network_transport" : "auth_error",
@@ -132,6 +128,7 @@ export function formatDiagnosticText(diag: ReturnType<typeof buildDiagnosticPayl
     `Timestamp: ${diag.timestamp}`,
     `Correlation ID: ${diag.correlationId}`,
     `Domain: ${diag.domain}`,
+    `Auth Host: ${diag.authHost}`,
     `Online: ${diag.online ? "Yes" : "No"}`,
     `Error Type: ${diag.errorType}`,
     `Error: ${diag.errorMessage}`,
