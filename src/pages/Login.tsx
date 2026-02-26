@@ -5,8 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ClipboardCheck, Mail, Lock } from "lucide-react";
+import { Loader2, ClipboardCheck, Mail, Lock, Copy, WifiOff, RefreshCw } from "lucide-react";
 import { z } from "zod";
+import {
+  isNetworkError,
+  retryWithBackoff,
+  checkAuthReachability,
+  generateCorrelationId,
+  buildDiagnosticPayload,
+  formatDiagnosticText,
+  logAuthFailure,
+} from "@/lib/auth-resilience";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
@@ -18,14 +27,28 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  
+  const [networkDiag, setNetworkDiag] = useState<string | null>(null);
+  const [diagCopied, setDiagCopied] = useState(false);
+
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const copyDiagnostics = async () => {
+    if (!networkDiag) return;
+    try {
+      await navigator.clipboard.writeText(networkDiag);
+      setDiagCopied(true);
+      setTimeout(() => setDiagCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setNetworkDiag(null);
 
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
@@ -39,29 +62,63 @@ const Login: React.FC = () => {
     }
 
     setIsLoading(true);
-    
-    const { error } = await signIn(email, password);
-    
-    if (error) {
-      const message = error.message?.toLowerCase();
-      const isNetworkError = message?.includes("fetch") || message?.includes("network") || message?.includes("failed to fetch");
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: isNetworkError
-          ? "Unable to connect to the server. Please check your internet connection and try again."
-          : (error.message || "Invalid email or password"),
-      });
+    const correlationId = generateCorrelationId();
+
+    // Phase A.1: Preflight connectivity check
+    const reachable = await checkAuthReachability();
+    if (!reachable) {
+      const diag = buildDiagnosticPayload(
+        new Error("Auth endpoint unreachable (preflight failed)"),
+        correlationId
+      );
+      setNetworkDiag(formatDiagnosticText(diag));
+      logAuthFailure(diag);
       setIsLoading(false);
       return;
     }
 
-    toast({
-      title: "Welcome back!",
-      description: "You have successfully logged in.",
-    });
+    // Phase A.2: Attempt login with network-only retry
+    try {
+      const { error } = await retryWithBackoff(
+        () => signIn(email, password),
+        { maxRetries: 2, baseDelayMs: 1000 }
+      );
 
-    navigate("/");
+      if (error) {
+        if (isNetworkError(error)) {
+          const diag = buildDiagnosticPayload(error, correlationId);
+          setNetworkDiag(formatDiagnosticText(diag));
+          logAuthFailure(diag);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Login failed",
+            description: error.message || "Invalid email or password",
+          });
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      navigate("/");
+    } catch (err) {
+      if (isNetworkError(err)) {
+        const diag = buildDiagnosticPayload(err, correlationId);
+        setNetworkDiag(formatDiagnosticText(diag));
+        logAuthFailure(diag);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Login failed",
+          description: err instanceof Error ? err.message : "An unexpected error occurred",
+        });
+      }
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -81,6 +138,62 @@ const Login: React.FC = () => {
           <h1 className="text-3xl font-bold text-foreground">QA Platform</h1>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>
+
+        {/* Network Diagnostic Card */}
+        {networkDiag && (
+          <div className="mb-6 rounded-2xl border-2 border-destructive/30 bg-destructive/5 p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <WifiOff className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-destructive text-sm">
+                  Unable to reach authentication server
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This appears to be a network connectivity issue. Try the steps below:
+                </p>
+              </div>
+            </div>
+
+            {/* Fallback instructions */}
+            <ul className="text-xs text-muted-foreground space-y-1.5 pl-8 list-disc">
+              <li>Switch to a mobile hotspot or different Wi-Fi network</li>
+              <li>Disable VPN or proxy temporarily</li>
+              <li>Contact your IT team to allow outbound traffic to the auth service</li>
+              <li>Try again in a few minutes</li>
+            </ul>
+
+            {/* Diagnostic details (copyable) */}
+            <div className="bg-background/60 rounded-lg p-3 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap break-all border border-border">
+              {networkDiag}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={copyDiagnostics}
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                {diagCopied ? "Copied!" : "Copy diagnostics"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  setNetworkDiag(null);
+                  handleSubmit(new Event("submit") as unknown as React.FormEvent);
+                }}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Login Card */}
         <div className="glass-card rounded-3xl p-8 shadow-warm">
@@ -148,8 +261,8 @@ const Login: React.FC = () => {
             </div>
 
             {/* Submit Button */}
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full h-12 rounded-xl bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-warm transition-smooth"
               disabled={isLoading}
             >
@@ -168,8 +281,8 @@ const Login: React.FC = () => {
           <div className="mt-6 text-center">
             <p className="text-muted-foreground">
               Don't have an account?{" "}
-              <Link 
-                to="/register" 
+              <Link
+                to="/register"
                 className="text-primary hover:text-primary/80 font-semibold transition-smooth"
               >
                 Create Account
