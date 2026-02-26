@@ -64,11 +64,17 @@ const Login: React.FC = () => {
     const correlationId = generateCorrelationId();
 
     try {
-      // Attempt login directly with network-only retry (no preflight)
-      const { error } = await retrySignIn(
+      // Attempt login with network-only retry + 30s timeout
+      const LOGIN_TIMEOUT_MS = 30_000;
+      const loginPromise = retrySignIn(
         () => signIn(email, password),
         { maxRetries: 2, baseDelayMs: 1000 }
       );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Login timed out after 30 seconds. Please check your network connection and try again.")), LOGIN_TIMEOUT_MS)
+      );
+
+      const { error } = await Promise.race([loginPromise, timeoutPromise]);
 
       if (error) {
         if (isNetworkError(error)) {
@@ -276,6 +282,11 @@ const Login: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Build fingerprint for support */}
+        <p className="text-center text-[10px] text-muted-foreground/40 mt-4 select-all font-mono">
+          v{__BUILD_ID__}
+        </p>
       </div>
     </div>
   );
