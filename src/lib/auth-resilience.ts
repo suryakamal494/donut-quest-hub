@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare const __BUILD_ID__: string;
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -118,6 +120,7 @@ export function buildDiagnosticPayload(error: unknown, correlationId: string) {
     userAgent: navigator.userAgent,
     errorType: isNetworkError(error) ? "network_transport" : "auth_error",
     errorMessage: error instanceof Error ? error.message : String(error),
+    appVersion: `build-${__BUILD_ID__}`,
   };
 }
 
@@ -132,6 +135,7 @@ export function formatDiagnosticText(diag: ReturnType<typeof buildDiagnosticPayl
     `Online: ${diag.online ? "Yes" : "No"}`,
     `Error Type: ${diag.errorType}`,
     `Error: ${diag.errorMessage}`,
+    `App Version: ${diag.appVersion}`,
     `Browser: ${diag.userAgent}`,
   ].join("\n");
 }
@@ -141,6 +145,14 @@ export function formatDiagnosticText(diag: ReturnType<typeof buildDiagnosticPayl
  * Fire-and-forget — never blocks login flow.
  */
 export function logAuthFailure(diag: ReturnType<typeof buildDiagnosticPayload>) {
+  // Always persist to localStorage as fallback
+  try {
+    localStorage.setItem("last_auth_diagnostic", JSON.stringify(diag));
+  } catch {
+    // Storage full or unavailable
+  }
+
+  // Fire-and-forget backend write
   try {
     (supabase
       .from("auth_client_failures" as any)

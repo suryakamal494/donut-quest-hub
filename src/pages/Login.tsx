@@ -10,7 +10,6 @@ import { z } from "zod";
 import {
   isNetworkError,
   retrySignIn,
-  checkAuthReachability,
   generateCorrelationId,
   buildDiagnosticPayload,
   formatDiagnosticText,
@@ -65,10 +64,7 @@ const Login: React.FC = () => {
     const correlationId = generateCorrelationId();
 
     try {
-      // Run preflight in parallel (diagnostic only, never blocks login)
-      const preflightPromise = checkAuthReachability().catch(() => false);
-
-      // Always attempt login with network-only retry
+      // Attempt login directly with network-only retry (no preflight)
       const { error } = await retrySignIn(
         () => signIn(email, password),
         { maxRetries: 2, baseDelayMs: 1000 }
@@ -76,11 +72,7 @@ const Login: React.FC = () => {
 
       if (error) {
         if (isNetworkError(error)) {
-          const preflightOk = await preflightPromise;
-          const diagError = preflightOk
-            ? error
-            : new Error(`${error.message} (preflight also failed)`);
-          const diag = buildDiagnosticPayload(diagError, correlationId);
+          const diag = buildDiagnosticPayload(error, correlationId);
           setNetworkDiag(formatDiagnosticText(diag));
           logAuthFailure(diag);
         } else {
