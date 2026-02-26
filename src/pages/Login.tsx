@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,13 @@ const Login: React.FC = () => {
     let loginPromise: ReturnType<typeof retrySignIn> | null = null;
 
     try {
+      // Clear stale refresh tokens and release any auth lock before login
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // Ignore — best-effort cleanup
+      }
+
       const LOGIN_TIMEOUT_MS = 30_000;
       const TIMEOUT_SENTINEL = "__LOGIN_TIMEOUT__";
 
