@@ -29,7 +29,7 @@ const Login: React.FC = () => {
   const [networkDiag, setNetworkDiag] = useState<string | null>(null);
   const [diagCopied, setDiagCopied] = useState(false);
 
-  const { signIn } = useAuth();
+  const { signIn, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -63,18 +63,32 @@ const Login: React.FC = () => {
     setIsLoading(true);
     const correlationId = generateCorrelationId();
 
+    // Sentinel for timeout race condition — prevents ghost sessions
+    let loginCancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    // Hoist loginPromise so catch block can access it for late-resolution handling
+    let loginPromise: ReturnType<typeof retrySignIn> | null = null;
+
     try {
-      // Attempt login with network-only retry + 30s timeout
       const LOGIN_TIMEOUT_MS = 30_000;
-      const loginPromise = retrySignIn(
+      const TIMEOUT_SENTINEL = "__LOGIN_TIMEOUT__";
+
+      loginPromise = retrySignIn(
         () => signIn(email, password),
         { maxRetries: 2, baseDelayMs: 1000 }
       );
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Login timed out after 30 seconds. Please check your network connection and try again.")), LOGIN_TIMEOUT_MS)
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          loginCancelled = true;
+          reject(new Error(TIMEOUT_SENTINEL));
+        }, LOGIN_TIMEOUT_MS);
+      });
 
       const { error } = await Promise.race([loginPromise, timeoutPromise]);
+
+      // Login resolved before timeout — clear the timer
+      if (timeoutId) clearTimeout(timeoutId);
 
       if (error) {
         if (isNetworkError(error)) {
@@ -98,7 +112,27 @@ const Login: React.FC = () => {
       });
       navigate("/");
     } catch (err) {
-      if (isNetworkError(err)) {
+      if (timeoutId) clearTimeout(timeoutId);
+
+      const errMsg = err instanceof Error ? err.message : "";
+      const isOurTimeout = errMsg === "__LOGIN_TIMEOUT__";
+
+      if (isOurTimeout) {
+        // Bug fix: Show a clear timeout message, NOT the network diagnostic card
+        toast({
+          variant: "destructive",
+          title: "Login timed out",
+          description: "Login is taking too long. Please check your connection and try again.",
+        });
+
+        // Bug fix: If login succeeds AFTER timeout, sign out to prevent ghost session
+        loginPromise?.then(({ error: lateError }) => {
+          if (!lateError && loginCancelled) {
+            console.warn("Login succeeded after timeout — signing out to prevent ghost session");
+            signOut();
+          }
+        }).catch(() => {});
+      } else if (isNetworkError(err)) {
         const diag = buildDiagnosticPayload(err, correlationId);
         setNetworkDiag(formatDiagnosticText(diag));
         logAuthFailure(diag);
@@ -106,7 +140,7 @@ const Login: React.FC = () => {
         toast({
           variant: "destructive",
           title: "Login failed",
-          description: err instanceof Error ? err.message : "An unexpected error occurred",
+          description: errMsg || "An unexpected error occurred",
         });
       }
       setIsLoading(false);
