@@ -1,103 +1,123 @@
 
+Incident diagnosis (thorough audit complete)
 
-## Root Cause Found: A Product Bug, Not a Network Problem
+I audited this from multiple angles (code, runtime behavior, and backend telemetry), and the most likely core issue is now deployment/cache drift, not current login logic.
 
-You are absolutely right. A robust product must work on any network. The real issue is **a bug in our own code** that we introduced in the previous fix.
+What I checked
+1) Login code path (line-by-line)
+- `src/pages/Login.tsx` now runs `checkAuthReachability()` in parallel and always attempts real login via `retrySignIn(...)`.
+- There is no hard return after preflight anymore.
+- The old literal error text `"Auth endpoint unreachable (preflight failed)"` is not present in the current source.
+- Current fallback text logic would produce either:
+  - actual network error message, or
+  - `"... (preflight also failed)"` suffix (different wording than screenshot).
 
-### What is actually happening
+2) Resilience utility
+- `src/lib/auth-resilience.ts` now classifies broader transport issues and includes `retrySignIn` that retries network-class failures from returned `{ error }` responses.
 
-The login page has a **strict preflight gate** (Login.tsx, lines 68-78) that works like this:
+3) Runtime verification (browser/network)
+- In live runtime test, login click generated BOTH:
+  - `GET /auth/v1/health` and
+  - `POST /auth/v1/token`
+- This proves preflight is not blocking token attempt in current code.
 
+4) Backend auth telemetry
+- Auth logs show successful `/token` logins from `qa.thedonutai.com` after the hotfix window.
+- This confirms backend auth is up and reachable for at least some users from QA domain.
+
+Critical evidence from your screenshot
+- Screenshot shows:
+  - `Error: Auth endpoint unreachable (preflight failed)`
+  - `Error Type: auth_error`
+- That exact pair is a fingerprint of the older bundle behavior:
+  - old message string
+  - old classifier output (`auth_error` instead of `network_transport`)
+
+Most probable root cause now
+- Users seeing this are likely running a stale frontend bundle (browser/CDN/proxy cache) OR hitting a different deployment path than the one updated.
+- Secondary possibility: network middlebox intermittently blocks the auth host only for some routes; but screenshot signature still strongly suggests old JS execution.
+
+Root-cause probability matrix
+- Stale cached bundle / CDN HTML cache / proxy cache: Very High
+- Different environment behind `qa.thedonutai.com` than updated build: High
+- Pure backend auth outage: Low (contradicted by successful `/token` logs)
+- CORS global misconfiguration: Low-Medium (would be broader; also contradicted by successful same-domain auth)
+
+Resolution plan
+
+Phase 1 — Immediate operational fix (no code changes required)
+1. Force invalidate delivery cache chain
+- Purge CDN cache for:
+  - `/`
+  - `/login`
+  - `index.html`
+  - static JS assets
+- Ensure HTML is not aggressively cached by intermediaries.
+
+2. Force clean client runtime on affected machines
+- Hard reload + “Disable cache” in DevTools.
+- Clear site data for `qa.thedonutai.com`.
+- Retry in incognito.
+- Verify screenshot timestamp and correlation ID are new (not reused old capture).
+
+3. Deployment parity check
+- Confirm `qa.thedonutai.com` points to the exact build artifact that includes current `Login.tsx`.
+- Compare behavior on:
+  - `qa.thedonutai.com/login`
+  - published app URL `/login`
+- If published works and QA fails, issue is domain delivery/caching/routing layer.
+
+4. On one failing machine, capture concrete evidence
+- DevTools Network on Sign In:
+  - confirm if `POST /auth/v1/token` is sent.
+- If token request is missing and only old diagnostic appears, it is old bundle execution.
+
+Phase 2 — Product hardening to eliminate this confusion permanently
+1. Remove preflight check entirely from login UI flow
+- No `/health` call at sign-in time.
+- Attempt token directly; classify only real login outcome.
+- This removes “preflight” wording confusion forever.
+
+2. Add build fingerprint to diagnostics
+- Include `appVersion`/build ID in diagnostic payload and card.
+- Support can instantly identify stale client bundle vs current.
+
+3. Add non-blocking local diagnostic fallback
+- If backend write fails, persist last auth diagnostic in local storage for support copy.
+
+Phase 3 — Verification matrix (must pass before closing incident)
+1. Valid credentials on normal network → success.
+2. Invalid credentials → immediate “Invalid credentials”, no network diagnostic card.
+3. Slow network (10–15s) → stays in “Signing in...” and completes if response arrives.
+4. Transport failure → retries and diagnostic appears.
+5. Test on affected office machine after cache purge + in incognito.
+6. Confirm failing-machine network trace includes token request (or prove stale bundle if absent).
+
+Technical details (for engineering team)
 ```text
-User clicks Sign In
-      |
-      v
-Preflight check: GET /auth/v1/health (5-second timeout)
-      |
-      +-- Fails? --> HARD BLOCK. Login never attempted. Show "Unable to reach server."
-      |
-      +-- Passes? --> Proceed to actual sign-in
+Code audit anchors
+- src/pages/Login.tsx
+  - preflight created in parallel: around lines 68-70
+  - sign-in always attempted: around lines 72-75
+  - no hard stop on preflight failure exists
+- src/lib/auth-resilience.ts
+  - retrySignIn converts returned network errors to thrown for retry
+  - isNetworkError includes unreachable/dns/ssl/proxy patterns
+
+Runtime proof
+- Observed network sequence on sign-in:
+  GET  /auth/v1/health
+  POST /auth/v1/token?grant_type=password  (request still sent)
+
+Telemetry proof
+- Recent successful /token auth events from qa domain indicate backend auth service is healthy.
+
+Screenshot fingerprint interpretation
+- "Auth endpoint unreachable (preflight failed)" + "Error Type: auth_error"
+  matches older client behavior, not current audited source behavior.
 ```
 
-The `/auth/v1/health` endpoint is a different URL path than the actual login endpoint (`/token`). On some networks, firewalls or DNS resolvers can intermittently block or slow one path while the other works fine. The preflight check failing does **not** mean the login would fail.
-
-**Proof from backend logs**: V. Akshay (akshay.main263@gmail.com) successfully logged in at 09:34:10 from IP 49.206.53.34 via `qa.thedonutai.com`. But the `auth_client_failures` table shows a preflight failure logged at 09:34:08 from the same domain. This means the preflight was blocking users who could have logged in successfully.
-
-**This is a self-inflicted product bug.** The preflight was meant to help, but it became a gatekeeper that blocks legitimate login attempts.
-
-### Why other products (TestRail, etc.) don't have this problem
-
-They don't add an extra network check before login. They just attempt login directly and handle errors gracefully. That is what we need to do.
-
----
-
-## Implementation Plan
-
-### Change 1: Remove preflight as a hard blocker (Login.tsx)
-
-**Current behavior** (broken):
-- Preflight fails → return early, never attempt login
-- User sees "Unable to reach authentication server" with no way to actually try
-
-**New behavior**:
-- Preflight runs in background as a **diagnostic signal only**
-- Login is **always attempted** regardless of preflight result
-- If login itself fails with a network error, retry with exponential backoff (2 retries)
-- If all retries fail AND it was a network error, show the diagnostic card with preflight context
-- If login fails with credentials error, show normal "Invalid email or password" immediately (no retries)
-
-### Change 2: Improve retry logic (auth-resilience.ts)
-
-**Current issue**: `retryWithBackoff` only catches thrown exceptions. But `signIn` returns `{ error }` instead of throwing. Network errors from the auth SDK are returned, not thrown.
-
-**Fix**: Make retry logic handle both thrown errors AND returned error objects that look like network failures.
-
-### Change 3: Make preflight non-blocking and parallel
-
-- Run preflight check **in parallel** with the actual login attempt (not sequentially)
-- Use preflight result only to enrich the diagnostic card if login fails
-- This also makes login faster (no 5-second gate before attempting)
-
----
-
-## Technical Details
-
-### Files to modify
-
-**`src/pages/Login.tsx`** (primary fix):
-- Remove the hard-block gate at lines 68-78
-- Run `checkAuthReachability()` in parallel with `signIn()` using `Promise.allSettled`
-- Only show diagnostic card when the actual login attempt fails with a network-class error
-- Include preflight result as additional context in diagnostics
-
-**`src/lib/auth-resilience.ts`** (retry robustness):
-- Update `retryWithBackoff` to accept a function that returns `{ error }` pattern (not just throws)
-- Add a wrapper that converts returned network errors into thrown errors for retry logic
-- Expand `isNetworkError` to also detect "fetch error" and "request failed" patterns
-
-### No database changes needed
-
-The `auth_client_failures` table and RLS policies are fine as-is.
-
----
-
-## What this achieves
-
-1. **Login always attempted** -- no more false blocks from flaky preflight
-2. **Automatic retry** on transient network blips (2 retries with backoff)
-3. **Faster login** -- preflight runs in parallel, not as a gate
-4. **Same diagnostic quality** -- if login truly fails, diagnostic card still shows with full context
-5. **Invalid credentials** -- still fail immediately with clear message, no unnecessary retries
-6. **Works on any network** -- just like TestRail and every other robust product
-
----
-
-## Verification checklist
-
-1. Valid credentials on stable network: login succeeds normally
-2. Invalid credentials: immediate "Invalid email or password" (no retries, no diagnostic card)
-3. Flaky network (preflight fails, login succeeds): login works without showing error
-4. Full network outage: retries 2 times, then shows diagnostic card with troubleshooting steps
-5. Mobile viewport: diagnostic card is responsive
-6. Existing diagnostic logging to `auth_client_failures` continues working
-
+Expected outcome after executing this plan
+- Users stop seeing legacy preflight-block message.
+- Any remaining failures will be true login/network errors with accurate diagnostics.
+- Support can quickly distinguish stale-client issues from real backend incidents.
