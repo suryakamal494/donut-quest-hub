@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AutomationGuard } from "@/components/auth/AutomationGuard";
+import { VersionChecker } from "@/components/VersionChecker";
 import { Loader2 } from "lucide-react";
 
 // Eager: auth/landing pages (small, always needed)
@@ -66,6 +67,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <VersionChecker />
       <BrowserRouter>
         <AuthProvider>
           <ProjectProvider>
