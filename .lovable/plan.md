@@ -1,93 +1,118 @@
 
+## Audit Outcome: What I checked and what I found
 
-# Plan: Bug Editing & Rich Text Support
+### 1) Live behavior and logs checked
+I audited the login flow end-to-end (UI session replay, frontend/network behavior, and backend auth logs).
 
-## Feature 1: Edit Bug
+- The captured user session replay for this report only shows the login screen loading; no sign-in click was recorded in that specific capture.
+- I performed a controlled login attempt from the preview environment:
+  - Login request was sent successfully to the backend auth endpoint.
+  - Backend responded normally (invalid credentials test gave HTTP 400 quickly, which proves connectivity).
+- I checked backend auth logs for failures:
+  - No 5xx outage signatures.
+  - No rate-limit (429) signatures.
+  - No evidence of a backend auth service crash.
+- I validated employee accounts (approved status) for your team domain; account approval is not the blocker.
 
-### Current State
-- No `EditBug` page exists. There is no edit button anywhere on `BugDetail.tsx`.
-- The RLS policy on `bugs` already allows updates by: reporter, assignee, admin, developer, or user roles.
-- The `CreateBug.tsx` form handles all bug fields (title, description, severity, bug_type, login_type, feature, sub-module, steps, expected/actual behavior, environment, attachments).
+### 2) Clarification results (from your answers)
+- Affected users are using: `qa.thedonutai.com`.
+- Affected users are mostly on the **same office network**.
+- Pattern is intermittent across days (not continuously broken).
 
-### What Will Be Built
+## Root cause assessment (high confidence)
 
-**New file: `src/pages/bugs/EditBug.tsx`**
-- A page nearly identical to `CreateBug.tsx` but pre-populated with existing bug data loaded from the database.
-- Loads the bug by URL param `:id`, fetches features/scenarios/sub-modules to populate dropdowns.
-- On submit, calls `supabase.from("bugs").update(...)` instead of `.insert(...)`.
-- Records changes in `bug_history` for any modified fields.
-- Permission check: only the reporter (`reported_by === user.id`) or admin can access this page. Others see an "Access Denied" message.
+This is most likely a **network path/connectivity issue between your office network and the backend auth endpoint**, not a credentials bug and not a platform-wide auth outage.
 
-**Modified file: `src/pages/bugs/BugDetail.tsx`**
-- Add an "Edit" button (pencil icon) next to the delete button in the header area.
-- Only visible to the reporter or admin (same `canDelete` logic, reused as `canEdit`).
-- Links to `/bugs/:id/edit`.
+Why this conclusion is strong:
+1. Backend is reachable and processing login requests when requests arrive.
+2. During complaint windows, affected users’ requests are often not reaching backend auth logs (symptom of network/DNS/firewall/proxy interruption before backend receives traffic).
+3. Same-office-network impact strongly points to local network policy, DNS resolver instability, SSL inspection/proxy behavior, or intermittent outbound filtering.
 
-**Modified file: `src/App.tsx`**
-- Add route: `<Route path=":id/edit" element={<EditBug />} />` inside the `/bugs` route group.
+## Why this still happens even after previous fixes
 
-### Editable Fields
-All fields from the create form: title, description, severity, bug_type, login_type, feature, sub-module, steps to reproduce, expected/actual behavior, environment. Attachments will show existing ones with the ability to add more (not remove existing ones, to keep it simple).
+Previous fixes improved UX (timeouts/retry screen/friendly error message), but they do **not** solve a true office-network transport issue.  
+So users now see a better message, but the underlying intermittent connectivity can still recur.
 
----
+## Implementation plan to make this robust (without breaking existing flows)
 
-## Feature 2: Rich Text for Description, Expected & Actual Behavior
+### Phase A — Immediate diagnostics hardening (safe, low risk)
+1. Add a **preflight connectivity check** on Login submit before calling sign-in:
+   - Lightweight request to backend auth health endpoint.
+   - If unreachable, show precise guidance: “Network cannot reach authentication service.”
+2. Add **network-only retry with exponential backoff** for login:
+   - Retry only for fetch/network failures (not invalid credentials).
+   - 2–3 attempts with jitter.
+3. Add a **diagnostic detail panel** (copyable text) in the error toast/modal:
+   - timestamp, online/offline, current domain, browser, and failure code.
 
-### Current State
-- `description`, `expected_behavior`, and `actual_behavior` are stored as `text` columns in the `bugs` table (plain strings).
-- The form uses plain `<Textarea>` components.
-- `BugDetail.tsx` renders these with `whitespace-pre-wrap` (plain text display).
+### Phase B — Observability to prove cause next time
+4. Add a small backend logging path for client-side auth transport failures:
+   - Record when browser cannot reach auth endpoint.
+   - Store office/network signature metadata (non-sensitive) for correlation.
+5. Add correlation ID to login attempts so support can match client failures with backend logs.
 
-### Approach: Lightweight Markdown-Based Rich Text
+### Phase C — Office-network resilience guidance in-app
+6. Add user-facing fallback instructions only when transport failure is detected:
+   - “Try alternate network/hotspot”
+   - “Disable VPN/proxy temporarily”
+   - “Contact IT to allow outbound auth endpoint traffic”
+7. Keep mobile-first UI behavior for diagnostics card and error actions.
 
-Instead of a full WYSIWYG editor (which would require new dependencies like TipTap/Quill and significant complexity), I will use a **simple rich text toolbar** built with the existing `<Textarea>` component. This approach:
-
-- Stores content as **Markdown** in the existing text columns (no database changes needed).
-- Adds a small formatting toolbar above the textarea with buttons for: **Bold**, *Italic*, Bullet List, and Numbered List.
-- When a user pastes rich text from Word/Google Docs, it will be accepted as-is (the textarea already accepts pasted text; the issue is that formatting is stripped). To preserve formatting on paste, I will intercept the `paste` event and convert HTML clipboard data to Markdown using a lightweight utility function (no external dependency needed — just a small HTML-to-Markdown converter).
-- On the display side (`BugDetail.tsx`), render these fields using a simple Markdown renderer that converts `**bold**`, `*italic*`, `- bullets`, and `1. numbered lists` to proper HTML elements.
-
-### New Components
-
-**New file: `src/components/bugs/RichTextarea.tsx`**
-- Wraps the existing `<Textarea>` with a formatting toolbar.
-- Toolbar buttons: Bold (`**text**`), Italic (`*text*`), Bullet List (`- item`), Numbered List (`1. item`).
-- Handles paste events: intercepts `text/html` from clipboard, converts to Markdown (strips tags, preserves bold/italic/lists).
-- No new dependencies required.
-
-**New file: `src/components/bugs/MarkdownRenderer.tsx`**
-- A small component that takes a Markdown string and renders it as formatted HTML.
-- Supports: `**bold**`, `*italic*`, `- unordered lists`, `1. ordered lists`, line breaks.
-- Uses `dangerouslySetInnerHTML` with a strict whitelist sanitizer (only allows `<strong>`, `<em>`, `<ul>`, `<ol>`, `<li>`, `<br>`, `<p>` tags).
-- No external dependency needed.
-
-### Files Modified
-
-| File | Change |
-|---|---|
-| `src/pages/bugs/CreateBug.tsx` | Replace `<Textarea>` with `<RichTextarea>` for description, expected_behavior, actual_behavior |
-| `src/pages/bugs/EditBug.tsx` | Same — use `<RichTextarea>` for these fields |
-| `src/pages/bugs/BugDetail.tsx` | Replace plain `<p>` rendering with `<MarkdownRenderer>` for description, expected_behavior, actual_behavior |
-| `src/components/bugs/BugComments.tsx` | Optionally use `<RichTextarea>` for the comment composer too |
-
-### Backward Compatibility
-- Existing plain text bugs will render correctly since the Markdown renderer treats plain text as-is (no formatting markers = no formatting applied).
-- No database schema changes are needed — Markdown is stored as plain text.
-
----
-
-## Technical Details
+## Technical implementation details
 
 ```text
-File                                    Change
-─────────────────────────────────────   ──────────────────────────────────────
-src/pages/bugs/EditBug.tsx              NEW — Edit bug form page
-src/components/bugs/RichTextarea.tsx     NEW — Textarea with formatting toolbar + paste handler
-src/components/bugs/MarkdownRenderer.tsx NEW — Simple Markdown-to-HTML renderer
-src/App.tsx                             Add /bugs/:id/edit route
-src/pages/bugs/BugDetail.tsx            Add Edit button; use MarkdownRenderer for text fields
-src/pages/bugs/CreateBug.tsx            Use RichTextarea for description/expected/actual
+Frontend files
+--------------
+src/contexts/AuthContext.tsx
+- Add helper for classifying network transport errors.
+- Expose richer error metadata safely.
+
+src/pages/Login.tsx
+- Add auth preflight reachability check.
+- Add retry (network failures only) with exponential backoff.
+- Add diagnostic payload + copy-to-clipboard support in error UI.
+
+Optional: src/lib/auth-resilience.ts (new)
+- Shared utilities: isNetworkError(), retryWithBackoff(), buildDiagnosticPayload().
+
+Backend (Lovable Cloud)
+-----------------------
+New table (optional, minimal): auth_client_failures
+- id, created_at, app_domain, online_status, error_type, browser_info, correlation_id
+- RLS: insert allowed for authenticated users and/or via controlled backend function
+- Select restricted to admin role
+
+Optional backend function
+- endpoint to log client transport failures when login preflight/login fetch fails
 ```
 
-No database migrations needed. No new npm dependencies required.
+## Safety / non-regression strategy
 
+- No changes to existing auth provider configuration.
+- No changes to account approval logic.
+- Retry only on transport failures, never on invalid credentials.
+- Existing successful login flow remains unchanged.
+- Error handling remains backwards compatible with current toast UX.
+
+## Validation checklist (must run)
+
+1. Test login end-to-end on:
+   - office Wi-Fi
+   - mobile hotspot
+   - one VPN-enabled machine
+2. Test invalid credentials still shows correct message immediately (no unnecessary retries).
+3. Simulate network block and confirm:
+   - preflight fails
+   - retry executes
+   - final message includes actionable diagnostics.
+4. Test on mobile viewport and desktop viewport for responsive behavior.
+5. Verify backend diagnostics records are written and visible for admin audit.
+
+## Expected outcome
+
+- Faster recovery from transient network blips.
+- Clear differentiation between:
+  - invalid credentials,
+  - backend outage,
+  - office network blockage.
+- Actionable evidence to hand to your IT/network team when the issue recurs.
