@@ -34,17 +34,71 @@ export function isNetworkError(error: unknown): boolean {
 }
 
 /**
+ * Lightweight connectivity probe — HEAD request to auth host with short timeout.
+ * Returns true if reachable, false otherwise.
+ */
+export async function probeAuthHost(timeoutMs = 5000): Promise<{ reachable: boolean; latencyMs: number }> {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  if (!url) return { reachable: false, latencyMs: 0 };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = performance.now();
+
+  try {
+    // Use a lightweight endpoint that always exists
+    const res = await fetch(`${url}/auth/v1/health`, {
+      method: "GET",
+      signal: controller.signal,
+      headers: { "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+    });
+    clearTimeout(timer);
+    const latencyMs = Math.round(performance.now() - start);
+    return { reachable: res.ok || res.status < 500, latencyMs };
+  } catch {
+    clearTimeout(timer);
+    const latencyMs = Math.round(performance.now() - start);
+    return { reachable: false, latencyMs };
+  }
+}
+
+/**
+ * Wrap a promise with a per-attempt AbortController-style timeout.
+ * Unlike the overall login timeout, this gives fast feedback per retry.
+ */
+export function withAttemptTimeout<T>(
+  fn: () => Promise<T>,
+  timeoutMs = 10_000
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error("attempt_timeout"));
+      }
+    }, timeoutMs);
+
+    fn().then(
+      (val) => { if (!settled) { settled = true; clearTimeout(timer); resolve(val); } },
+      (err) => { if (!settled) { settled = true; clearTimeout(timer); reject(err); } }
+    );
+  });
+}
+
+/**
  * Retry a sign-in style function that returns { error } instead of throwing.
- * Converts network errors into thrown errors so retryWithBackoff can catch them.
+ * Each attempt has its own 10s timeout so transport failures surface quickly.
  */
 export async function retrySignIn(
   fn: () => Promise<{ error: Error | null }>,
-  opts: { maxRetries?: number; baseDelayMs?: number } = {}
+  opts: { maxRetries?: number; baseDelayMs?: number; attemptTimeoutMs?: number } = {}
 ): Promise<{ error: Error | null }> {
+  const { attemptTimeoutMs = 10_000 } = opts;
   const wrappedFn = async () => {
-    const result = await fn();
-    if (result.error && isNetworkError(result.error)) {
-      throw result.error; // Convert to thrown so retry logic catches it
+    const result = await withAttemptTimeout(fn, attemptTimeoutMs);
+    if (result.error && (isNetworkError(result.error) || result.error.message === "attempt_timeout")) {
+      throw result.error;
     }
     return result;
   };
@@ -52,7 +106,6 @@ export async function retrySignIn(
   try {
     return await retryWithBackoff(wrappedFn, opts);
   } catch (err) {
-    // If all retries exhausted, return the error in the expected shape
     return { error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
@@ -72,7 +125,8 @@ export async function retryWithBackoff<T>(
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!isNetworkError(err) || attempt === maxRetries) {
+      const isRetryable = isNetworkError(err) || (err instanceof Error && err.message === "attempt_timeout");
+      if (!isRetryable || attempt === maxRetries) {
         throw err;
       }
       const jitter = Math.random() * 500;
@@ -104,9 +158,21 @@ function getAuthHost(): string {
 }
 
 /**
+ * Classify the cause string for diagnostics persistence.
+ */
+export function classifyAuthFailureCause(error: unknown, isTimeout: boolean): string {
+  if (isTimeout) {
+    if (isNetworkError(error)) return "network_transport_timeout";
+    return "unknown_timeout";
+  }
+  if (isNetworkError(error)) return "network_transport_fetch_failed";
+  return "auth_error";
+}
+
+/**
  * Build a diagnostic payload for support/troubleshooting.
  */
-export function buildDiagnosticPayload(error: unknown, correlationId: string) {
+export function buildDiagnosticPayload(error: unknown, correlationId: string, cause?: string) {
   return {
     timestamp: new Date().toISOString(),
     correlationId,
@@ -114,7 +180,7 @@ export function buildDiagnosticPayload(error: unknown, correlationId: string) {
     authHost: getAuthHost(),
     online: navigator.onLine,
     userAgent: navigator.userAgent,
-    errorType: isNetworkError(error) ? "network_transport" : "auth_error",
+    errorType: cause || (isNetworkError(error) ? "network_transport" : "auth_error"),
     errorMessage: error instanceof Error ? error.message : String(error),
     appVersion: `build-${__BUILD_ID__}`,
   };

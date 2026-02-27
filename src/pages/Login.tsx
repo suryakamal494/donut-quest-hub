@@ -15,6 +15,8 @@ import {
   buildDiagnosticPayload,
   formatDiagnosticText,
   logAuthFailure,
+  probeAuthHost,
+  classifyAuthFailureCause,
 } from "@/lib/auth-resilience";
 
 const loginSchema = z.object({
@@ -72,19 +74,35 @@ const Login: React.FC = () => {
     let loginPromise: ReturnType<typeof retrySignIn> | null = null;
 
     try {
-      // Clear stale refresh tokens and release any auth lock before login
+      // Step 1: Fast connectivity probe — fail fast if auth host is unreachable
+      const probe = await probeAuthHost(5000);
+      if (!probe.reachable) {
+        const cause = classifyAuthFailureCause(new Error("Auth host unreachable (probe failed)"), false);
+        const diag = buildDiagnosticPayload(
+          new Error(`Auth host unreachable — probe failed after ${probe.latencyMs}ms`),
+          correlationId,
+          cause
+        );
+        setNetworkDiag(formatDiagnosticText(diag));
+        logAuthFailure(diag);
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Clear stale refresh tokens and release any auth lock before login
       try {
         await supabase.auth.signOut();
       } catch {
         // Ignore — best-effort cleanup
       }
 
+      // Step 3: Attempt login with per-attempt timeout (10s) + 2 retries
       const LOGIN_TIMEOUT_MS = 30_000;
       const TIMEOUT_SENTINEL = "__LOGIN_TIMEOUT__";
 
       loginPromise = retrySignIn(
         () => signIn(email, password),
-        { maxRetries: 2, baseDelayMs: 1000 }
+        { maxRetries: 2, baseDelayMs: 1000, attemptTimeoutMs: 10_000 }
       );
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
@@ -95,12 +113,12 @@ const Login: React.FC = () => {
 
       const { error } = await Promise.race([loginPromise, timeoutPromise]);
 
-      // Login resolved before timeout — clear the timer
       if (timeoutId) clearTimeout(timeoutId);
 
       if (error) {
-        if (isNetworkError(error)) {
-          const diag = buildDiagnosticPayload(error, correlationId);
+        if (isNetworkError(error) || error.message === "attempt_timeout") {
+          const cause = classifyAuthFailureCause(error, false);
+          const diag = buildDiagnosticPayload(error, correlationId, cause);
           setNetworkDiag(formatDiagnosticText(diag));
           logAuthFailure(diag);
         } else {
@@ -126,22 +144,31 @@ const Login: React.FC = () => {
       const isOurTimeout = errMsg === "__LOGIN_TIMEOUT__";
 
       if (isOurTimeout) {
-        // Bug fix: Show a clear timeout message, NOT the network diagnostic card
-        toast({
-          variant: "destructive",
-          title: "Login timed out",
-          description: "Login is taking too long. Please check your connection and try again.",
-        });
+        // Log timeout as diagnostic + show network card (not just a toast)
+        const cause = classifyAuthFailureCause(err, true);
+        const diag = buildDiagnosticPayload(
+          new Error("Login timed out after 30s — auth endpoint may be unreachable"),
+          correlationId,
+          cause
+        );
+        setNetworkDiag(formatDiagnosticText(diag));
+        logAuthFailure(diag);
 
-        // Bug fix: If login succeeds AFTER timeout, sign out to prevent ghost session
+        // If login succeeds AFTER timeout, sign out to prevent ghost session
         loginPromise?.then(({ error: lateError }) => {
           if (!lateError && loginCancelled) {
             console.warn("Login succeeded after timeout — signing out to prevent ghost session");
             signOut();
           }
+          // If late result is network error, update diagnostic
+          if (lateError && isNetworkError(lateError)) {
+            const lateDiag = buildDiagnosticPayload(lateError, correlationId, "network_transport_late_resolve");
+            logAuthFailure(lateDiag);
+          }
         }).catch(() => {});
       } else if (isNetworkError(err)) {
-        const diag = buildDiagnosticPayload(err, correlationId);
+        const cause = classifyAuthFailureCause(err, false);
+        const diag = buildDiagnosticPayload(err, correlationId, cause);
         setNetworkDiag(formatDiagnosticText(diag));
         logAuthFailure(diag);
       } else {
