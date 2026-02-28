@@ -43,60 +43,35 @@ export function NotificationBell() {
 
     loadUnreadCount();
 
-    // Subscribe to realtime changes
+    // Subscribe to realtime changes (single channel for all events)
     const channel = supabase
       .channel("notifications-realtime")
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newNotif = payload.new as Notification;
-          setNotifications((prev) => [newNotif, ...prev]);
-          if (!newNotif.is_read) {
-            setUnreadCount((prev) => prev + 1);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const updated = payload.new as Notification;
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === updated.id ? updated : n))
-          );
-          // Recalculate unread count
-          setUnreadCount((prev) => {
-            const old = payload.old as Notification;
-            if (!old.is_read && updated.is_read) return Math.max(0, prev - 1);
-            if (old.is_read && !updated.is_read) return prev + 1;
-            return prev;
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const deleted = payload.old as Notification;
-          setNotifications((prev) => prev.filter((n) => n.id !== deleted.id));
-          if (!deleted.is_read) {
-            setUnreadCount((prev) => Math.max(0, prev - 1));
+          if (payload.eventType === "INSERT") {
+            const newNotif = payload.new as Notification;
+            setNotifications((prev) => [newNotif, ...prev]);
+            if (!newNotif.is_read) setUnreadCount((prev) => prev + 1);
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as Notification;
+            setNotifications((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+            setUnreadCount((prev) => {
+              const old = payload.old as Notification;
+              if (!old.is_read && updated.is_read) return Math.max(0, prev - 1);
+              if (old.is_read && !updated.is_read) return prev + 1;
+              return prev;
+            });
+          } else if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Notification;
+            setNotifications((prev) => prev.filter((n) => n.id !== deleted.id));
+            if (!deleted.is_read) setUnreadCount((prev) => Math.max(0, prev - 1));
           }
         }
       )

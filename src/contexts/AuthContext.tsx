@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { retryWithBackoff } from "@/lib/auth-resilience";
 
 type ApprovalStatus = "pending" | "approved" | "rejected";
 type AppRole = "admin" | "user" | "developer";
@@ -47,37 +47,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const [profileResult, roleResult] = await retryWithBackoff(
+        () => Promise.all([
+          supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+          supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+        ]),
+        { maxRetries: 2, baseDelayMs: 1000 }
+      );
 
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
+      if (profileResult.error) {
+        console.error("Error fetching profile:", profileResult.error);
         return;
       }
+      setProfile(profileResult.data);
 
-      setProfile(profileData);
-
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (roleError) {
-        console.error("Error fetching role:", roleError);
+      if (roleResult.error) {
+        console.error("Error fetching role:", roleResult.error);
         return;
       }
-
-      setRole(roleData?.role as AppRole || null);
+      setRole(roleResult.data?.role as AppRole || null);
     } catch (error) {
       console.error("Error in fetchProfile:", error);
     }
-  };
+  }, []);
 
   const refreshProfile = async () => {
     if (user?.id) {
@@ -138,7 +132,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
+
+  // Auto-recovery when network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log("[AuthContext] Network back online, re-fetching profile...");
+      if (user?.id) {
+        fetchProfile(user.id);
+      }
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [user, fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
     try {
