@@ -1,27 +1,24 @@
 
 
-## Rename "Actual Behavior" to "Current Behavior" across the platform
+## Understanding
 
-A label-only change — no database column renaming needed (the column stays `actual_behavior` in DB, only UI labels change).
+You want the **login type badge** (Super Admin, Institute, Teacher, Student, General) to appear directly on each bug card in the **Pending Retest** page — right next to the bug code, severity, and fix status badges. This way, testers can immediately see which login to use for verification without needing to apply filters first.
 
-### Files to modify
+The screenshot confirms: the current card shows `BUG-229 | Critical | Fixed` but no login type indicator.
 
-1. **`src/pages/bugs/CreateBug.tsx`** (line 379)
-   - Label: "Actual Behavior" → "Current Behavior"
-   - Placeholder: "What actually happened?" → "What is currently happening?"
+## Root Cause
 
-2. **`src/pages/bugs/EditBug.tsx`** (line 335-336)
-   - Label: "Actual Behavior" → "Current Behavior"
-   - Placeholder: "What actually happened?" → "What is currently happening?"
+The Pending Retest page renders bug cards inline (not using the shared `BugCard` component which already has `LoginTypeBadge`). The badge row at line 345-354 only shows `bug_code`, `SeverityBadge`, and `FixStatusBadge` — it simply doesn't include `LoginTypeBadge`.
 
-3. **`src/pages/bugs/BugDetail.tsx`** (line 351)
-   - Section header: "Actual" → "Current Behavior"
+## Implementation Plan
 
-4. **`src/components/bugs/BugFilters.tsx`** (line 56)
-   - Placeholder text: "expected/actual behavior" → "expected/current behavior"
+### 1. Add LoginTypeBadge to Pending Retest bug cards (`src/pages/bugs/PendingRetest.tsx`)
 
-5. **`src/lib/export-utils.ts`** (line 109)
-   - CSV column label: "Actual Behavior" → "Current Behavior"
+- Import `LoginTypeBadge` from `@/components/qa/badges/LoginTypeBadge`
+- At line 353 (after `FixStatusBadge`), add:
+  ```
+  {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
+  ```
 
-No database migration needed — the underlying column name `actual_behavior` remains unchanged; only user-facing labels are updated.
+That's the only file change needed — the `LoginTypeBadge` component and `LoginType` type already exist and handle all login types including "General".
 
