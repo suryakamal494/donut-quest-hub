@@ -1,24 +1,34 @@
 
 
-## Understanding
+## Three Changes
 
-You want the **login type badge** (Super Admin, Institute, Teacher, Student, General) to appear directly on each bug card in the **Pending Retest** page — right next to the bug code, severity, and fix status badges. This way, testers can immediately see which login to use for verification without needing to apply filters first.
+### 1. Image lightbox navigation in AttachmentGallery
+**Problem**: Clicking an attachment opens a dialog showing one image. To see the next, user must close and click again.
+**Fix**: Track `selectedIndex` instead of `selectedImage`. Add left/right arrow buttons (and keyboard arrow support) to navigate between images. Show "2/5" counter.
 
-The screenshot confirms: the current card shows `BUG-229 | Critical | Fixed` but no login type indicator.
+**File**: `src/components/qa/AttachmentGallery.tsx`
+- Replace `selectedImage: string | null` state with `selectedIndex: number | null`
+- Add `ChevronLeft`, `ChevronRight` from lucide-react
+- Render prev/next arrow buttons on left/right sides of the image
+- Add `onKeyDown` handler for arrow key navigation
+- Show image counter (e.g., "2 of 5")
 
-## Root Cause
+### 2. Increase max attachments from 5 to 8
+**Problem**: BugAttachmentUploader defaults to `maxFiles = 5`.
+**Fix**: Change default to 8.
 
-The Pending Retest page renders bug cards inline (not using the shared `BugCard` component which already has `LoginTypeBadge`). The badge row at line 345-354 only shows `bug_code`, `SeverityBadge`, and `FixStatusBadge` — it simply doesn't include `LoginTypeBadge`.
+**File**: `src/components/bugs/BugAttachmentUploader.tsx` — line 21: `maxFiles = 5` → `maxFiles = 8`
 
-## Implementation Plan
+### 3. Add LoginTypeBadge to Active Bugs grouped view
+**Problem**: The grouped/expanded bug rows in BugList (lines 454-465) don't show the login type badge. The flat view already has it via BugCard. ClosedBugs already has it.
+**Fix**: Add `LoginTypeBadge` to the grouped view bug rows.
 
-### 1. Add LoginTypeBadge to Pending Retest bug cards (`src/pages/bugs/PendingRetest.tsx`)
+**File**: `src/pages/bugs/BugList.tsx`
+- Import `LoginTypeBadge` and `LoginType`
+- In the grouped expanded row (around line 464, after bug title), add the login type badge
 
-- Import `LoginTypeBadge` from `@/components/qa/badges/LoginTypeBadge`
-- At line 353 (after `FixStatusBadge`), add:
-  ```
-  {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
-  ```
-
-That's the only file change needed — the `LoginTypeBadge` component and `LoginType` type already exist and handle all login types including "General".
+### Files to modify
+- `src/components/qa/AttachmentGallery.tsx` (lightbox navigation)
+- `src/components/bugs/BugAttachmentUploader.tsx` (max 5 → 8)
+- `src/pages/bugs/BugList.tsx` (LoginTypeBadge in grouped view)
 
