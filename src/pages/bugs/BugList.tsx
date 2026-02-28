@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/pagination";
 import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import type { Bug as BugType } from "@/types/bugs";
-import type { Feature } from "@/types/qa";
+import type { Feature, LoginType } from "@/types/qa";
+import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 
 const PAGE_SIZE = 25;
 
@@ -463,6 +464,7 @@ export default function BugList() {
                               <span className="font-medium text-foreground text-sm truncate">
                                 {bug.title}
                               </span>
+                              {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
                             </div>
                             {bug.sub_module && (
                               <p className="text-xs text-muted-foreground mt-0.5 truncate">
