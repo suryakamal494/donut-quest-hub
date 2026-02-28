@@ -69,32 +69,35 @@ export default function BugDetail() {
       const bugData = data as BugType;
       setBug(bugData);
 
-      if (bugData?.feature_id) {
-        const { data: fData } = await supabase.from("features").select("name").eq("id", bugData.feature_id).maybeSingle();
-        setFeatureName(fData?.name || null);
-      }
-      if (bugData?.scenario_id) {
-        const { data: sData } = await supabase.from("test_scenarios").select("scenario_code, name").eq("id", bugData.scenario_id).maybeSingle();
-        setScenarioInfo(sData || null);
-      }
-      if (bugData?.reported_by) {
-        const { data: rData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.reported_by).maybeSingle();
-        setReporterName(rData?.full_name || null);
-      }
-      if (bugData?.assigned_to) {
-        const { data: aData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.assigned_to).maybeSingle();
-        setAssigneeName(aData?.full_name || null);
-      }
-      if (bugData?.verified_by) {
-        const { data: vData } = await supabase.from("profiles").select("full_name").eq("user_id", bugData.verified_by).maybeSingle();
-        setVerifierName(vData?.full_name || null);
-      }
-      if ((bugData as any)?.reopened_by) {
-        const { data: roData } = await supabase.from("profiles").select("full_name").eq("user_id", (bugData as any).reopened_by).maybeSingle();
-        setReopenerName(roData?.full_name || null);
-      } else {
-        setReopenerName(null);
-      }
+      // Parallelize all related lookups
+      const [featureResult, scenarioResult, profileResults] = await Promise.all([
+        bugData?.feature_id
+          ? supabase.from("features").select("name").eq("id", bugData.feature_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        bugData?.scenario_id
+          ? supabase.from("test_scenarios").select("scenario_code, name").eq("id", bugData.scenario_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        (() => {
+          const userIds = [
+            bugData?.reported_by,
+            bugData?.assigned_to,
+            bugData?.verified_by,
+            (bugData as any)?.reopened_by,
+          ].filter(Boolean) as string[];
+          if (userIds.length === 0) return Promise.resolve({ data: [] });
+          return supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
+        })(),
+      ]);
+
+      setFeatureName(featureResult.data?.name || null);
+      setScenarioInfo(scenarioResult.data || null);
+
+      const profileMap: Record<string, string> = {};
+      (profileResults.data || []).forEach((p: any) => { profileMap[p.user_id] = p.full_name; });
+      setReporterName(bugData?.reported_by ? profileMap[bugData.reported_by] || null : null);
+      setAssigneeName(bugData?.assigned_to ? profileMap[bugData.assigned_to] || null : null);
+      setVerifierName(bugData?.verified_by ? profileMap[bugData.verified_by] || null : null);
+      setReopenerName((bugData as any)?.reopened_by ? profileMap[(bugData as any).reopened_by] || null : null);
     } catch (error) {
       console.error("Error loading bug:", error);
       toast({ variant: "destructive", title: "Error loading bug" });
@@ -130,46 +133,37 @@ export default function BugDetail() {
     if (!bug || !user) return;
     setUpdating(true);
     try {
-      // Record history
-      await supabase.from("bug_history").insert({
-        bug_id: bug.id,
-        changed_by: user.id,
-        field_changed: "status",
-        old_value: bug.status,
-        new_value: newStatus,
-      });
-
       const updateData: any = { status: newStatus };
       if (newStatus === "resolved") {
         updateData.resolved_at = new Date().toISOString();
         updateData.resolved_by = user.id;
       }
-      const { error } = await supabase.from("bugs").update(updateData).eq("id", bug.id);
+
+      // Record history and update bug in parallel
+      const [, { error }] = await Promise.all([
+        supabase.from("bug_history").insert({
+          bug_id: bug.id, changed_by: user.id, field_changed: "status",
+          old_value: bug.status, new_value: newStatus,
+        }),
+        supabase.from("bugs").update(updateData).eq("id", bug.id),
+      ]);
       if (error) throw error;
       setBug(prev => prev ? { ...prev, ...updateData } : null);
       toast({ title: "Status updated" });
 
-      // Notify reporter about status change
-      if (bug.reported_by && bug.reported_by !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: bug.reported_by,
-          title: "Bug Status Updated",
+      // Fire-and-forget notifications
+      const notifyIds = [
+        bug.reported_by !== user.id ? bug.reported_by : null,
+        bug.assigned_to !== user.id && bug.assigned_to !== bug.reported_by ? bug.assigned_to : null,
+      ].filter(Boolean) as string[];
+      notifyIds.forEach(uid => {
+        supabase.from("notifications").insert({
+          user_id: uid, title: "Bug Status Updated",
           message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
           type: newStatus === "resolved" ? "success" : "info",
           link: `/bugs/${bug.id}`,
-        });
-      }
-
-      // Notify assignee about status change (if different from reporter and current user)
-      if (bug.assigned_to && bug.assigned_to !== user.id && bug.assigned_to !== bug.reported_by) {
-        await supabase.from("notifications").insert({
-          user_id: bug.assigned_to,
-          title: "Bug Status Updated",
-          message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
-          type: newStatus === "resolved" ? "success" : "info",
-          link: `/bugs/${bug.id}`,
-        });
-      }
+        }).then(() => {});
+      });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
@@ -180,28 +174,26 @@ export default function BugDetail() {
   const assignBug = async (userId: string) => {
     if (!bug || !user) return;
     try {
-      await supabase.from("bug_history").insert({
-        bug_id: bug.id,
-        changed_by: user.id,
-        field_changed: "assigned_to",
-        old_value: bug.assigned_to || null,
-        new_value: userId,
-      });
-
-      const { error } = await supabase.from("bugs").update({ assigned_to: userId }).eq("id", bug.id);
+      // History and update in parallel
+      const [, { error }] = await Promise.all([
+        supabase.from("bug_history").insert({
+          bug_id: bug.id, changed_by: user.id, field_changed: "assigned_to",
+          old_value: bug.assigned_to || null, new_value: userId,
+        }),
+        supabase.from("bugs").update({ assigned_to: userId }).eq("id", bug.id),
+      ]);
       if (error) throw error;
       const dev = developers.find(d => d.user_id === userId);
       setAssigneeName(dev?.full_name || null);
       setBug(prev => prev ? { ...prev, assigned_to: userId } : null);
       toast({ title: "Bug assigned" });
 
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        title: "Bug Assigned",
+      // Fire-and-forget notification
+      supabase.from("notifications").insert({
+        user_id: userId, title: "Bug Assigned",
         message: `Bug ${bug.bug_code}: "${bug.title}" has been assigned to you`,
-        type: "bug_assigned",
-        link: `/bugs/${bug.id}`,
-      });
+        type: "bug_assigned", link: `/bugs/${bug.id}`,
+      }).then(() => {});
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }

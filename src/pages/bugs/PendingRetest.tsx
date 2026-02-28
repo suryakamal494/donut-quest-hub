@@ -121,31 +121,27 @@ export default function PendingRetest() {
     if (!user) return;
     setActionLoading(bug.id);
     try {
-      await supabase.from("bug_history").insert([
-        { bug_id: bug.id, changed_by: user.id, field_changed: "fix_status", old_value: "fixed", new_value: "verified" },
-        { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "closed" },
+      // History and bug update in parallel
+      const [, { error }] = await Promise.all([
+        supabase.from("bug_history").insert([
+          { bug_id: bug.id, changed_by: user.id, field_changed: "fix_status", old_value: "fixed", new_value: "verified" },
+          { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "closed" },
+        ]),
+        supabase.from("bugs").update({
+          fix_status: "verified", status: "closed",
+          verified_at: new Date().toISOString(), verified_by: user.id,
+        }).eq("id", bug.id),
       ]);
-
-      const { error } = await supabase
-        .from("bugs")
-        .update({
-          fix_status: "verified",
-          status: "closed",
-          verified_at: new Date().toISOString(),
-          verified_by: user.id,
-        })
-        .eq("id", bug.id);
       if (error) throw error;
 
+      // Fire-and-forget notification
       const devId = bug.resolved_by || bug.assigned_to;
       if (devId && devId !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: devId,
-          title: "Bug Verified & Closed",
+        supabase.from("notifications").insert({
+          user_id: devId, title: "Bug Verified & Closed",
           message: `Bug ${bug.bug_code}: "${bug.title}" has been verified and permanently closed.`,
-          type: "bug_verified",
-          link: `/bugs/${bug.id}`,
-        });
+          type: "bug_verified", link: `/bugs/${bug.id}`,
+        }).then(() => {});
       }
 
       toast({ title: "Bug verified and closed" });
@@ -166,40 +162,31 @@ export default function PendingRetest() {
     }
     setActionLoading(bug.id);
     try {
-      await supabase.from("bug_history").insert([
-        { bug_id: bug.id, changed_by: user.id, field_changed: "fix_status", old_value: "fixed", new_value: "reopened" },
-        { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "open" },
+      // History + comment in parallel, then bug update
+      const [, , { error }] = await Promise.all([
+        supabase.from("bug_history").insert([
+          { bug_id: bug.id, changed_by: user.id, field_changed: "fix_status", old_value: "fixed", new_value: "reopened" },
+          { bug_id: bug.id, changed_by: user.id, field_changed: "status", old_value: "resolved", new_value: "open" },
+        ]),
+        supabase.from("bug_comments").insert({
+          bug_id: bug.id, user_id: user.id, comment: `🔄 **Reopened**: ${notes}`,
+        }),
+        supabase.from("bugs").update({
+          fix_status: "reopened", status: "open",
+          resolved_at: null, resolved_by: null,
+          verified_at: null, verified_by: null, reopened_by: user.id,
+        }).eq("id", bug.id),
       ]);
-
-      await supabase.from("bug_comments").insert({
-        bug_id: bug.id,
-        user_id: user.id,
-        comment: `🔄 **Reopened**: ${notes}`,
-      });
-
-      const { error } = await supabase
-        .from("bugs")
-        .update({
-          fix_status: "reopened",
-          status: "open",
-          resolved_at: null,
-          resolved_by: null,
-          verified_at: null,
-          verified_by: null,
-          reopened_by: user.id,
-        })
-        .eq("id", bug.id);
       if (error) throw error;
 
+      // Fire-and-forget notification
       const devId = bug.resolved_by || bug.assigned_to;
       if (devId && devId !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: devId,
-          title: "Bug Reopened — Fix Failed Verification",
+        supabase.from("notifications").insert({
+          user_id: devId, title: "Bug Reopened — Fix Failed Verification",
           message: `Bug ${bug.bug_code}: "${bug.title}" was reopened. Reason: ${notes}`,
-          type: "bug_reopened",
-          link: `/bugs/${bug.id}`,
-        });
+          type: "bug_reopened", link: `/bugs/${bug.id}`,
+        }).then(() => {});
       }
 
       toast({ title: "Bug reopened" });

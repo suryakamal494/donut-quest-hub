@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Loader2, Send, MessageSquare, Paperclip, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,33 @@ import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import type { BugComment } from "@/types/bugs";
 import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+
+// Component that creates object URLs with proper cleanup
+function PendingFilePreviews({ files, onRemove }: { files: File[]; onRemove: (i: number) => void }) {
+  const urls = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
+
+  useEffect(() => {
+    return () => { urls.forEach(u => URL.revokeObjectURL(u)); };
+  }, [urls]);
+
+  if (files.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {files.map((file, i) => (
+        <div key={i} className="relative w-14 h-14 rounded-md border border-border overflow-hidden group">
+          <img src={urls[i]} alt={file.name} className="w-full h-full object-cover" />
+          <button
+            onClick={() => onRemove(i)}
+            className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl-md p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface BugCommentsProps {
   bugId: string;
@@ -196,25 +223,7 @@ export function BugComments({ bugId }: BugCommentsProps) {
               />
 
               {/* Pending file previews */}
-              {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {pendingFiles.map((file, i) => (
-                    <div key={i} className="relative w-14 h-14 rounded-md border border-border overflow-hidden group">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={file.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => removePendingFile(i)}
-                        className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl-md p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <PendingFilePreviews files={pendingFiles} onRemove={removePendingFile} />
 
               <div className="flex gap-2">
                 <input
