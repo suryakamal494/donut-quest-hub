@@ -18,7 +18,7 @@ export function BugAttachmentUploader({
   userId,
   onUploadComplete,
   existingAttachments = [],
-  maxFiles = 5,
+  maxFiles = 8,
   className,
 }: BugAttachmentUploaderProps) {
   const [uploading, setUploading] = useState(false);
