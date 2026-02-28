@@ -1,34 +1,49 @@
 
 
-## Three Changes
+## Understanding
 
-### 1. Image lightbox navigation in AttachmentGallery
-**Problem**: Clicking an attachment opens a dialog showing one image. To see the next, user must close and click again.
-**Fix**: Track `selectedIndex` instead of `selectedImage`. Add left/right arrow buttons (and keyboard arrow support) to navigate between images. Show "2/5" counter.
+You're experiencing slow submissions and page reloads/crashes when:
+1. Submitting a new bug (CreateBug) — long wait, sometimes the app "exits"
+2. Posting comments or verifying/reopening bugs on the Pending Retest page — hangs, doesn't submit
+3. Works in incognito initially but degrades after repeated use
 
-**File**: `src/components/qa/AttachmentGallery.tsx`
-- Replace `selectedImage: string | null` state with `selectedIndex: number | null`
-- Add `ChevronLeft`, `ChevronRight` from lucide-react
-- Render prev/next arrow buttons on left/right sides of the image
-- Add `onKeyDown` handler for arrow key navigation
-- Show image counter (e.g., "2 of 5")
+This points to **sequential database calls blocking the UI**, **missing error boundaries**, and **memory leaks from object URLs** accumulating over a session.
 
-### 2. Increase max attachments from 5 to 8
-**Problem**: BugAttachmentUploader defaults to `maxFiles = 5`.
-**Fix**: Change default to 8.
+## Root Causes Identified
 
-**File**: `src/components/bugs/BugAttachmentUploader.tsx` — line 21: `maxFiles = 5` → `maxFiles = 8`
+### 1. Sequential Supabase calls (main bottleneck)
+- **BugDetail.loadBug()** makes 6-7 sequential `.maybeSingle()` queries (bug, feature, scenario, reporter, assignee, verifier, reopener) — each waits for the previous one. This alone can take 3-5 seconds.
+- **PendingRetest.handleReopen()** makes 4 sequential calls: history insert → comment insert → bug update → notification insert.
+- **PendingRetest.handleVerify()** makes 3 sequential calls: history → update → notification.
+- **BugDetail.updateStatus()** and **assignBug()** are also sequential.
 
-### 3. Add LoginTypeBadge to Active Bugs grouped view
-**Problem**: The grouped/expanded bug rows in BugList (lines 454-465) don't show the login type badge. The flat view already has it via BugCard. ClosedBugs already has it.
-**Fix**: Add `LoginTypeBadge` to the grouped view bug rows.
+### 2. Object URL memory leaks in BugComments
+- Line 206: `URL.createObjectURL(file)` is called on every render for pending file previews but **never revoked**. Over a session with many comments/file previews, this leaks memory, causing the browser to slow down and eventually crash — explaining why incognito (fresh memory) works initially.
 
-**File**: `src/pages/bugs/BugList.tsx`
-- Import `LoginTypeBadge` and `LoginType`
-- In the grouped expanded row (around line 464, after bug title), add the login type badge
+### 3. No navigation guard on submit
+- After `navigate("/bugs")`, the BugList page triggers a full data reload with its own sequential queries. If the auth token is being refreshed simultaneously, these can timeout.
 
-### Files to modify
-- `src/components/qa/AttachmentGallery.tsx` (lightbox navigation)
-- `src/components/bugs/BugAttachmentUploader.tsx` (max 5 → 8)
-- `src/pages/bugs/BugList.tsx` (LoginTypeBadge in grouped view)
+### 4. Realtime subscription overhead
+- NotificationBell subscribes to 3 realtime channels (INSERT, UPDATE, DELETE). Combined with page data loads, this adds connection pressure.
+
+## Implementation Plan
+
+### File 1: `src/pages/bugs/BugDetail.tsx` — Parallelize loadBug queries
+- Use `Promise.all` for the 6 profile/feature/scenario lookups after fetching the bug itself, reducing ~6 round trips to ~1.
+
+### File 2: `src/pages/bugs/PendingRetest.tsx` — Parallelize verify/reopen actions
+- In `handleVerify`: run history insert and bug update in parallel, notification fire-and-forget.
+- In `handleReopen`: run history + comment inserts in parallel, then bug update, notification fire-and-forget.
+
+### File 3: `src/components/bugs/BugComments.tsx` — Fix object URL memory leak
+- Create object URLs in a `useMemo` and revoke them in a cleanup `useEffect`. This prevents memory accumulation across the session.
+
+### File 4: `src/pages/bugs/BugList.tsx` — Parallelize loadBugs profile fetch
+- Run bugs query and features query in parallel using `Promise.all`.
+
+### File 5: `src/pages/bugs/CreateBug.tsx` — Add submit guard
+- Disable the form/button more aggressively during submission to prevent double-clicks.
+- Wrap the insert in a try/catch that specifically handles timeout errors with a user-friendly message.
+
+These changes target the root causes: reducing network round-trip time by 60-70% through parallelization, fixing the memory leak that causes session degradation, and adding resilience to submit flows.
 
