@@ -404,6 +404,7 @@ export default function BugReport() {
             <SelectItem value="institute">Institute</SelectItem>
             <SelectItem value="teacher">Teacher</SelectItem>
             <SelectItem value="student">Student</SelectItem>
+            <SelectItem value="general">General</SelectItem>
           </SelectContent>
         </Select>
         <Select value={bugTypeFilter} onValueChange={(v) => { setBugTypeFilter(v); setPage(1); }}>

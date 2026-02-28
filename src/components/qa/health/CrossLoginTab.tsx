@@ -8,7 +8,7 @@ import type { HealthData } from "./HealthCell";
 import { HealthCell } from "./HealthCell";
 import { HealthLegend } from "./HealthLegend";
 
-const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student"];
+const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student", "general"];
 
 interface CrossLoginTabProps {
   allHealthData: HealthData[];

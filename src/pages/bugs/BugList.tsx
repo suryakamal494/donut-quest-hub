@@ -127,7 +127,9 @@ export default function BugList() {
     loginFeatures.forEach(f => {
       groups[f.id] = { feature: f, bugs: [] };
     });
-    groups["uncategorized"] = { feature: null, bugs: [] };
+    // Find the "Others" feature for this login type (same logic as HealthMap)
+    const othersFeature = loginFeatures.find(f => f.name === "Others");
+    groups["uncategorized"] = { feature: othersFeature || null, bugs: [] };
 
     bugs.forEach(bug => {
       if (bug.feature_id && groups[bug.feature_id]) {
@@ -314,6 +316,7 @@ export default function BugList() {
           { value: "institute", label: "Institute" },
           { value: "teacher", label: "Teacher" },
           { value: "student", label: "Student" },
+          { value: "general", label: "General" },
         ].map(tab => {
           const isActive = loginTypeFilter === tab.value;
           return (

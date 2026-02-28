@@ -1190,7 +1190,12 @@ export type Database = {
         | "data"
         | "security"
         | "other"
-      login_type: "super_admin" | "institute" | "teacher" | "student"
+      login_type:
+        | "super_admin"
+        | "institute"
+        | "teacher"
+        | "student"
+        | "general"
       priority_level: "critical" | "high" | "medium" | "low"
       run_status: "in_progress" | "completed" | "aborted"
       scenario_type: "smoke" | "intra_login" | "inter_login"
@@ -1335,7 +1340,7 @@ export const Constants = {
         "security",
         "other",
       ],
-      login_type: ["super_admin", "institute", "teacher", "student"],
+      login_type: ["super_admin", "institute", "teacher", "student", "general"],
       priority_level: ["critical", "high", "medium", "low"],
       run_status: ["in_progress", "completed", "aborted"],
       scenario_type: ["smoke", "intra_login", "inter_login"],
