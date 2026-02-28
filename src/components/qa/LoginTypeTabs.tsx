@@ -19,7 +19,7 @@ interface LoginTypeTabsProps {
   onLoginTypeChange: (value: LoginType | "all") => void;
 }
 
-const LOGIN_TYPES: (LoginType | "all")[] = ["all", "super_admin", "institute", "teacher", "student"];
+const LOGIN_TYPES: (LoginType | "all")[] = ["all", "super_admin", "institute", "teacher", "student", "general"];
 
 export function LoginTypeTabs({ scenarios, selectedLoginType, onLoginTypeChange }: LoginTypeTabsProps) {
   // Count scenarios for each login type
@@ -30,6 +30,7 @@ export function LoginTypeTabs({ scenarios, selectedLoginType, onLoginTypeChange 
       institute: 0,
       teacher: 0,
       student: 0,
+      general: 0,
     };
 
     scenarios.forEach(scenario => {
@@ -67,7 +68,7 @@ export function LoginTypeTabs({ scenarios, selectedLoginType, onLoginTypeChange 
                   {type === "all" ? "All" : LOGIN_TYPE_LABELS[type]}
                 </span>
                 <span className="sm:hidden">
-                  {type === "all" ? "All" : type === "super_admin" ? "SA" : type === "institute" ? "Inst" : type === "teacher" ? "Tchr" : "Stud"}
+                  {type === "all" ? "All" : type === "super_admin" ? "SA" : type === "institute" ? "Inst" : type === "teacher" ? "Tchr" : type === "student" ? "Stud" : "Gen"}
                 </span>
                 <Badge
                   variant={isActive ? "default" : "secondary"}

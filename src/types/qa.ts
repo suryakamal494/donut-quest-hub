@@ -4,7 +4,7 @@
 export type ScenarioType = 'smoke' | 'intra_login' | 'inter_login';
 export type TestFrequency = 'one_time' | 'regression' | 'release';
 export type PriorityLevel = 'critical' | 'high' | 'medium' | 'low';
-export type LoginType = 'super_admin' | 'institute' | 'teacher' | 'student';
+export type LoginType = 'super_admin' | 'institute' | 'teacher' | 'student' | 'general';
 export type TestStatus = 'pass' | 'fail' | 'blocked' | 'skipped' | 'pending';
 export type RunStatus = 'in_progress' | 'completed' | 'aborted';
 
@@ -194,6 +194,7 @@ export const LOGIN_TYPE_LABELS: Record<LoginType, string> = {
   institute: 'Institute',
   teacher: 'Teacher',
   student: 'Student',
+  general: 'General',
 };
 
 export const PRIORITY_LABELS: Record<PriorityLevel, string> = {

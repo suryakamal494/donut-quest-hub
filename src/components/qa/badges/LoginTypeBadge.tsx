@@ -28,6 +28,10 @@ const typeConfig: Record<LoginType, {
     bgClass: "bg-cyan-100",
     textClass: "text-cyan-700",
   },
+  general: {
+    bgClass: "bg-gray-100",
+    textClass: "text-gray-700",
+  },
 };
 
 export function LoginTypeBadge({ 

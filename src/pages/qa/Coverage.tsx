@@ -23,6 +23,7 @@ export default function Coverage() {
     institute: 0,
     teacher: 0,
     student: 0,
+    general: 0,
   });
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export default function Coverage() {
         institute: 0,
         teacher: 0,
         student: 0,
+        general: 0,
       };
 
       scenarios?.forEach(scenario => {
@@ -176,6 +178,7 @@ export default function Coverage() {
                 institute: 'bg-indigo-500',
                 teacher: 'bg-teal-500',
                 student: 'bg-cyan-500',
+                general: 'bg-gray-500',
               };
 
               return (

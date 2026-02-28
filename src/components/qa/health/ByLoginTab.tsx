@@ -13,7 +13,7 @@ import { LifecycleStageBadge, LifecycleStageSelector } from "./LifecycleStageSel
 import type { LifecycleStage } from "./HealthCell";
 import { cn } from "@/lib/utils";
 
-const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student"];
+const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student", "general"];
 
 interface ByLoginTabProps {
   allHealthData: HealthData[];

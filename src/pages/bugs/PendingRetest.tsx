@@ -29,6 +29,7 @@ const LOGIN_FILTERS: Array<{ value: "all" | LoginType; label: string }> = [
   { value: "institute", label: "Institute Admin" },
   { value: "teacher", label: "Teacher" },
   { value: "student", label: "Student" },
+  { value: "general", label: "General" },
 ];
 
 interface ProfileMap {

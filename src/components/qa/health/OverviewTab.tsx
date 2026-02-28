@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student"];
+const LOGIN_TYPES: LoginType[] = ["super_admin", "institute", "teacher", "student", "general"];
 
 const TILE_STYLES: Record<string, { bg: string; border: string }> = {
   cleared:        { bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-l-emerald-500" },
