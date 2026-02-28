@@ -21,6 +21,8 @@ import { BUG_TYPE_LABELS } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 import { LOGIN_TYPE_LABELS } from "@/types/qa";
 import { formatDistanceToNow } from "date-fns";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
+import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 25;
 
@@ -31,6 +33,7 @@ export default function ClosedBugs() {
   const [bugs, setBugs] = useState<BugType[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
@@ -40,6 +43,7 @@ export default function ClosedBugs() {
   useEffect(() => {
     if (user && currentProject) loadBugs();
   }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter]);
+
 
   const loadBugs = async () => {
     if (!currentProject) return;
@@ -174,9 +178,20 @@ export default function ClosedBugs() {
 
       {/* Filters */}
       <div className="flex flex-col gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search closed bugs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search closed bugs..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { setSearch(searchInput); setPage(1); } }}
+              className="pl-9"
+            />
+          </div>
+          <Button size="icon" variant="outline" onClick={() => { setSearch(searchInput); setPage(1); }} className="shrink-0">
+            <Search className="h-4 w-4" />
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={severityFilter} onValueChange={setSeverityFilter}>
@@ -267,6 +282,7 @@ export default function ClosedBugs() {
               </Card>
             </Link>
           ))}
+          <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
           {renderPagination()}
         </div>
       )}

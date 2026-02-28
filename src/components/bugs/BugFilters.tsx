@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -33,16 +35,34 @@ export function BugFilters({
   fixStatusFilter,
   onFixStatusChange,
 }: BugFiltersProps) {
+  const [inputValue, setInputValue] = useState(search);
+
+  const handleSubmit = () => {
+    onSearchChange(inputValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search bugs by title, description, steps, expected/actual behavior..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search bugs by title, description, steps, expected/actual behavior..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="pl-9"
+          />
+        </div>
+        <Button size="icon" variant="outline" onClick={handleSubmit} className="shrink-0">
+          <Search className="h-4 w-4" />
+        </Button>
       </div>
       <div className="flex flex-wrap gap-2">
         <Select value={severityFilter} onValueChange={onSeverityChange}>
