@@ -13,6 +13,15 @@ function renderMarkdown(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+  // URLs — auto-link before bold/italic so markers inside URLs aren't mangled
+  html = html.replace(
+    /(https?:\/\/[^\s<]+|www\.[^\s<]+)/g,
+    (url) => {
+      const href = url.startsWith("www.") ? `https://${url}` : url;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    }
+  );
+
   // Bold
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   // Italic
@@ -61,6 +70,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
         "prose prose-sm dark:prose-invert max-w-none",
         "[&_p]:my-0.5 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0",
         "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+        "[&_a]:text-emerald-600 [&_a]:hover:underline [&_a]:cursor-pointer [&_a]:break-all",
         className
       )}
       dangerouslySetInnerHTML={{ __html: html }}

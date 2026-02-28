@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import type { BugComment } from "@/types/bugs";
+import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
 
 interface BugCommentsProps {
   bugId: string;
@@ -162,7 +163,7 @@ export function BugComments({ bugId }: BugCommentsProps) {
                         {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                       </span>
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{comment.comment}</p>
+                    <MarkdownRenderer content={comment.comment} className="text-sm" />
 
                     {/* Comment attachments */}
                     {comment.attachments && comment.attachments.length > 0 && (

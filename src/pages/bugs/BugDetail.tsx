@@ -379,7 +379,7 @@ export default function BugDetail() {
                   </span>
                 )}
               </h4>
-              <p className="text-foreground text-sm">{bug.developer_response}</p>
+              <MarkdownRenderer content={bug.developer_response} className="text-sm" />
             </div>
           )}
 
@@ -387,7 +387,7 @@ export default function BugDetail() {
           {bug.resolution_notes && (
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
               <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">Resolution Notes</p>
-              <p className="text-sm text-foreground">{bug.resolution_notes}</p>
+              <MarkdownRenderer content={bug.resolution_notes} className="text-sm" />
             </div>
           )}
 
