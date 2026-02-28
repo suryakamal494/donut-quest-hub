@@ -376,12 +376,12 @@ export default function CreateBug() {
                 />
               </div>
               <div>
-                <Label htmlFor="actual">Actual Behavior</Label>
+                <Label htmlFor="actual">Current Behavior</Label>
                 <RichTextarea
                   id="actual"
                   value={formData.actual_behavior}
                   onChange={(v) => setFormData(prev => ({ ...prev, actual_behavior: v }))}
-                  placeholder="What actually happened?"
+                  placeholder="What is currently happening?"
                   rows={2}
                 />
               </div>

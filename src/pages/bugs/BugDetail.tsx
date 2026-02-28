@@ -348,7 +348,7 @@ export default function BugDetail() {
               )}
               {bug.actual_behavior && (
                 <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
-                  <h4 className="text-xs font-medium text-red-700 dark:text-red-400 mb-1">Actual</h4>
+                  <h4 className="text-xs font-medium text-red-700 dark:text-red-400 mb-1">Current Behavior</h4>
                   <MarkdownRenderer content={bug.actual_behavior} className="text-foreground text-sm" />
                 </div>
               )}

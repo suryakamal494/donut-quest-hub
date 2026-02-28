@@ -106,7 +106,7 @@ export function exportBugsToCSV(bugs: any[]) {
     { key: "description", label: "Description" },
     { key: "steps_to_reproduce", label: "Steps to Reproduce" },
     { key: "expected_behavior", label: "Expected Behavior" },
-    { key: "actual_behavior", label: "Actual Behavior" },
+    { key: "actual_behavior", label: "Current Behavior" },
     { key: "environment", label: "Environment" },
     { key: "sub_module", label: "Sub-module" },
     { key: "created_at", label: "Reported On" },

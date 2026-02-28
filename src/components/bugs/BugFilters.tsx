@@ -53,7 +53,7 @@ export function BugFilters({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search bugs by title, description, steps, expected/actual behavior..."
+            placeholder="Search bugs by title, description, steps, expected/current behavior..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
