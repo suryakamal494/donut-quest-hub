@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Loader2,
@@ -9,6 +9,8 @@ import {
   ArrowRight,
   FolderKanban,
   Clock,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailyActivityStats } from "@/components/dashboard/DailyActivityStats";
@@ -18,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { BUG_STATUS_LABELS } from "@/types/bugs";
+import { retryWithBackoff } from "@/lib/auth-resilience";
 import {
   PieChart,
   Pie,
@@ -62,6 +65,7 @@ export function AdminQADashboard() {
   const { user } = useAuth();
   const { currentProject, isLoading: projectLoading } = useProject();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [devPerformance, setDevPerformance] = useState<DevPerformance[]>([]);
   const [qaPerformance, setQAPerformance] = useState<QAPerformance[]>([]);
@@ -75,15 +79,16 @@ export function AdminQADashboard() {
     }
   }, [user, currentProject]);
 
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     if (!currentProject) return;
     try {
       setLoading(true);
+      setLoadError(false);
 
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
 
-      // Run ALL queries in parallel
+      // Run ALL queries in parallel with retry
       const [
         { data: profiles },
         { data: roles },
@@ -92,7 +97,7 @@ export function AdminQADashboard() {
         { data: bugHistory },
         { data: testRuns },
         { data: scenarios },
-      ] = await Promise.all([
+      ] = await retryWithBackoff(() => Promise.all([
         supabase.from("profiles").select("user_id, full_name").eq("approval_status", "approved"),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("user_project_access").select("user_id").eq("project_id", currentProject.id),
@@ -111,7 +116,7 @@ export function AdminQADashboard() {
         supabase.from("test_scenarios")
           .select("id, created_by")
           .eq("project_id", currentProject.id),
-      ]);
+      ]), { maxRetries: 2, baseDelayMs: 1000 });
 
       const roleMap: Record<string, string> = {};
       (roles || []).forEach((r) => (roleMap[r.user_id] = r.role));
@@ -206,10 +211,11 @@ export function AdminQADashboard() {
       setQAPerformance(qaPerf);
     } catch (error) {
       console.error("Error loading admin dashboard:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject]);
 
   const pieData = useMemo(() => {
     const labels: Record<string, string> = {
@@ -229,6 +235,23 @@ export function AdminQADashboard() {
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card className="glass">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <AlertTriangle className="h-12 w-12 text-destructive/50 mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-1">Failed to Load Dashboard</h3>
+          <p className="text-muted-foreground text-center max-w-sm mb-4">
+            Could not connect to the server. Please check your connection and try again.
+          </p>
+          <Button onClick={loadAdminData} variant="outline" className="gap-2">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 

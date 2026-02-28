@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+import { retryWithBackoff } from "@/lib/auth-resilience";
 import type { Project } from "@/types/project";
 
 const PROJECT_STORAGE_KEY = "qa_selected_project";
@@ -38,19 +39,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     try {
-      // Fetch projects the user has access to
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: true });
+      const result = await retryWithBackoff(
+        async () => {
+          const res = await supabase.from("projects").select("*").order("created_at", { ascending: true });
+          if (res.error) throw res.error;
+          return res.data;
+        },
+        { maxRetries: 2, baseDelayMs: 1000 }
+      );
 
-      if (error) {
-        console.error("Error fetching projects:", error);
-        setProjects([]);
-        return;
-      }
-
-      const projectsList = data || [];
+      const projectsList = result || [];
       setProjects(projectsList);
 
       // Restore last selected project from localStorage
@@ -80,6 +78,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  // Auto-recovery when network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log("[ProjectContext] Network back online, re-fetching projects...");
+      if (user) fetchProjects();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [user, fetchProjects]);
 
   const setCurrentProject = (project: Project | null) => {
     setCurrentProjectState(project);
