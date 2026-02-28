@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import type { TestRun, RunStatus } from "@/types/qa";
 import { RUN_STATUS_LABELS } from "@/types/qa";
 
@@ -25,6 +26,7 @@ export default function TestRuns() {
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -150,17 +152,22 @@ export default function TestRuns() {
       {/* Search */}
       <Card className="glass">
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search runs..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") loadRuns();
-              }}
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search runs..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { setSearch(searchInput); setPage(0); }
+                }}
+              />
+            </div>
+            <Button size="icon" variant="outline" onClick={() => { setSearch(searchInput); setPage(0); }} className="shrink-0">
+              <Search className="h-4 w-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -268,6 +275,7 @@ export default function TestRuns() {
       )}
 
       {/* Pagination */}
+      <PaginationInfo page={page + 1} pageSize={PAGE_SIZE} totalCount={totalCount} label="runs" />
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

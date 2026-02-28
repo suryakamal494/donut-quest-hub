@@ -12,6 +12,7 @@ import { ScenarioCard, GroupedScenarioView } from "@/components/qa";
 import { LoginTypeTabs } from "@/components/qa/LoginTypeTabs";
 import { ScenarioTypeTabs } from "@/components/qa/ScenarioTypeTabs";
 import { exportScenariosToCSV } from "@/lib/export-utils";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import type { TestScenario, ScenarioType, LoginType, Feature } from "@/types/qa";
 
 interface ExtendedScenario extends TestScenario {
@@ -31,6 +32,7 @@ export default function TestScenarios() {
   const [scenarios, setScenarios] = useState<ExtendedScenario[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
   const [viewMode, setViewMode] = useState<"list" | "grouped">(
     (searchParams.get("view") as "list" | "grouped") || "grouped"
   );
@@ -224,11 +226,11 @@ export default function TestScenarios() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search scenarios..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-9 h-9"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") loadData();
+                    if (e.key === "Enter") { setSearch(searchInput); }
                   }}
                 />
               </div>
@@ -333,6 +335,7 @@ export default function TestScenarios() {
       )}
 
       {/* Pagination */}
+      <PaginationInfo page={page + 1} pageSize={PAGE_SIZE} totalCount={totalCount} label="scenarios" />
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

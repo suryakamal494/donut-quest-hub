@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Bug, CheckCircle, RotateCcw, User, Clock } from "lucide-react";
+import { Loader2, Bug, CheckCircle, RotateCcw, User, Clock, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious, PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import type { Bug as BugType } from "@/types/bugs";
 import { LOGIN_TYPE_LABELS, type LoginType } from "@/types/qa";
 
@@ -47,10 +49,12 @@ export default function PendingRetest() {
   const [showReopenForm, setShowReopenForm] = useState<string | null>(null);
   const [loginTypeFilter, setLoginTypeFilter] = useState<"all" | LoginType>("all");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
 
   useEffect(() => {
     if (user && currentProject) loadBugs();
-  }, [user, currentProject, page, loginTypeFilter]);
+  }, [user, currentProject, page, loginTypeFilter, search]);
 
   const loadBugs = async () => {
     if (!currentProject) return;
@@ -66,6 +70,12 @@ export default function PendingRetest() {
 
       if (loginTypeFilter !== "all") {
         query = query.eq("login_type", loginTypeFilter);
+      }
+
+      if (search) {
+        query = query.or(
+          `title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,developer_response.ilike.%${search}%,sub_module.ilike.%${search}%`
+        );
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -278,6 +288,23 @@ export default function PendingRetest() {
         </p>
       </div>
 
+      {/* Search */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by title, bug code, description, fix notes..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { setSearch(searchInput); setPage(1); } }}
+            className="pl-9"
+          />
+        </div>
+        <Button size="icon" variant="outline" onClick={() => { setSearch(searchInput); setPage(1); }} className="shrink-0">
+          <Search className="h-4 w-4" />
+        </Button>
+      </div>
+
       {/* Login Type Chip Filters */}
       <div className="flex flex-wrap gap-2">
         {LOGIN_FILTERS.map((f) => (
@@ -428,6 +455,7 @@ export default function PendingRetest() {
         </div>
       )}
 
+      <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
       {renderPagination()}
     </div>
   );

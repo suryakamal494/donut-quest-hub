@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Bug, ExternalLink, Users } from "lucide-react";
+import { Loader2, Bug, ExternalLink, Users, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -47,6 +47,7 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import {
   BUG_SEVERITY_COLORS,
   BUG_STATUS_COLORS,
@@ -83,6 +84,7 @@ export default function BugReport() {
 
   // Filters
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [statusView, setStatusView] = useState<"all" | "active" | "closed">("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
@@ -368,12 +370,18 @@ export default function BugReport() {
 
       {/* Filters Row */}
       <div className="flex flex-wrap gap-2">
-        <Input
-          placeholder="Search bugs..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="w-full sm:w-56 h-9 text-sm"
-        />
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Input
+            placeholder="Search bugs..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { setSearch(searchInput); setPage(1); } }}
+            className="w-full sm:w-56 h-9 text-sm"
+          />
+          <Button size="icon" variant="outline" className="shrink-0 h-9 w-9" onClick={() => { setSearch(searchInput); setPage(1); }}>
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
         <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v); setPage(1); }}>
           <SelectTrigger className="w-[130px] h-9 text-sm">
             <SelectValue placeholder="Severity" />
@@ -665,6 +673,7 @@ export default function BugReport() {
         </div>
       </div>
 
+      <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
       {renderPagination()}
     </div>
   );

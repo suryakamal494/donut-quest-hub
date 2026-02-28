@@ -18,6 +18,7 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious, PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import type { Bug as BugType } from "@/types/bugs";
 import type { Feature } from "@/types/qa";
 
@@ -495,6 +496,7 @@ export default function BugList() {
             );
           })}
 
+          <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
           {renderPagination()}
         </div>
       ) : (
@@ -514,6 +516,7 @@ export default function BugList() {
               </CardContent>
             </Card>
           ))}
+          <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
           {renderPagination()}
         </div>
       )}
