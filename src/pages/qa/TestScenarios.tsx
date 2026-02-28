@@ -234,6 +234,9 @@ export default function TestScenarios() {
                   }}
                 />
               </div>
+              <Button size="icon" variant="outline" className="shrink-0 h-9 w-9" onClick={() => setSearch(searchInput)}>
+                <Search className="h-4 w-4" />
+              </Button>
               <ToggleGroup
                 type="single"
                 value={viewMode}
