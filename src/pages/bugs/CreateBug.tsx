@@ -158,7 +158,12 @@ export default function CreateBug() {
       navigate("/bugs");
     } catch (error: any) {
       console.error("Error creating bug:", error);
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      const isTimeout = error.message?.includes("timeout") || error.message?.includes("network");
+      toast({
+        variant: "destructive",
+        title: isTimeout ? "Connection slow" : "Error",
+        description: isTimeout ? "The bug may have been saved. Check the bug list before retrying." : error.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -442,12 +447,12 @@ export default function CreateBug() {
         </Card>
 
         <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" onClick={() => navigate("/bugs")}>
+          <Button type="button" variant="outline" onClick={() => navigate("/bugs")} disabled={loading}>
             Cancel
           </Button>
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Report Bug
+            {loading ? "Submitting..." : "Report Bug"}
           </Button>
         </div>
       </form>
