@@ -332,8 +332,8 @@ export default function EditBug() {
                 <RichTextarea id="expected" value={formData.expected_behavior} onChange={(v) => setFormData(prev => ({ ...prev, expected_behavior: v }))} placeholder="What should happen?" rows={2} />
               </div>
               <div>
-                <Label htmlFor="actual">Actual Behavior</Label>
-                <RichTextarea id="actual" value={formData.actual_behavior} onChange={(v) => setFormData(prev => ({ ...prev, actual_behavior: v }))} placeholder="What actually happened?" rows={2} />
+                <Label htmlFor="actual">Current Behavior</Label>
+                <RichTextarea id="actual" value={formData.actual_behavior} onChange={(v) => setFormData(prev => ({ ...prev, actual_behavior: v }))} placeholder="What is currently happening?" rows={2} />
               </div>
             </div>
             <div>
