@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
+import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { SeverityBadge, FixStatusBadge } from "@/components/bugs/BugBadges";
 import { cn } from "@/lib/utils";
@@ -351,6 +352,7 @@ export default function PendingRetest() {
                         </Link>
                         <SeverityBadge severity={bug.severity} size="sm" />
                         <FixStatusBadge fixStatus="fixed" size="sm" />
+                        {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
                       </div>
                       <Link
                         to={`/bugs/${bug.id}`}
