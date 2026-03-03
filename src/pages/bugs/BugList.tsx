@@ -73,12 +73,19 @@ export default function BugList() {
         query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
       }
 
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      // In grouped mode (login type selected), fetch ALL bugs to group correctly
+      // In flat mode, use server-side pagination
+      const isGroupedMode = loginTypeFilter !== "all";
 
-      const { data, error, count } = await query
-        .order("updated_at", { ascending: false })
-        .range(from, to);
+      let finalQuery = query.order("updated_at", { ascending: false });
+
+      if (!isGroupedMode) {
+        const from = (page - 1) * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        finalQuery = finalQuery.range(from, to);
+      }
+
+      const { data, error, count } = await finalQuery;
 
       if (error) throw error;
       const bugsData = (data || []) as BugType[];
@@ -501,8 +508,7 @@ export default function BugList() {
             );
           })}
 
-          <PaginationInfo page={page} pageSize={PAGE_SIZE} totalCount={totalCount} label="bugs" />
-          {renderPagination()}
+          <PaginationInfo page={1} pageSize={totalCount} totalCount={totalCount} label="bugs" />
         </div>
       ) : (
         <div className="space-y-2">
