@@ -127,6 +127,18 @@ export default function CreateBug() {
       toast({ variant: "destructive", title: "Login type is required" });
       return;
     }
+    if (!isOtherFeature && !formData.feature_id) {
+      toast({ variant: "destructive", title: "Feature is required" });
+      return;
+    }
+    if (isOtherFeature && !customFeature.trim()) {
+      toast({ variant: "destructive", title: "Custom feature name is required" });
+      return;
+    }
+    if (!formData.description.trim()) {
+      toast({ variant: "destructive", title: "Description is required" });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -241,7 +253,7 @@ export default function CreateBug() {
                 </SelectWrapper>
               </div>
               <div>
-                <Label>Feature</Label>
+                <Label>Feature *</Label>
                 <SelectWrapper>
                   <select
                     className={selectClass}
@@ -261,7 +273,7 @@ export default function CreateBug() {
             {/* Other feature text input */}
             {isOtherFeature && (
               <div>
-                <Label>Custom Feature / Module Name</Label>
+                <Label>Custom Feature / Module Name *</Label>
                 <Input
                   value={customFeature}
                   onChange={(e) => setCustomFeature(e.target.value)}
@@ -325,7 +337,7 @@ export default function CreateBug() {
 
             {/* Description */}
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Description *</Label>
               <RichTextarea
                 id="description"
                 value={formData.description}
