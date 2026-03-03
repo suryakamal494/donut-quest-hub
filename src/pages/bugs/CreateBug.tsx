@@ -209,7 +209,7 @@ export default function CreateBug() {
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/bugs")}>
+        <Button variant="ghost" size="icon" onClick={() => window.history.length > 1 ? navigate(-1) : navigate("/bugs")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>

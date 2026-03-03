@@ -245,7 +245,7 @@ export default function BugDetail() {
     <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/bugs")} className="shrink-0 mt-0.5">
+        <Button variant="ghost" size="icon" onClick={() => window.history.length > 1 ? navigate(-1) : navigate("/bugs")} className="shrink-0 mt-0.5">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
