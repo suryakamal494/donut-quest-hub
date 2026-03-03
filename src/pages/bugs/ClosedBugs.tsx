@@ -82,6 +82,7 @@ export default function ClosedBugs() {
       if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
       if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
       if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
+      if (featureFilter !== "all") query = query.eq("feature_id", featureFilter);
       if (search) {
         query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%`);
       }
