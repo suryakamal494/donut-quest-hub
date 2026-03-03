@@ -235,12 +235,21 @@ export default function ClosedBugs() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={loginTypeFilter} onValueChange={setLoginTypeFilter}>
+          <Select value={loginTypeFilter} onValueChange={(v) => { setLoginTypeFilter(v); setPage(1); }}>
             <SelectTrigger className="w-[130px]"><SelectValue placeholder="Login Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Logins</SelectItem>
               {(Object.entries(LOGIN_TYPE_LABELS) as [LoginType, string][]).map(([val, label]) => (
                 <SelectItem key={val} value={val}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={featureFilter} onValueChange={(v) => { setFeatureFilter(v); setPage(1); }} disabled={features.length === 0}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Feature" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Features</SelectItem>
+              {features.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
