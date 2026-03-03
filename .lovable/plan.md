@@ -1,37 +1,47 @@
 
 
-## Pain Point Explanation
+## Problem: Back Navigation Loses Filter State Across Bug Pages
 
-You have correctly identified the issue. Here is the root cause:
+### What You Described
 
-**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
+When you're on Closed Bugs (or Pending Retest, or Active Bugs) with filters applied (e.g., "Initial" login type, a specific feature, page 2), and you click into a bug detail, the **back button always navigates to `/bugs`** (the Active Bugs page). Your filters are completely lost.
 
-The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
+### Root Cause
 
-**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
+Two issues compound:
 
-## Implementation Plan
+1. **Hardcoded back destination**: In `BugDetail.tsx` (line 248), the back button calls `navigate("/bugs")` — it always goes to the active bugs list, regardless of whether you came from Closed Bugs (`/bugs/closed`), Pending Retest (`/bugs/retest`), or a filtered view.
 
-**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
+2. **Filter state is ephemeral**: All filters (login type, feature, severity, search, page number) are stored in React `useState`. When you navigate away and come back, the component remounts and all state resets to defaults.
 
-This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
+### Fix Plan
 
-### Changes to `src/pages/bugs/BugList.tsx`
+**Strategy**: Use the browser's built-in history stack via `navigate(-1)` instead of hardcoded paths. This naturally returns the user to wherever they came from, and since the list pages are still in the history stack, React Router will restore them with their existing state.
 
-1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
+#### Changes to `src/pages/bugs/BugDetail.tsx`
 
-2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
+- Line 248: Change `navigate("/bugs")` → `navigate(-1)`
+- This single change fixes back-navigation from all three list pages (Active, Closed, Pending Retest)
 
-3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
+#### Changes to `src/pages/bugs/CreateBug.tsx`
 
-4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
+- Line 212: Change the back arrow `navigate("/bugs")` → `navigate(-1)`
+- Line 466: Keep the Cancel button as `navigate("/bugs")` (intentional: after cancel, go to list)
 
-### Summary of the fix
+#### Changes to `src/pages/bugs/EditBug.tsx`
 
-| Mode | Before | After |
-|------|--------|-------|
-| All (flat) | Server-side pagination, 25/page | No change |
-| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
+- Line 225: Change back arrow `navigate(`/bugs/${id}`)` — this one is already correct (goes to detail), no change needed
 
-This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
+#### Safety fallback
+
+`navigate(-1)` works when there's history. If a user lands directly on a bug detail page via a shared link (no history), `navigate(-1)` would go nowhere useful. To handle this edge case, we'll check `window.history.length > 1` and fall back to `navigate("/bugs")` if there's no history.
+
+### Summary
+
+| File | Current | After |
+|------|---------|-------|
+| `BugDetail.tsx` back button | `navigate("/bugs")` | `navigate(-1)` with `/bugs` fallback |
+| `CreateBug.tsx` back arrow | `navigate("/bugs")` | `navigate(-1)` with `/bugs` fallback |
+
+This is a minimal fix — 2 lines changed — that leverages the browser history stack to preserve all filter state naturally.
 
