@@ -1,22 +1,10 @@
 
 
-## Plan: Make Feature and Description mandatory in Report Bug form
-
-Currently in `src/pages/bugs/CreateBug.tsx`:
-- **Login Type** is already validated as required (line 126-129)
-- **Feature** label says "Feature" (no asterisk, not validated)
-- **Description** label says "Description" (no asterisk, not validated)
+## Plan: Make Current Behavior mandatory in Report Bug form
 
 ### Changes to `src/pages/bugs/CreateBug.tsx`
 
-1. **Add validation for Feature** in `handleSubmit` — check that either `formData.feature_id` is set OR `isOtherFeature && customFeature.trim()` is truthy. Show toast error if neither.
+1. **Add validation** in `handleSubmit` (after the description check, ~line 139): check `formData.actual_behavior.trim()` is non-empty, show toast "Current behavior is required" if empty.
 
-2. **Add validation for Description** in `handleSubmit` — check `formData.description.trim()` is non-empty. Show toast error if empty.
-
-3. **Update labels** to show required asterisks:
-   - Line 244: `<Label>Feature</Label>` → `<Label>Feature *</Label>`
-   - Line 265: `<Label>Custom Feature / Module Name</Label>` → `<Label>Custom Feature / Module Name *</Label>`
-   - Line 328: `<Label htmlFor="description">Description</Label>` → `<Label htmlFor="description">Description *</Label>`
-
-4. **Order of validation**: Title → Login Type → Feature → Description (fail fast, one toast at a time).
+2. **Update label** at line 396: `Current Behavior` → `Current Behavior *`
 
