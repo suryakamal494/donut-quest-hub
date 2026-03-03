@@ -139,6 +139,10 @@ export default function CreateBug() {
       toast({ variant: "destructive", title: "Description is required" });
       return;
     }
+    if (!formData.actual_behavior.trim()) {
+      toast({ variant: "destructive", title: "Current behavior is required" });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -393,7 +397,7 @@ export default function CreateBug() {
                 />
               </div>
               <div>
-                <Label htmlFor="actual">Current Behavior</Label>
+                <Label htmlFor="actual">Current Behavior *</Label>
                 <RichTextarea
                   id="actual"
                   value={formData.actual_behavior}
