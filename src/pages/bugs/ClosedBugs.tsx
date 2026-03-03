@@ -37,12 +37,33 @@ export default function ClosedBugs() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [bugTypeFilter, setBugTypeFilter] = useState<string>("all");
   const [loginTypeFilter, setLoginTypeFilter] = useState<string>("all");
+  const [featureFilter, setFeatureFilter] = useState<string>("all");
+  const [features, setFeatures] = useState<{ id: string; name: string }[]>([]);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
 
+  // Load features based on project and login type
+  useEffect(() => {
+    if (!currentProject) return;
+    const loadFeatures = async () => {
+      let query = supabase
+        .from("features")
+        .select("id, name")
+        .eq("project_id", currentProject.id)
+        .order("order_index");
+      if (loginTypeFilter !== "all") {
+        query = query.eq("login_type", loginTypeFilter as any);
+      }
+      const { data } = await query;
+      setFeatures(data || []);
+      setFeatureFilter("all");
+    };
+    loadFeatures();
+  }, [currentProject, loginTypeFilter]);
+
   useEffect(() => {
     if (user && currentProject) loadBugs();
-  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter]);
+  }, [user, currentProject, page, search, severityFilter, bugTypeFilter, loginTypeFilter, featureFilter]);
 
 
   const loadBugs = async () => {
