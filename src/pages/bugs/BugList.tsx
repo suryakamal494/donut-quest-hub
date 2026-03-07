@@ -540,7 +540,7 @@ export default function BugList() {
               bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent"
             )}>
               <CardContent className="p-3">
-                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} />
+                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} reopenCount={reopenCounts[bug.id]} />
               </CardContent>
             </Card>
           ))}
