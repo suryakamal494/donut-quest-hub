@@ -1,37 +1,20 @@
 
 
-## Pain Point Explanation
+## Issue Identified
 
-You have correctly identified the issue. Here is the root cause:
+In `src/components/bugs/BugComments.tsx`, the comment attachment limit is hardcoded to **3** in two places:
 
-**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
+1. **Line 104**: `setPendingFiles(prev => [...prev, ...validFiles].slice(0, 3))` -- caps the pending files array at 3
+2. **Line 242**: `disabled={pendingFiles.length >= 3}` -- disables the attach button at 3
+3. **Line 243**: `title="Attach images (max 3)"` -- tooltip text says max 3
 
-The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
+## Plan
 
-**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
+Change all three occurrences from `3` to `8`:
 
-## Implementation Plan
+- Line 104: `.slice(0, 8)`
+- Line 242: `pendingFiles.length >= 8`
+- Line 243: `title="Attach images (max 8)"`
 
-**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
-
-This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
-
-### Changes to `src/pages/bugs/BugList.tsx`
-
-1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
-
-2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
-
-3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
-
-4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
-
-### Summary of the fix
-
-| Mode | Before | After |
-|------|--------|-------|
-| All (flat) | Server-side pagination, 25/page | No change |
-| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
-
-This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
+Single file change, three lines.
 
