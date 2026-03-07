@@ -54,11 +54,6 @@ export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardPro
               External
             </span>
           )}
-          {reopenCount && reopenCount > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700 animate-pulse">
-              🔄 {reopenCount}x Reopened
-            </span>
-          )}
         </div>
         <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
         <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -99,6 +94,12 @@ export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardPro
             </AlertDialog>
           )}
         </div>
+        {reopenCount && reopenCount > 0 && (
+          <div className="flex flex-col items-center bg-gradient-to-br from-red-500 to-orange-500 text-white rounded-lg px-2 py-1 shadow-lg">
+            <span className="text-lg font-black leading-none">{reopenCount}x</span>
+            <span className="text-[9px] font-medium opacity-90">Reopened</span>
+          </div>
+        )}
         {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
           <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />
         )}
