@@ -239,8 +239,8 @@ export function BugComments({ bugId }: BugCommentsProps) {
                   size="icon"
                   className="shrink-0"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={pendingFiles.length >= 3}
-                  title="Attach images (max 3)"
+                  disabled={pendingFiles.length >= 8}
+                  title="Attach images (max 8)"
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
