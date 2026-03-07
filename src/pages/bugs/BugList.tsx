@@ -40,6 +40,7 @@ export default function BugList() {
   const [fixStatusFilter, setFixStatusFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
+  const [reopenCounts, setReopenCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
 
   useEffect(() => {
