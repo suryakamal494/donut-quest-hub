@@ -644,6 +644,15 @@ export default function BugReport() {
                         </Badge>
                       )}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {reopenCounts[bug.id] > 0 ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700">
+                          {reopenCounts[bug.id]}x
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">
                       {bug.reported_by ? profileMap[bug.reported_by] || "..." : "—"}
                     </TableCell>
