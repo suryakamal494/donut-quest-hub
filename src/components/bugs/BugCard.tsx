@@ -94,6 +94,12 @@ export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardPro
             </AlertDialog>
           )}
         </div>
+        {reopenCount && reopenCount > 0 && (
+          <div className="flex flex-col items-center bg-gradient-to-br from-red-500 to-orange-500 text-white rounded-lg px-2 py-1 shadow-lg">
+            <span className="text-lg font-black leading-none">{reopenCount}x</span>
+            <span className="text-[9px] font-medium opacity-90">Reopened</span>
+          </div>
+        )}
         {(bug as any).fix_status && (bug as any).fix_status !== "unfixed" && (
           <FixStatusBadge fixStatus={(bug as any).fix_status} size="sm" />
         )}
