@@ -211,6 +211,22 @@ export default function BugReport() {
         });
         setProfileMap((prev) => ({ ...prev, ...map }));
       }
+
+      // Fetch reopen counts from bug_history
+      const bugIds = bugsData.map(b => b.id);
+      if (bugIds.length > 0) {
+        const { data: historyData } = await supabase
+          .from("bug_history")
+          .select("bug_id")
+          .in("bug_id", bugIds)
+          .eq("field_changed", "fix_status")
+          .eq("new_value", "reopened");
+        const counts: Record<string, number> = {};
+        (historyData || []).forEach(h => {
+          counts[h.bug_id] = (counts[h.bug_id] || 0) + 1;
+        });
+        setReopenCounts(counts);
+      }
     } catch (error) {
       console.error("Error loading bugs:", error);
     } finally {
