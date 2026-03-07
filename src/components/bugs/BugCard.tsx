@@ -22,7 +22,7 @@ interface BugCardProps {
   reopenCount?: number;
 }
 
-export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
+export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardProps) {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const [deleting, setDeleting] = useState(false);
