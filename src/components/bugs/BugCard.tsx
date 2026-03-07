@@ -19,6 +19,7 @@ interface BugCardProps {
   bug: BugType;
   reporterNames: Record<string, string>;
   onFixed: () => void;
+  reopenCount?: number;
 }
 
 export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
