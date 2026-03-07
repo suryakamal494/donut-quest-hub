@@ -79,6 +79,7 @@ export default function BugReport() {
 
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
+  const [reopenCounts, setReopenCounts] = useState<Record<string, number>>({});
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
 
