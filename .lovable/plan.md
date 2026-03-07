@@ -1,37 +1,39 @@
 
 
-## Pain Point Explanation
+## Reopen Count — Make It Stand Out
 
-You have correctly identified the issue. Here is the root cause:
+### The Problem
+The reopen badge (`🔄 1x Reopened`) sits inline with severity/type badges in the top row, making it blend in and get lost visually. The count (1x, 4x, 5x) needs to pop.
 
-**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
+### Proposal: Standalone Floating Counter
 
-The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
+Remove the reopen badge from the badges row entirely. Instead, render it as a **standalone, bold numeric indicator** positioned on the right side of the card, between the status area and the age badge. This uses the existing whitespace on the right column.
 
-**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
+**Design:**
+- A circular or rounded-pill element showing just the number in large bold text: **`4x`**
+- Smaller "Reopened" label underneath
+- Red/orange gradient background with a subtle glow shadow
+- No pulse animation (distracting) — the size and color contrast alone will draw attention
+- Only shown when `reopenCount > 0`
 
-## Implementation Plan
+**Visual hierarchy on the right column (top to bottom):**
+1. Status badge + action icons (existing)
+2. **Reopen counter** (new — large `4x` with "Reopened" subtitle)
+3. Fix status badge (existing)
+4. Age badge (existing)
 
-**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
+### Changes
 
-This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
+**`src/components/bugs/BugCard.tsx`:**
+- Remove the reopen badge from lines 57-61 (the badges row)
+- Add a new block in the right column (between lines 101-104), rendering:
+  ```
+  <div className="flex flex-col items-center bg-gradient-to-br from-red-500 to-orange-500 text-white rounded-lg px-2 py-1 shadow-lg">
+    <span className="text-lg font-black leading-none">{reopenCount}x</span>
+    <span className="text-[9px] font-medium opacity-90">Reopened</span>
+  </div>
+  ```
+- This makes the number impossible to miss — bold white text on a red-orange gradient, sitting alone in its own visual block.
 
-### Changes to `src/pages/bugs/BugList.tsx`
-
-1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
-
-2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
-
-3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
-
-4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
-
-### Summary of the fix
-
-| Mode | Before | After |
-|------|--------|-------|
-| All (flat) | Server-side pagination, 25/page | No change |
-| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
-
-This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
+Single file change: `src/components/bugs/BugCard.tsx`.
 
