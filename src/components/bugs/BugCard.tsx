@@ -19,9 +19,10 @@ interface BugCardProps {
   bug: BugType;
   reporterNames: Record<string, string>;
   onFixed: () => void;
+  reopenCount?: number;
 }
 
-export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
+export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardProps) {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const [deleting, setDeleting] = useState(false);
@@ -51,6 +52,11 @@ export function BugCard({ bug, reporterNames, onFixed }: BugCardProps) {
           {bug.source === "external" && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
               External
+            </span>
+          )}
+          {reopenCount && reopenCount > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700 animate-pulse">
+              🔄 {reopenCount}x Reopened
             </span>
           )}
         </div>

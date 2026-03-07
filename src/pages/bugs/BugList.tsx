@@ -40,6 +40,7 @@ export default function BugList() {
   const [fixStatusFilter, setFixStatusFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
+  const [reopenCounts, setReopenCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -105,6 +106,22 @@ export default function BugList() {
         const nameMap: Record<string, string> = {};
         (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
         setReporterNames(nameMap);
+      }
+
+      // Fetch reopen counts from bug_history
+      const bugIds = bugsData.map(b => b.id);
+      if (bugIds.length > 0) {
+        const { data: historyData } = await supabase
+          .from("bug_history")
+          .select("bug_id")
+          .in("bug_id", bugIds)
+          .eq("field_changed", "fix_status")
+          .eq("new_value", "reopened");
+        const counts: Record<string, number> = {};
+        (historyData || []).forEach(h => {
+          counts[h.bug_id] = (counts[h.bug_id] || 0) + 1;
+        });
+        setReopenCounts(counts);
       }
     } catch (error) {
       console.error("Error loading bugs:", error);
@@ -467,11 +484,16 @@ export default function BugList() {
                                 <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                                   Ext
                                 </span>
-                              )}
+                               )}
                               <span className="font-medium text-foreground text-sm truncate">
                                 {bug.title}
                               </span>
                               {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
+                              {reopenCounts[bug.id] > 0 && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700 animate-pulse">
+                                  🔄 {reopenCounts[bug.id]}x Reopened
+                                </span>
+                              )}
                             </div>
                             {bug.sub_module && (
                               <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -523,7 +545,7 @@ export default function BugList() {
               bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent"
             )}>
               <CardContent className="p-3">
-                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} />
+                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} reopenCount={reopenCounts[bug.id]} />
               </CardContent>
             </Card>
           ))}

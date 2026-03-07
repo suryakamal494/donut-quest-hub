@@ -79,6 +79,7 @@ export default function BugReport() {
 
   const [loading, setLoading] = useState(true);
   const [bugs, setBugs] = useState<BugType[]>([]);
+  const [reopenCounts, setReopenCounts] = useState<Record<string, number>>({});
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
 
@@ -209,6 +210,22 @@ export default function BugReport() {
           map[p.user_id] = p.full_name;
         });
         setProfileMap((prev) => ({ ...prev, ...map }));
+      }
+
+      // Fetch reopen counts from bug_history
+      const bugIds = bugsData.map(b => b.id);
+      if (bugIds.length > 0) {
+        const { data: historyData } = await supabase
+          .from("bug_history")
+          .select("bug_id")
+          .in("bug_id", bugIds)
+          .eq("field_changed", "fix_status")
+          .eq("new_value", "reopened");
+        const counts: Record<string, number> = {};
+        (historyData || []).forEach(h => {
+          counts[h.bug_id] = (counts[h.bug_id] || 0) + 1;
+        });
+        setReopenCounts(counts);
       }
     } catch (error) {
       console.error("Error loading bugs:", error);
@@ -507,6 +524,7 @@ export default function BugReport() {
                     </TooltipProvider>
                   </span>
                 </TableHead>
+                <TableHead className="w-[60px] text-xs">Reopen</TableHead>
                 <TableHead className="w-[100px] text-xs">Reporter</TableHead>
                 <TableHead className="w-[130px] text-xs">Assigned To</TableHead>
                 <TableHead className="w-[110px] text-xs hidden lg:table-cell">Feature</TableHead>
@@ -529,7 +547,7 @@ export default function BugReport() {
             <TableBody>
               {bugs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-12">
+                  <TableCell colSpan={14} className="text-center py-12">
                     <Bug className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
                     <p className="text-sm text-muted-foreground">No bugs match your filters</p>
                   </TableCell>
@@ -624,6 +642,15 @@ export default function BugReport() {
                         >
                           {BUG_FIX_STATUS_LABELS[bug.fix_status as BugFixStatus]}
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {reopenCounts[bug.id] > 0 ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700">
+                          {reopenCounts[bug.id]}x
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">
