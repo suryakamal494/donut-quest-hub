@@ -101,7 +101,7 @@ export function BugComments({ bugId }: BugCommentsProps) {
       }
       return true;
     });
-    setPendingFiles(prev => [...prev, ...validFiles].slice(0, 3));
+    setPendingFiles(prev => [...prev, ...validFiles].slice(0, 8));
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
