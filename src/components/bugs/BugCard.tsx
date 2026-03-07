@@ -54,11 +54,6 @@ export function BugCard({ bug, reporterNames, onFixed, reopenCount }: BugCardPro
               External
             </span>
           )}
-          {reopenCount && reopenCount > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700 animate-pulse">
-              🔄 {reopenCount}x Reopened
-            </span>
-          )}
         </div>
         <h3 className="font-medium text-foreground truncate">{bug.title}</h3>
         <div className="flex flex-wrap items-center gap-2 mt-1.5">
