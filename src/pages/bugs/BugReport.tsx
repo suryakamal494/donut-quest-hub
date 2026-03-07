@@ -524,6 +524,7 @@ export default function BugReport() {
                     </TooltipProvider>
                   </span>
                 </TableHead>
+                <TableHead className="w-[60px] text-xs">Reopen</TableHead>
                 <TableHead className="w-[100px] text-xs">Reporter</TableHead>
                 <TableHead className="w-[130px] text-xs">Assigned To</TableHead>
                 <TableHead className="w-[110px] text-xs hidden lg:table-cell">Feature</TableHead>
