@@ -547,7 +547,7 @@ export default function BugReport() {
             <TableBody>
               {bugs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-12">
+                  <TableCell colSpan={14} className="text-center py-12">
                     <Bug className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
                     <p className="text-sm text-muted-foreground">No bugs match your filters</p>
                   </TableCell>
