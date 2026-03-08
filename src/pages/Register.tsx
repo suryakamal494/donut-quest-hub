@@ -29,12 +29,14 @@ const Register: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ 
     fullName?: string; 
     email?: string; 
     password?: string; 
     confirmPassword?: string;
+    phoneNumber?: string;
   }>({});
   
   const { signUp } = useAuth();
