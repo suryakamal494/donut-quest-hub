@@ -87,6 +87,7 @@ export interface TestRun {
   started_at: string;
   completed_at: string | null;
   scenario_ids: string[];
+  project_id?: string | null;
   // Computed/joined
   results?: TestResult[];
   total_tests?: number;
