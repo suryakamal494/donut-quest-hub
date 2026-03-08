@@ -197,6 +197,11 @@ const AdminDashboard: React.FC = () => {
           <WhatsAppProjectSettings projects={projects} onUpdate={fetchProjects} />
         </div>
 
+        {/* Notification Templates */}
+        <div className="mb-6 md:mb-8">
+          <NotificationTemplateManager projects={projects} />
+        </div>
+
         <PendingApprovalsSection pendingUsers={pendingUsers} actionLoading={actionLoading} onApproval={handleApproval} />
 
         <UserListSection
