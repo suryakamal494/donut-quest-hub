@@ -10,6 +10,7 @@ import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
 import { PendingApprovalsSection } from "@/components/admin/PendingApprovalsSection";
 import { UserListSection } from "@/components/admin/UserListSection";
 import { WhatsAppProjectSettings } from "@/components/admin/WhatsAppProjectSettings";
+import { NotificationTemplateManager } from "@/components/admin/NotificationTemplateManager";
 import {
   LogOut, ClipboardCheck, Loader2,
   TestTube2, PlayCircle, BarChart3, Settings,
