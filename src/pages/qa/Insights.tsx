@@ -457,7 +457,7 @@ export default function Insights() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Cycle Time Breakdown</CardTitle>
-            <CardDescription>Average hours per workflow phase (30 days)</CardDescription>
+            <CardDescription>Average hours per workflow phase ({rangeDays} days)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 pt-2">
