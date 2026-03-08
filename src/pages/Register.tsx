@@ -60,7 +60,7 @@ const Register: React.FC = () => {
 
     setIsLoading(true);
     
-    const { error } = await signUp(email, password, fullName);
+    const { error } = await signUp(email, password, fullName, phoneNumber || undefined);
     
     if (error) {
       toast({
