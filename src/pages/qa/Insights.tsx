@@ -136,7 +136,7 @@ export default function Insights() {
       }
     });
     return days;
-  }, [bugs]);
+  }, [bugs, rangeDays]);
 
   const netChange = useMemo(() => {
     const total = backlogData.reduce((acc, d) => acc + d.opened - d.resolved, 0);
