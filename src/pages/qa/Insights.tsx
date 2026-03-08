@@ -314,9 +314,23 @@ export default function Insights() {
   return (
     <div className="p-4 md:p-6 space-y-6 pb-20 md:pb-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Insights</h1>
-        <p className="text-sm text-muted-foreground">Bug resolution analytics & team effectiveness (30-day window)</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Insights</h1>
+          <p className="text-sm text-muted-foreground">Bug resolution analytics & team effectiveness ({rangeDays}-day window)</p>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={String(rangeDays)}
+          onValueChange={(v) => v && setRangeDays(Number(v))}
+          className="border rounded-lg p-0.5"
+        >
+          {RANGE_OPTIONS.map(opt => (
+            <ToggleGroupItem key={opt.value} value={opt.value} size="sm" className="text-xs px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              {opt.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
       {/* KPI Strip */}
