@@ -95,7 +95,7 @@ export default function Insights() {
       supabase
         .from("bug_history")
         .select("bug_id, field_changed, old_value, new_value, created_at, changed_by")
-        .gte("created_at", since30),
+        .gte("created_at", since),
       supabase.from("profiles").select("user_id, full_name"),
       supabase
         .from("test_runs")
