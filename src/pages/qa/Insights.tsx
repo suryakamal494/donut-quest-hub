@@ -249,7 +249,7 @@ export default function Insights() {
       .map(([uid, s]) => ({ name: nameMap[uid] || uid.slice(0, 8), ...s }))
       .filter(s => s.reported > 0 || s.testRuns > 0 || s.retests > 0)
       .sort((a, b) => (b.reported + b.testRuns) - (a.reported + a.testRuns));
-  }, [bugs, history, runs, nameMap]);
+  }, [bugs, history, runs, nameMap, rangeDays]);
 
   // ==================== Section 6: Cycle Time ====================
   const cycleTimeData = useMemo(() => {
