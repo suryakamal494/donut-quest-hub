@@ -349,7 +349,7 @@ export default function Insights() {
             {netChange > 0 ? <TrendingUp className="h-5 w-5 text-destructive" /> : <TrendingDown className="h-5 w-5 text-success" />}
             <div>
               <p className="text-2xl font-bold">{netChange > 0 ? "+" : ""}{netChange}</p>
-              <p className="text-xs text-muted-foreground">Net 30d Change</p>
+              <p className="text-xs text-muted-foreground">Net {rangeDays}d Change</p>
             </div>
           </CardContent>
         </Card>
