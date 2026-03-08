@@ -109,7 +109,7 @@ export default function Insights() {
     setProfiles((profilesRes.data as ProfileSlim[]) || []);
     setRuns((runsRes.data as RunSlim[]) || []);
     setLoading(false);
-  }, [currentProject]);
+  }, [currentProject, rangeDays]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
