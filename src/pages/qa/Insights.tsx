@@ -4,6 +4,14 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, TrendingUp, TrendingDown, Clock, AlertTriangle, Users, Bug } from "lucide-react";
 import { format, subDays, differenceInHours, parseISO, startOfDay, subWeeks, startOfWeek, endOfWeek } from "date-fns";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+const RANGE_OPTIONS = [
+  { value: "7", label: "7d" },
+  { value: "14", label: "14d" },
+  { value: "30", label: "30d" },
+  { value: "90", label: "90d" },
+] as const;
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   Tooltip, Legend, CartesianGrid, Cell
