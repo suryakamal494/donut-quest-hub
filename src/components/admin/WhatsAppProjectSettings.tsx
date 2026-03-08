@@ -72,8 +72,10 @@ export function WhatsAppProjectSettings({ projects, onUpdate }: WhatsAppProjectS
               <div className="flex items-center gap-3">
                 <span className="font-medium">{project.name}</span>
                 {project.whatsapp_notifications_enabled && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">
+                  <Badge variant="secondary">
                     Enabled
+                  </Badge>
+                )}
                   </Badge>
                 )}
               </div>
