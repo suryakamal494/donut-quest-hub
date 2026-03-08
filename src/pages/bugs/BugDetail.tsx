@@ -21,6 +21,7 @@ import { BugHistoryTimeline } from "@/components/bugs/BugHistoryTimeline";
 import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+import { notifyBugStatusChanged, notifyBugAssigned } from "@/lib/notifications";
 import type { Bug as BugType, BugStatus } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 import { formatDistanceToNow, format } from "date-fns";
