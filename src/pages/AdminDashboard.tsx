@@ -38,7 +38,7 @@ const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
 
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectWithWhatsApp[]>([]);
   const [userProjectCounts, setUserProjectCounts] = useState<Map<string, number>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
