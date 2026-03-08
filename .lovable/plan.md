@@ -1,116 +1,37 @@
 
 
-# Full Audit: WhatsApp Integration, Data Isolation, and Notification Flow
+## Pain Point Explanation
 
-## Features Implemented
+You have correctly identified the issue. Here is the root cause:
 
-1. **NotificationTemplateManager UI** — Admins can create, toggle, and delete WhatsApp template mappings per project/notification type, with duplicate prevention and delete confirmation.
-2. **WhatsApp Project Settings** — Per-project toggle for `whatsapp_notifications_enabled`.
-3. **send-whatsapp-notification Edge Function** — Sends templated messages via Meta Graph API with user opt-in and project-level gating.
-4. **daily-notification-digest Edge Function** — Generates role-specific daily summaries with optional WhatsApp delivery.
-5. **In-app notification helpers** (`notifications.ts`) — `notifyTestRunCompleted`, `notifyTestFailed`, `notifyBugAssigned`, `notifyFixedForVerification`, `notifyBugReopened` with WhatsApp piggyback.
+**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
 
----
+The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
 
-## Audit Findings
+**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
 
-### ISSUE 1: `notification_templates` table is never consulted before sending WhatsApp
+## Implementation Plan
 
-**Severity: Critical (logic gap)**
+**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
 
-The `send-whatsapp-notification` edge function and `notifications.ts` helpers **hardcode template names** and send WhatsApp messages without checking if a matching `notification_templates` row exists and `is_enabled = true`. The template manager UI is purely cosmetic right now — toggling a template off has zero effect on actual delivery.
+This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
 
-**Fix:** In the `send-whatsapp-notification` edge function, after validating user/project, query `notification_templates` to verify the `notification_type` + `project_id` combination is enabled before calling Meta API.
+### Changes to `src/pages/bugs/BugList.tsx`
 
-### ISSUE 2: Missing `projectId` in several notification call sites
+1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
 
-**Severity: High (data isolation gap)**
+2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
 
-These call sites send WhatsApp notifications **without passing `projectId`**, which means the edge function skips the project-level WhatsApp check:
+3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
 
-- `useExecuteTestRun.ts` line 170: `notifyTestRunCompleted(run.executed_by, run.name, run.id, passedCount, failedCount)` — **no projectId**
-- `useFailures.ts` line 126: `notifyFixedForVerification(...)` — **no projectId**
-- `BugFixActions.tsx` lines 79, 114, 152: Direct `supabase.from("notifications").insert(...)` — **no WhatsApp at all**, bypasses the notification helper entirely
-- `BugDetail.tsx` lines 160, 192: Direct `supabase.from("notifications").insert(...)` — **no WhatsApp**, bypasses helper
+4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
 
-This means:
-- Bug assignment, fix, verify, reopen notifications **never trigger WhatsApp** (they use raw inserts instead of the helper functions)
-- Test run completion WhatsApp is sent even if the project has WhatsApp disabled
+### Summary of the fix
 
-### ISSUE 3: Daily digest doesn't check `notification_templates`
+| Mode | Before | After |
+|------|--------|-------|
+| All (flat) | Server-side pagination, 25/page | No change |
+| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
 
-**Severity: Medium**
-
-The digest function (line 279) hardcodes `template_name: "daily_digest"` without checking if a `daily_digest` template is configured/enabled for that project in `notification_templates`.
-
-### ISSUE 4: No "Global" template fallback logic
-
-**Severity: Low**
-
-The template manager allows "Global" templates (`project_id = null`), but nothing in the code implements fallback logic (check project-specific template first, then fall back to global).
-
-### ISSUE 5: `awaiting_verification_count` not project-scoped in digest
-
-**Severity: Medium (data leakage)**
-
-In `daily-notification-digest/index.ts` lines 105-116, the `awaitingVerificationCount` query filters by `executed_by` and `fix_status` but does NOT filter by `project_id`. This means a user's digest could include cross-project counts.
-
-### ISSUE 6: Inconsistent notification patterns
-
-**Severity: Medium (maintainability)**
-
-Three different notification patterns exist:
-1. **Helper functions** (`notifyBugAssigned`, etc.) — proper WhatsApp + in-app
-2. **Raw inserts** in `BugFixActions.tsx` and `BugDetail.tsx` — in-app only, no WhatsApp
-3. **Direct edge function calls** in the digest — WhatsApp only
-
-This fragmentation means WhatsApp is unreachable for most bug workflow events.
-
----
-
-## Recommended Fix Plan
-
-### 1. Wire `notification_templates` into the edge function
-Add a query in `send-whatsapp-notification/index.ts` after the project check:
-
-```text
-Query notification_templates WHERE
-  (project_id = req.project_id OR project_id IS NULL)
-  AND notification_type = req.notification_type
-  AND is_enabled = true
-ORDER BY project_id DESC NULLS LAST
-LIMIT 1
-```
-
-If no row found or disabled, skip sending. If found, use `whatsapp_template_name` from the row instead of the caller-provided `template_name`.
-
-### 2. Pass `projectId` to all notification helpers
-- `useExecuteTestRun.ts`: Pass `run.project_id` to `notifyTestRunCompleted`
-- `useFailures.ts`: Pass the current project ID to `notifyFixedForVerification`
-
-### 3. Replace raw notification inserts with helper functions
-- `BugFixActions.tsx` `handleMarkAsFixed` → use `notifyFixedForVerification` or new `notifyBugFixed`
-- `BugFixActions.tsx` `handleVerifyFix` → new helper `notifyBugVerified`
-- `BugFixActions.tsx` `handleReopen` → use `notifyBugReopened`
-- `BugDetail.tsx` `updateStatus` → use `createNotification` with WhatsApp params
-- `BugDetail.tsx` `assignBug` → use `notifyBugAssigned`
-
-### 4. Fix digest project scoping
-Add project filtering to the `awaiting_verification_count` query using `.in("test_cases.test_scenarios.project_id", relevantProjectIds)`.
-
-### 5. Add template check to daily digest
-Before sending WhatsApp in the digest loop, query `notification_templates` for `daily_digest` + `project_id` and check `is_enabled`.
-
-### Technical Details
-
-**Files to modify:**
-- `supabase/functions/send-whatsapp-notification/index.ts` — Add template lookup
-- `supabase/functions/daily-notification-digest/index.ts` — Fix project scoping + template check
-- `src/hooks/useExecuteTestRun.ts` — Pass projectId
-- `src/hooks/useFailures.ts` — Pass projectId
-- `src/components/bugs/BugFixActions.tsx` — Replace raw inserts with helpers
-- `src/pages/bugs/BugDetail.tsx` — Replace raw inserts with helpers
-- `src/lib/notifications.ts` — Add missing helpers (`notifyBugFixed`, `notifyBugVerified`)
-
-**No database changes needed.** All fixes are code-level.
+This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
 

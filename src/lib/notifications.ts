@@ -8,7 +8,6 @@ export interface CreateNotificationParams {
   message: string;
   type?: NotificationType;
   link?: string;
-  // Optional: trigger WhatsApp notification
   whatsApp?: {
     templateName: string;
     templateParams: Record<string, string>;
@@ -17,10 +16,6 @@ export interface CreateNotificationParams {
   };
 }
 
-/**
- * Sends WhatsApp notification via edge function
- * Will silently fail if WhatsApp is not configured or user hasn't opted in
- */
 async function sendWhatsAppNotification(
   userId: string,
   templateName: string,
@@ -28,6 +23,10 @@ async function sendWhatsAppNotification(
   projectId?: string,
   notificationType: string = "general"
 ): Promise<void> {
+  if (!projectId) {
+    console.log("WhatsApp skipped: no projectId provided (data isolation)");
+    return;
+  }
   try {
     const { error } = await supabase.functions.invoke("send-whatsapp-notification", {
       body: {
@@ -38,7 +37,6 @@ async function sendWhatsAppNotification(
         notification_type: notificationType,
       },
     });
-
     if (error) {
       console.log("WhatsApp notification skipped or failed:", error.message);
     }
@@ -69,7 +67,6 @@ export async function createNotification({
       return false;
     }
 
-    // Send WhatsApp notification if configured
     if (whatsApp) {
       await sendWhatsAppNotification(
         userId,
@@ -87,7 +84,8 @@ export async function createNotification({
   }
 }
 
-// Helper functions for common notification types
+// ── Helpers for common notification types ──
+
 export async function notifyTestRunCompleted(
   userId: string,
   runName: string,
@@ -133,9 +131,7 @@ export async function notifyTestFailed(
     link: `/qa/runs/${runId}`,
     whatsApp: {
       templateName: "test_failed",
-      templateParams: {
-        test_name: testCaseTitle,
-      },
+      templateParams: { test_name: testCaseTitle },
       projectId,
       notificationType: "test_failed",
     },
@@ -157,10 +153,7 @@ export async function notifyBugAssigned(
     link: `/bugs/${bugId}`,
     whatsApp: {
       templateName: "bug_assigned",
-      templateParams: {
-        bug_code: bugCode,
-        bug_title: bugTitle,
-      },
+      templateParams: { bug_code: bugCode, bug_title: bugTitle },
       projectId,
       notificationType: "bug_assigned",
     },
@@ -217,6 +210,77 @@ export async function notifyBugReopened(
       },
       projectId,
       notificationType: "bug_reopened",
+    },
+  });
+}
+
+export async function notifyBugFixed(
+  reporterId: string,
+  bugCode: string,
+  bugTitle: string,
+  bugId: string,
+  projectId?: string
+): Promise<boolean> {
+  return createNotification({
+    userId: reporterId,
+    title: "Bug Fixed — Re-test Required",
+    message: `${bugCode}: "${bugTitle}" has been marked as fixed. Please re-test and verify.`,
+    type: "success",
+    link: `/bugs/${bugId}`,
+    whatsApp: {
+      templateName: "bug_fixed",
+      templateParams: { bug_code: bugCode, bug_title: bugTitle },
+      projectId,
+      notificationType: "bug_fixed",
+    },
+  });
+}
+
+export async function notifyBugVerified(
+  developerId: string,
+  bugCode: string,
+  bugTitle: string,
+  bugId: string,
+  projectId?: string
+): Promise<boolean> {
+  return createNotification({
+    userId: developerId,
+    title: "Bug Verified",
+    message: `${bugCode}: "${bugTitle}" has been verified and closed.`,
+    type: "success",
+    link: `/bugs/${bugId}`,
+    whatsApp: {
+      templateName: "bug_verified",
+      templateParams: { bug_code: bugCode, bug_title: bugTitle },
+      projectId,
+      notificationType: "bug_verified",
+    },
+  });
+}
+
+export async function notifyBugStatusChanged(
+  userId: string,
+  bugCode: string,
+  bugTitle: string,
+  bugId: string,
+  newStatus: string,
+  projectId?: string
+): Promise<boolean> {
+  return createNotification({
+    userId,
+    title: "Bug Status Updated",
+    message: `${bugCode}: "${bugTitle}" status changed to ${newStatus.replace("_", " ")}`,
+    type: newStatus === "resolved" ? "success" : "info",
+    link: `/bugs/${bugId}`,
+    whatsApp: {
+      templateName: "bug_status_changed",
+      templateParams: {
+        bug_code: bugCode,
+        bug_title: bugTitle,
+        new_status: newStatus.replace("_", " "),
+      },
+      projectId,
+      notificationType: "bug_status_changed",
     },
   });
 }

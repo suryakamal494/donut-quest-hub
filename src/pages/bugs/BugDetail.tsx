@@ -21,6 +21,7 @@ import { BugHistoryTimeline } from "@/components/bugs/BugHistoryTimeline";
 import { AttachmentGallery } from "@/components/qa/AttachmentGallery";
 import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+import { notifyBugStatusChanged, notifyBugAssigned } from "@/lib/notifications";
 import type { Bug as BugType, BugStatus } from "@/types/bugs";
 import type { LoginType } from "@/types/qa";
 import { formatDistanceToNow, format } from "date-fns";
@@ -151,18 +152,13 @@ export default function BugDetail() {
       setBug(prev => prev ? { ...prev, ...updateData } : null);
       toast({ title: "Status updated" });
 
-      // Fire-and-forget notifications
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
       const notifyIds = [
         bug.reported_by !== user.id ? bug.reported_by : null,
         bug.assigned_to !== user.id && bug.assigned_to !== bug.reported_by ? bug.assigned_to : null,
       ].filter(Boolean) as string[];
       notifyIds.forEach(uid => {
-        supabase.from("notifications").insert({
-          user_id: uid, title: "Bug Status Updated",
-          message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
-          type: newStatus === "resolved" ? "success" : "info",
-          link: `/bugs/${bug.id}`,
-        }).then(() => {});
+        notifyBugStatusChanged(uid, bug.bug_code, bug.title, bug.id, newStatus, bug.project_id || undefined);
       });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -188,12 +184,8 @@ export default function BugDetail() {
       setBug(prev => prev ? { ...prev, assigned_to: userId } : null);
       toast({ title: "Bug assigned" });
 
-      // Fire-and-forget notification
-      supabase.from("notifications").insert({
-        user_id: userId, title: "Bug Assigned",
-        message: `Bug ${bug.bug_code}: "${bug.title}" has been assigned to you`,
-        type: "bug_assigned", link: `/bugs/${bug.id}`,
-      }).then(() => {});
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
+      notifyBugAssigned(userId, bug.bug_code, bug.title, bug.id, bug.project_id || undefined);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }

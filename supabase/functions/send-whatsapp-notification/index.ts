@@ -82,7 +82,37 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    } else {
+      // No project_id means we can't verify project-level gating — skip WhatsApp
+      console.log("No project_id provided — skipping WhatsApp to prevent cross-project leakage");
+      return new Response(
+        JSON.stringify({ success: false, error: "project_id is required for WhatsApp notifications" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    // ISSUE 1 FIX: Check notification_templates for enabled status
+    // Look for project-specific template first, then fall back to global (project_id IS NULL)
+    const { data: templateConfig } = await supabase
+      .from("notification_templates")
+      .select("whatsapp_template_name, is_enabled")
+      .or(`project_id.eq.${project_id},project_id.is.null`)
+      .eq("notification_type", notification_type)
+      .eq("is_enabled", true)
+      .order("project_id", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!templateConfig) {
+      console.log(`No enabled template found for type '${notification_type}' in project '${project_id}' — skipping`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Notification template not enabled for this type/project" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Use the template name from the database config instead of the caller-provided one
+    const resolvedTemplateName = templateConfig.whatsapp_template_name;
 
     // Format phone number (remove + if present for Meta API)
     const formattedPhone = profile.phone_number.replace(/^\+/, "");
@@ -113,7 +143,7 @@ Deno.serve(async (req) => {
           to: formattedPhone,
           type: "template",
           template: {
-            name: template_name,
+            name: resolvedTemplateName,
             language: { code: "en" },
             components: components.length > 0 ? components : undefined,
           },
@@ -128,7 +158,7 @@ Deno.serve(async (req) => {
       user_id,
       project_id,
       notification_type,
-      template_name,
+      template_name: resolvedTemplateName,
       phone_number: profile.phone_number,
       status: metaResponse.ok ? "sent" : "failed",
       meta_message_id: metaResult.messages?.[0]?.id,

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyBugFixed, notifyBugVerified, notifyBugReopened } from "@/lib/notifications";
 import type { Bug as BugType } from "@/types/bugs";
 
 interface BugFixActionsProps {
@@ -75,14 +76,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
       setDevResponse("");
       toast({ title: "Bug marked as fixed" });
 
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
       if (bug.reported_by && bug.reported_by !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: bug.reported_by,
-          title: "Bug Fixed — Re-test Required",
-          message: `Bug ${bug.bug_code}: "${bug.title}" has been marked as fixed. Please re-test and verify.`,
-          type: "bug_fixed",
-          link: `/bugs/${bug.id}`,
-        });
+        await notifyBugFixed(bug.reported_by, bug.bug_code, bug.title, bug.id, bug.project_id || undefined);
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -110,14 +106,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
       onUpdate(updates);
       toast({ title: "Fix verified — Bug closed" });
 
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
       if (bug.assigned_to && bug.assigned_to !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: bug.assigned_to,
-          title: "Bug Verified",
-          message: `Bug ${bug.bug_code}: "${bug.title}" has been verified and closed.`,
-          type: "bug_verified",
-          link: `/bugs/${bug.id}`,
-        });
+        await notifyBugVerified(bug.assigned_to, bug.bug_code, bug.title, bug.id, bug.project_id || undefined);
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -148,14 +139,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
       onUpdate(updates);
       toast({ title: "Bug reopened" });
 
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
       if (bug.assigned_to && bug.assigned_to !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: bug.assigned_to,
-          title: "Bug Reopened",
-          message: `Bug ${bug.bug_code}: "${bug.title}" has been reopened after verification failed.`,
-          type: "bug_reopened",
-          link: `/bugs/${bug.id}`,
-        });
+        await notifyBugReopened(bug.assigned_to, bug.bug_code, bug.title, bug.id, undefined, bug.project_id || undefined);
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });

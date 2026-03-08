@@ -47,13 +47,7 @@ Deno.serve(async (req) => {
     // Get all approved users with their roles
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select(`
-        user_id,
-        full_name,
-        email,
-        phone_number,
-        whatsapp_enabled
-      `)
+      .select(`user_id, full_name, email, phone_number, whatsapp_enabled`)
       .eq("approval_status", "approved");
 
     if (usersError) {
@@ -67,7 +61,7 @@ Deno.serve(async (req) => {
 
     const roleMap = new Map(roles?.map((r) => [r.user_id, r.role]) || []);
 
-    // Get all projects with WhatsApp enabled
+    // Get all projects
     const { data: projects } = await supabase
       .from("projects")
       .select("id, name, whatsapp_notifications_enabled");
@@ -77,15 +71,12 @@ Deno.serve(async (req) => {
     for (const user of users || []) {
       const userRole = roleMap.get(user.user_id) || "user";
       
-      // Get user's project access
       const { data: userProjects } = await supabase
         .from("user_project_access")
         .select("project_id")
         .eq("user_id", user.user_id);
 
       const projectIds = userProjects?.map((p) => p.project_id) || [];
-      
-      // For admins, include all projects
       const isAdmin = userRole === "admin";
       const relevantProjectIds = isAdmin 
         ? projects?.map((p) => p.id) || []
@@ -93,7 +84,7 @@ Deno.serve(async (req) => {
 
       if (relevantProjectIds.length === 0) continue;
 
-      // Get assigned bugs count (for developers)
+      // Get assigned bugs count scoped to relevant projects
       const { count: assignedBugsCount } = await supabase
         .from("bugs")
         .select("*", { count: "exact", head: true })
@@ -101,7 +92,7 @@ Deno.serve(async (req) => {
         .in("status", ["open", "in_progress"])
         .in("project_id", relevantProjectIds);
 
-      // Get pending fixes awaiting verification (for QA testers)
+      // ISSUE 5 FIX: Scope awaiting_verification_count to relevant projects
       const { count: awaitingVerificationCount } = await supabase
         .from("test_results")
         .select(`
@@ -113,7 +104,8 @@ Deno.serve(async (req) => {
         `, { count: "exact", head: true })
         .eq("executed_by", user.user_id)
         .eq("status", "fail")
-        .eq("fix_status", "fixed");
+        .eq("fix_status", "fixed")
+        .in("test_cases.test_scenarios.project_id", relevantProjectIds);
 
       const projectStats: DigestStats[] = [];
 
@@ -121,14 +113,12 @@ Deno.serve(async (req) => {
         const project = projects?.find((p) => p.id === projectId);
         if (!project) continue;
 
-        // Bugs reported today
         const { count: bugsReportedToday } = await supabase
           .from("bugs")
           .select("*", { count: "exact", head: true })
           .eq("project_id", projectId)
           .gte("created_at", todayStart);
 
-        // Bugs fixed today
         const { count: bugsFixedToday } = await supabase
           .from("bugs")
           .select("*", { count: "exact", head: true })
@@ -136,7 +126,6 @@ Deno.serve(async (req) => {
           .eq("fix_status", "fixed")
           .gte("resolved_at", todayStart);
 
-        // Bugs verified today
         const { count: bugsVerifiedToday } = await supabase
           .from("bugs")
           .select("*", { count: "exact", head: true })
@@ -144,7 +133,6 @@ Deno.serve(async (req) => {
           .eq("fix_status", "verified")
           .gte("verified_at", todayStart);
 
-        // Pending retests (fixed but not verified)
         const { count: pendingRetests } = await supabase
           .from("bugs")
           .select("*", { count: "exact", head: true })
@@ -152,7 +140,6 @@ Deno.serve(async (req) => {
           .eq("fix_status", "fixed")
           .eq("status", "resolved");
 
-        // Stale bugs (no activity > 48h)
         const { count: staleBugsCount } = await supabase
           .from("bugs")
           .select("*", { count: "exact", head: true })
@@ -160,7 +147,6 @@ Deno.serve(async (req) => {
           .in("status", ["open", "in_progress"])
           .lt("updated_at", staleThreshold);
 
-        // Overdue test failures
         const { count: overdueFailures } = await supabase
           .from("test_results")
           .select(`
@@ -195,7 +181,7 @@ Deno.serve(async (req) => {
         whatsapp_enabled: user.whatsapp_enabled,
         role: userRole,
         assigned_bugs_count: assignedBugsCount || 0,
-        pending_fixes_count: 0, // Could track developer's pending fixes
+        pending_fixes_count: 0,
         awaiting_verification_count: awaitingVerificationCount || 0,
         project_stats: projectStats,
       });
@@ -217,7 +203,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Build notification message based on role
       let title = "Daily Summary";
       let message = "";
 
@@ -238,7 +223,6 @@ Deno.serve(async (req) => {
           message += ` ${pending} fixes are awaiting QA verification.`;
         }
       } else {
-        // QA user
         if (digest.awaiting_verification_count > 0) {
           message = `${digest.awaiting_verification_count} fixes are waiting for your verification.`;
         }
@@ -260,13 +244,29 @@ Deno.serve(async (req) => {
 
       // Send WhatsApp notification if enabled
       if (digest.whatsapp_enabled && digest.phone_number && message) {
-        // Get first project with WhatsApp enabled for this user
-        const whatsappProject = digest.project_stats.find((p) => {
+        // Find projects with WhatsApp enabled for this user
+        const whatsappProjects = digest.project_stats.filter((p) => {
           const proj = projects?.find((pr) => pr.id === p.project_id);
           return proj?.whatsapp_notifications_enabled;
         });
 
-        if (whatsappProject) {
+        // ISSUE 3 FIX: Check notification_templates for daily_digest before sending
+        for (const wp of whatsappProjects) {
+          const { data: templateConfig } = await supabase
+            .from("notification_templates")
+            .select("whatsapp_template_name, is_enabled")
+            .or(`project_id.eq.${wp.project_id},project_id.is.null`)
+            .eq("notification_type", "daily_digest")
+            .eq("is_enabled", true)
+            .order("project_id", { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!templateConfig) {
+            console.log(`No enabled daily_digest template for project ${wp.project_id} — skipping WhatsApp`);
+            continue;
+          }
+
           try {
             await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp-notification`, {
               method: "POST",
@@ -276,23 +276,23 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({
                 user_id: digest.user_id,
-                template_name: "daily_digest",
+                template_name: templateConfig.whatsapp_template_name,
                 template_params: {
                   name: digest.full_name,
                   summary: message,
                 },
-                project_id: whatsappProject.project_id,
+                project_id: wp.project_id,
                 notification_type: "daily_digest",
               }),
             });
           } catch (e) {
             console.error("Failed to send WhatsApp digest:", e);
           }
+          break; // Send only one WhatsApp digest per user
         }
       }
     }
 
-    // Insert all notifications
     if (notifications.length > 0) {
       const { error: insertError } = await supabase
         .from("notifications")
