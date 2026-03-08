@@ -166,7 +166,7 @@ export default function Insights() {
       }
     });
     return weeks.map(w => ({ label: w.label, avgHours: Math.round(w.avgHours), count: w.count }));
-  }, [bugs]);
+  }, [bugs, rangeDays]);
 
   const speedTrend = useMemo(() => {
     if (resolutionSpeedData.length < 2) return "neutral";
