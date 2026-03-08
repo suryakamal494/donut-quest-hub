@@ -145,8 +145,9 @@ export default function Insights() {
 
   // ==================== Section 2: Resolution Speed Trend ====================
   const resolutionSpeedData = useMemo(() => {
+    const numWeeks = Math.max(1, Math.ceil(rangeDays / 7));
     const weeks: { label: string; avgHours: number; count: number; start: Date }[] = [];
-    for (let i = 3; i >= 0; i--) {
+    for (let i = numWeeks - 1; i >= 0; i--) {
       const ws = startOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 });
       const we = endOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 });
       weeks.push({ label: `${format(ws, "MMM d")}–${format(we, "MMM d")}`, avgHours: 0, count: 0, start: ws });
