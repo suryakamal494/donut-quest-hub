@@ -603,6 +603,44 @@ export type Database = {
           },
         ]
       }
+      notification_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          notification_type: string
+          project_id: string | null
+          updated_at: string
+          whatsapp_template_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          notification_type: string
+          project_id?: string | null
+          updated_at?: string
+          whatsapp_template_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          notification_type?: string
+          project_id?: string | null
+          updated_at?: string
+          whatsapp_template_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -645,8 +683,10 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          phone_number: string | null
           updated_at: string
           user_id: string
+          whatsapp_enabled: boolean
         }
         Insert: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
@@ -656,8 +696,10 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          phone_number?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_enabled?: boolean
         }
         Update: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
@@ -667,8 +709,10 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          phone_number?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_enabled?: boolean
         }
         Relationships: []
       }
@@ -680,6 +724,7 @@ export type Database = {
           id: string
           name: string
           updated_at: string
+          whatsapp_notifications_enabled: boolean
         }
         Insert: {
           created_at?: string
@@ -688,6 +733,7 @@ export type Database = {
           id?: string
           name: string
           updated_at?: string
+          whatsapp_notifications_enabled?: boolean
         }
         Update: {
           created_at?: string
@@ -696,6 +742,7 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+          whatsapp_notifications_enabled?: boolean
         }
         Relationships: []
       }
@@ -1152,6 +1199,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_notification_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          meta_message_id: string | null
+          notification_type: string
+          payload: Json | null
+          phone_number: string
+          project_id: string | null
+          status: string
+          template_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          meta_message_id?: string | null
+          notification_type: string
+          payload?: Json | null
+          phone_number: string
+          project_id?: string | null
+          status?: string
+          template_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          meta_message_id?: string | null
+          notification_type?: string
+          payload?: Json | null
+          phone_number?: string
+          project_id?: string | null
+          status?: string
+          template_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_notification_log_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

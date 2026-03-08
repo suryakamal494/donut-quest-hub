@@ -14,6 +14,8 @@ interface Profile {
   approval_status: ApprovalStatus;
   automation_enabled: boolean;
   docs_enabled: boolean;
+  phone_number?: string | null;
+  whatsapp_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -25,7 +27,7 @@ interface AuthContextType {
   role: AppRole | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, phoneNumber?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -158,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -167,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           emailRedirectTo: window.location.origin,
           data: {
             full_name: fullName,
+            phone_number: phoneNumber || null,
           },
         },
       });

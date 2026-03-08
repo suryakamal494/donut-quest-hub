@@ -9,12 +9,17 @@ import { CreateProjectDialog, AssignProjectDialog } from "@/components/projects"
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
 import { PendingApprovalsSection } from "@/components/admin/PendingApprovalsSection";
 import { UserListSection } from "@/components/admin/UserListSection";
+import { WhatsAppProjectSettings } from "@/components/admin/WhatsAppProjectSettings";
 import {
   LogOut, ClipboardCheck, Loader2,
   TestTube2, PlayCircle, BarChart3, Settings,
   FolderKanban, Plus, FolderOpen, Key,
 } from "lucide-react";
 import type { Project } from "@/types/project";
+
+interface ProjectWithWhatsApp extends Project {
+  whatsapp_notifications_enabled: boolean;
+}
 
 interface UserProfile {
   id: string;
@@ -33,7 +38,7 @@ const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
 
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectWithWhatsApp[]>([]);
   const [userProjectCounts, setUserProjectCounts] = useState<Map<string, number>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -51,7 +56,7 @@ const AdminDashboard: React.FC = () => {
   const fetchProjects = async () => {
     try {
       const { data } = await supabase.from("projects").select("*").order("created_at");
-      setProjects(data || []);
+      setProjects((data || []) as ProjectWithWhatsApp[]);
     } catch (error) { console.error("Error:", error); }
   };
 
@@ -184,6 +189,11 @@ const AdminDashboard: React.FC = () => {
               <ClearTestDataDialog />
             </div>
           </div>
+        </div>
+
+        {/* WhatsApp Notification Settings */}
+        <div className="mb-6 md:mb-8">
+          <WhatsAppProjectSettings projects={projects} onUpdate={fetchProjects} />
         </div>
 
         <PendingApprovalsSection pendingUsers={pendingUsers} actionLoading={actionLoading} onApproval={handleApproval} />

@@ -5,14 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ClipboardCheck, Mail, Lock, User } from "lucide-react";
+import { Loader2, ClipboardCheck, Mail, Lock, User, Phone } from "lucide-react";
 import { z } from "zod";
+
+const phoneRegex = /^\+[1-9]\d{6,14}$/;
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100, "Name is too long"),
   email: z.string().trim().email("Please enter a valid email address").max(255, "Email is too long"),
   password: z.string().min(6, "Password must be at least 6 characters").max(72, "Password is too long"),
   confirmPassword: z.string(),
+  phoneNumber: z.string().optional().refine(
+    (val) => !val || phoneRegex.test(val),
+    { message: "Phone must start with + and country code (e.g., +919876543210)" }
+  ),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -23,12 +29,14 @@ const Register: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ 
     fullName?: string; 
     email?: string; 
     password?: string; 
     confirmPassword?: string;
+    phoneNumber?: string;
   }>({});
   
   const { signUp } = useAuth();
@@ -39,7 +47,7 @@ const Register: React.FC = () => {
     e.preventDefault();
     setErrors({});
 
-    const result = registerSchema.safeParse({ fullName, email, password, confirmPassword });
+    const result = registerSchema.safeParse({ fullName, email, password, confirmPassword, phoneNumber: phoneNumber || undefined });
     if (!result.success) {
       const fieldErrors: typeof errors = {};
       result.error.errors.forEach((err) => {
@@ -52,7 +60,7 @@ const Register: React.FC = () => {
 
     setIsLoading(true);
     
-    const { error } = await signUp(email, password, fullName);
+    const { error } = await signUp(email, password, fullName, phoneNumber || undefined);
     
     if (error) {
       toast({
@@ -186,6 +194,33 @@ const Register: React.FC = () => {
               </div>
               {errors.confirmPassword && (
                 <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+              )}
+            </div>
+
+            {/* Phone Number Field (Optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber" className="text-sm font-medium text-foreground">
+                WhatsApp Number <span className="text-muted-foreground">(Optional)</span>
+              </Label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+919876543210"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={isLoading}
+                  className={`pl-12 h-12 rounded-xl border-2 bg-white/50 focus:bg-white transition-smooth ${
+                    errors.phoneNumber ? "border-destructive" : "border-border focus:border-primary"
+                  }`}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Include country code (e.g., +91 for India). Used for WhatsApp notifications.
+              </p>
+              {errors.phoneNumber && (
+                <p className="text-sm text-destructive">{errors.phoneNumber}</p>
               )}
             </div>
 

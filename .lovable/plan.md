@@ -1,115 +1,37 @@
 
 
-# Notification System Audit & WhatsApp Business API Integration Plan
+## Pain Point Explanation
 
-## Current State Audit
+You have correctly identified the issue. Here is the root cause:
 
-### Existing Notification Triggers
-| Event | Recipient | Trigger Location |
-|-------|-----------|------------------|
-| Test Run Completed | Run executor | `useExecuteTestRun.ts` |
-| Test Failed | All admins | `useExecuteTestRun.ts` |
-| Bug Assigned | Assignee | `BugDetail.tsx` |
-| Bug Status Changed | Reporter + Assignee | `BugDetail.tsx` |
-| Bug Fixed (needs retest) | Reporter | `BugFixActions.tsx`, `InlineFixAction.tsx` |
-| Bug Verified | Developer | `BugFixActions.tsx` |
-| Bug Reopened | Developer | `BugFixActions.tsx`, `PendingRetest.tsx` |
-| Fix Ready for Verification | Original tester | `useFailures.ts` |
-| Automation Test Failed | Run creator | `automation-webhook/index.ts` |
+**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
 
-### Gaps Identified
-1. **No digest/summary notifications** — Every event is instant; no daily rollups
-2. **No pending retest reminders** — QA not notified if fix awaits verification >24h
-3. **No pending assignment reminders** — Developer not reminded of unresolved bugs
-4. **No mobile number field** — `profiles` table lacks phone number
-5. **No WhatsApp channel** — All notifications are in-app only
-6. **No project-level notification settings** — Admin can't toggle WhatsApp per project
+The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
 
----
+**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
 
-## Proposed Architecture
+## Implementation Plan
 
-### Phase 1: Database Schema Updates
+**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
 
-**Add to `profiles` table:**
-- `phone_number` (text, nullable) — WhatsApp-enabled number with country code
-- `whatsapp_enabled` (boolean, default false) — User-level opt-in
+This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
 
-**Add to `projects` table:**
-- `whatsapp_notifications_enabled` (boolean, default false) — Project-level toggle
+### Changes to `src/pages/bugs/BugList.tsx`
 
-**New table: `notification_templates`:**
-```
-id, project_id, notification_type, whatsapp_template_name, is_enabled
-```
+1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
 
-### Phase 2: Enhanced Notification Types (Role-Based)
+2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
 
-**For Developers:**
-- Bug assigned to you
-- Bug reopened (fix failed verification)
-- Daily digest: X bugs assigned, Y pending >24h
+3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
 
-**For QA Testers:**
-- Fix ready for verification (instant)
-- Daily reminder: X fixes awaiting your verification >24h
-- Test run completed summary
+4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
 
-**For Admins:**
-- Daily summary: X bugs reported, Y fixed, Z verified
-- Stale bugs alert (no activity >48h)
-- New user registration pending approval
+### Summary of the fix
 
-### Phase 3: WhatsApp Business API Integration
+| Mode | Before | After |
+|------|--------|-------|
+| All (flat) | Server-side pagination, 25/page | No change |
+| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
 
-**Edge Function: `send-whatsapp-notification`**
-- Accepts: `{ user_id, template_name, template_params }`
-- Checks: user has phone, user opted-in, project has WhatsApp enabled
-- Calls Meta Business API with approved template
-
-**Edge Function: `daily-notification-digest`**
-- Scheduled via pg_cron (e.g., 9:00 AM daily)
-- Queries pending retests, stale bugs, unassigned issues
-- Sends digest to relevant users (in-app + WhatsApp if enabled)
-
-### Phase 4: Registration & Admin UI Updates
-
-**Registration page:**
-- Add optional phone number field (with country code picker)
-- Add WhatsApp opt-in checkbox
-
-**Admin Dashboard:**
-- Toggle WhatsApp notifications per project
-- View/edit user phone numbers
-- Manage notification templates
-
-**User Profile:**
-- Update phone number
-- Toggle personal WhatsApp preference
-
----
-
-## Implementation Summary
-
-| Task | Type |
-|------|------|
-| Add `phone_number`, `whatsapp_enabled` to `profiles` | Migration |
-| Add `whatsapp_notifications_enabled` to `projects` | Migration |
-| Create `notification_templates` table | Migration |
-| Update Registration form with phone field | Frontend |
-| Create `send-whatsapp-notification` edge function | Backend |
-| Create `daily-notification-digest` edge function + cron | Backend |
-| Add project notification settings in Admin | Frontend |
-| Add user phone/WhatsApp settings in profile | Frontend |
-| Extend `createNotification` to optionally trigger WhatsApp | Lib |
-
----
-
-## Technical Notes
-
-- Meta Business API requires pre-approved message templates
-- Phone numbers must include country code (e.g., +91XXXXXXXXXX)
-- WhatsApp integration will use an edge function that calls the Meta API
-- API credentials will be stored as Supabase secrets (user provides later)
-- RLS policies on new tables follow existing patterns
+This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
 
