@@ -197,7 +197,31 @@ const Register: React.FC = () => {
               )}
             </div>
 
-            {/* Submit Button */}
+            {/* Phone Number Field (Optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber" className="text-sm font-medium text-foreground">
+                WhatsApp Number <span className="text-muted-foreground">(Optional)</span>
+              </Label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+919876543210"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={isLoading}
+                  className={`pl-12 h-12 rounded-xl border-2 bg-white/50 focus:bg-white transition-smooth ${
+                    errors.phoneNumber ? "border-destructive" : "border-border focus:border-primary"
+                  }`}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Include country code (e.g., +91 for India). Used for WhatsApp notifications.
+              </p>
+              {errors.phoneNumber && (
+                <p className="text-sm text-destructive">{errors.phoneNumber}</p>
+              )}
             <Button 
               type="submit" 
               className="w-full h-12 rounded-xl bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-warm transition-smooth"
