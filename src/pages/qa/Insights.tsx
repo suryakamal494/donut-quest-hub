@@ -552,7 +552,7 @@ export default function Insights() {
             <Users className="h-5 w-5 text-primary" />
             <div>
               <CardTitle className="text-base">QA Team Productivity</CardTitle>
-              <CardDescription>Testing activity per team member (30 days)</CardDescription>
+              <CardDescription>Testing activity per team member ({rangeDays} days)</CardDescription>
             </div>
           </div>
         </CardHeader>
