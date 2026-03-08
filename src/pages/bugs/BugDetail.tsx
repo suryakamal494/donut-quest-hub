@@ -184,12 +184,8 @@ export default function BugDetail() {
       setBug(prev => prev ? { ...prev, assigned_to: userId } : null);
       toast({ title: "Bug assigned" });
 
-      // Fire-and-forget notification
-      supabase.from("notifications").insert({
-        user_id: userId, title: "Bug Assigned",
-        message: `Bug ${bug.bug_code}: "${bug.title}" has been assigned to you`,
-        type: "bug_assigned", link: `/bugs/${bug.id}`,
-      }).then(() => {});
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
+      notifyBugAssigned(userId, bug.bug_code, bug.title, bug.id, bug.project_id || undefined);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }

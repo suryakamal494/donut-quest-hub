@@ -165,12 +165,13 @@ export function useExecuteTestRun(id: string | undefined) {
       await supabase.from("test_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", run.id);
       toast({ title: "Test run completed", description: `${passedCount} passed, ${failedCount} failed` });
 
-      // Notify the run executor about completion
+      // ISSUE 2 FIX: Pass run.project_id to all notification helpers
+      const projectId = run.project_id || undefined;
+
       if (run.executed_by) {
-        await notifyTestRunCompleted(run.executed_by, run.name, run.id, passedCount, failedCount);
+        await notifyTestRunCompleted(run.executed_by, run.name, run.id, passedCount, failedCount, projectId);
       }
 
-      // Notify admins about failed tests in this run
       if (failedCount > 0) {
         const failedResults = results.filter(r => r.status === "fail");
         const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
@@ -184,6 +185,12 @@ export function useExecuteTestRun(id: string | undefined) {
               message: `"${failedResult.test_case?.title}" failed in run "${run.name}"`,
               type: "error",
               link: `/qa/runs/${run.id}`,
+              whatsApp: {
+                templateName: "test_failed",
+                templateParams: { test_name: failedResult.test_case?.title || "Unknown" },
+                projectId,
+                notificationType: "test_failed",
+              },
             });
           }
         }

@@ -122,13 +122,15 @@ export function useFailures() {
       }).eq("id", selectedFailure.id);
       if (error) throw error;
 
+      // ISSUE 2 FIX: Pass currentProject.id for data isolation
       if (selectedFailure.executed_by && selectedFailure.executed_by !== user?.id) {
         await notifyFixedForVerification(
           selectedFailure.executed_by,
           selectedFailure.test_case?.title || "Unknown Test",
           selectedFailure.test_case?.case_code || "TC-???",
           fixNote.trim(),
-          currentUserName || "Developer"
+          currentUserName || "Developer",
+          currentProject?.id
         );
       }
       toast.success("Marked as fixed! Re-testing is now required.");
