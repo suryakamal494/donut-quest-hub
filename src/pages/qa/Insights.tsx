@@ -4,6 +4,14 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, TrendingUp, TrendingDown, Clock, AlertTriangle, Users, Bug } from "lucide-react";
 import { format, subDays, differenceInHours, parseISO, startOfDay, subWeeks, startOfWeek, endOfWeek } from "date-fns";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+const RANGE_OPTIONS = [
+  { value: "7", label: "7d" },
+  { value: "14", label: "14d" },
+  { value: "30", label: "30d" },
+  { value: "90", label: "90d" },
+] as const;
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   Tooltip, Legend, CartesianGrid, Cell
@@ -68,6 +76,7 @@ const BUCKET_COLORS = [
 export default function Insights() {
   const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
+  const [rangeDays, setRangeDays] = useState(30);
   const [bugs, setBugs] = useState<BugSlim[]>([]);
   const [history, setHistory] = useState<HistorySlim[]>([]);
   const [profiles, setProfiles] = useState<ProfileSlim[]>([]);
@@ -76,7 +85,7 @@ export default function Insights() {
   const loadData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
-    const since30 = subDays(new Date(), 30).toISOString();
+    const since = subDays(new Date(), rangeDays).toISOString();
 
     const [bugsRes, historyRes, profilesRes, runsRes] = await Promise.all([
       supabase
@@ -86,13 +95,13 @@ export default function Insights() {
       supabase
         .from("bug_history")
         .select("bug_id, field_changed, old_value, new_value, created_at, changed_by")
-        .gte("created_at", since30),
+        .gte("created_at", since),
       supabase.from("profiles").select("user_id, full_name"),
       supabase
         .from("test_runs")
         .select("id, executed_by, started_at")
         .eq("project_id", currentProject.id)
-        .gte("started_at", since30),
+        .gte("started_at", since),
     ]);
 
     setBugs((bugsRes.data as BugSlim[]) || []);
@@ -100,7 +109,7 @@ export default function Insights() {
     setProfiles((profilesRes.data as ProfileSlim[]) || []);
     setRuns((runsRes.data as RunSlim[]) || []);
     setLoading(false);
-  }, [currentProject]);
+  }, [currentProject, rangeDays]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -113,7 +122,7 @@ export default function Insights() {
   // ==================== Section 1: Backlog Trend ====================
   const backlogData = useMemo(() => {
     const days: { date: string; label: string; opened: number; resolved: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
+    for (let i = rangeDays - 1; i >= 0; i--) {
       const d = startOfDay(subDays(new Date(), i));
       days.push({ date: format(d, "yyyy-MM-dd"), label: format(d, "MMM d"), opened: 0, resolved: 0 });
     }
@@ -127,7 +136,7 @@ export default function Insights() {
       }
     });
     return days;
-  }, [bugs]);
+  }, [bugs, rangeDays]);
 
   const netChange = useMemo(() => {
     const total = backlogData.reduce((acc, d) => acc + d.opened - d.resolved, 0);
@@ -136,8 +145,9 @@ export default function Insights() {
 
   // ==================== Section 2: Resolution Speed Trend ====================
   const resolutionSpeedData = useMemo(() => {
+    const numWeeks = Math.max(1, Math.ceil(rangeDays / 7));
     const weeks: { label: string; avgHours: number; count: number; start: Date }[] = [];
-    for (let i = 3; i >= 0; i--) {
+    for (let i = numWeeks - 1; i >= 0; i--) {
       const ws = startOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 });
       const we = endOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 });
       weeks.push({ label: `${format(ws, "MMM d")}–${format(we, "MMM d")}`, avgHours: 0, count: 0, start: ws });
@@ -156,7 +166,7 @@ export default function Insights() {
       }
     });
     return weeks.map(w => ({ label: w.label, avgHours: Math.round(w.avgHours), count: w.count }));
-  }, [bugs]);
+  }, [bugs, rangeDays]);
 
   const speedTrend = useMemo(() => {
     if (resolutionSpeedData.length < 2) return "neutral";
@@ -211,12 +221,12 @@ export default function Insights() {
 
   // ==================== Section 5: QA Productivity ====================
   const qaStats = useMemo(() => {
-    const since30 = subDays(new Date(), 30);
+    const sinceDate = subDays(new Date(), rangeDays);
     const qaMap: Record<string, { reported: number; testRuns: number; retests: number; reopened: number }> = {};
 
-    // Bugs reported in last 30 days
+    // Bugs reported in range
     bugs.forEach(b => {
-      if (!b.created_at || parseISO(b.created_at) < since30) return;
+      if (!b.created_at || parseISO(b.created_at) < sinceDate) return;
       // reported_by not in slim select, use history to find reporters
     });
 
@@ -239,7 +249,7 @@ export default function Insights() {
       .map(([uid, s]) => ({ name: nameMap[uid] || uid.slice(0, 8), ...s }))
       .filter(s => s.reported > 0 || s.testRuns > 0 || s.retests > 0)
       .sort((a, b) => (b.reported + b.testRuns) - (a.reported + a.testRuns));
-  }, [bugs, history, runs, nameMap]);
+  }, [bugs, history, runs, nameMap, rangeDays]);
 
   // ==================== Section 6: Cycle Time ====================
   const cycleTimeData = useMemo(() => {
@@ -304,9 +314,23 @@ export default function Insights() {
   return (
     <div className="p-4 md:p-6 space-y-6 pb-20 md:pb-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Insights</h1>
-        <p className="text-sm text-muted-foreground">Bug resolution analytics & team effectiveness (30-day window)</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Insights</h1>
+          <p className="text-sm text-muted-foreground">Bug resolution analytics & team effectiveness ({rangeDays}-day window)</p>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={String(rangeDays)}
+          onValueChange={(v) => v && setRangeDays(Number(v))}
+          className="border rounded-lg p-0.5"
+        >
+          {RANGE_OPTIONS.map(opt => (
+            <ToggleGroupItem key={opt.value} value={opt.value} size="sm" className="text-xs px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              {opt.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
       {/* KPI Strip */}
@@ -325,7 +349,7 @@ export default function Insights() {
             {netChange > 0 ? <TrendingUp className="h-5 w-5 text-destructive" /> : <TrendingDown className="h-5 w-5 text-success" />}
             <div>
               <p className="text-2xl font-bold">{netChange > 0 ? "+" : ""}{netChange}</p>
-              <p className="text-xs text-muted-foreground">Net 30d Change</p>
+              <p className="text-xs text-muted-foreground">Net {rangeDays}d Change</p>
             </div>
           </CardContent>
         </Card>
@@ -355,7 +379,7 @@ export default function Insights() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Bug Backlog Trend</CardTitle>
-            <CardDescription>Opened vs Resolved per day (30 days)</CardDescription>
+            <CardDescription>Opened vs Resolved per day ({rangeDays} days)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-56 md:h-64">
@@ -433,7 +457,7 @@ export default function Insights() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Cycle Time Breakdown</CardTitle>
-            <CardDescription>Average hours per workflow phase (30 days)</CardDescription>
+            <CardDescription>Average hours per workflow phase ({rangeDays} days)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 pt-2">
@@ -528,7 +552,7 @@ export default function Insights() {
             <Users className="h-5 w-5 text-primary" />
             <div>
               <CardTitle className="text-base">QA Team Productivity</CardTitle>
-              <CardDescription>Testing activity per team member (30 days)</CardDescription>
+              <CardDescription>Testing activity per team member ({rangeDays} days)</CardDescription>
             </div>
           </div>
         </CardHeader>
