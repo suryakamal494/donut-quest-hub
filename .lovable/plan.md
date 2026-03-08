@@ -1,64 +1,115 @@
 
 
-# Multi-Project Access & Data Isolation Audit
+# Notification System Audit & WhatsApp Business API Integration Plan
 
-## Your Question: Can a developer/QA work on multiple projects simultaneously?
+## Current State Audit
 
-**Yes, this is already fully implemented.** Here's how it works:
+### Existing Notification Triggers
+| Event | Recipient | Trigger Location |
+|-------|-----------|------------------|
+| Test Run Completed | Run executor | `useExecuteTestRun.ts` |
+| Test Failed | All admins | `useExecuteTestRun.ts` |
+| Bug Assigned | Assignee | `BugDetail.tsx` |
+| Bug Status Changed | Reporter + Assignee | `BugDetail.tsx` |
+| Bug Fixed (needs retest) | Reporter | `BugFixActions.tsx`, `InlineFixAction.tsx` |
+| Bug Verified | Developer | `BugFixActions.tsx` |
+| Bug Reopened | Developer | `BugFixActions.tsx`, `PendingRetest.tsx` |
+| Fix Ready for Verification | Original tester | `useFailures.ts` |
+| Automation Test Failed | Run creator | `automation-webhook/index.ts` |
 
-1. **`user_project_access` table** stores many-to-many mappings between users and projects. A single user can have rows for multiple projects.
-2. **`AssignProjectDialog`** (used by admins) allows selecting multiple projects per user via checkboxes, adding/removing access rows.
-3. **`ProjectSelector`** in the header lets every user switch between their assigned projects.
-4. **`ProjectContext`** persists the active project in localStorage and provides it to all pages.
-
-When a user switches projects via the selector, all pages (bugs, scenarios, test runs, insights) re-query using the new `currentProject.id`.
+### Gaps Identified
+1. **No digest/summary notifications** — Every event is instant; no daily rollups
+2. **No pending retest reminders** — QA not notified if fix awaits verification >24h
+3. **No pending assignment reminders** — Developer not reminded of unresolved bugs
+4. **No mobile number field** — `profiles` table lacks phone number
+5. **No WhatsApp channel** — All notifications are in-app only
+6. **No project-level notification settings** — Admin can't toggle WhatsApp per project
 
 ---
 
-## Audit Results: Data Isolation Per User Per Project
+## Proposed Architecture
 
-### What's Working Correctly
+### Phase 1: Database Schema Updates
 
-| Area | Isolation Method | Status |
-|------|-----------------|--------|
-| Bug creation (`CreateBug`) | Sets `project_id: currentProject.id` on insert | Correct |
-| Bug lists (List, Report, Closed, Pending) | `.eq("project_id", currentProject.id)` | Correct |
-| Bug detail/edit | Loads bug by ID; RLS enforces project access | Correct |
-| Test Scenario creation | Sets `project_id: currentProject.id` | Correct |
-| Test Scenario listing | `.eq("project_id", currentProject.id)` | Correct |
-| Test Run creation | Sets `project_id: currentProject.id` | Correct |
-| Test Run listing | `.eq("project_id", currentProject.id)` | Correct |
-| Features loading | `.eq("project_id", currentProject.id)` | Correct |
-| Coverage page | `.eq("project_id", currentProject.id)` | Correct |
-| Health Map | `.eq("project_id", currentProject.id)` | Correct |
-| Insights page | Fixed in previous session (bug_history + profiles scoped) | Correct |
-| RLS on all tables | Uses `has_project_access()` function | Correct |
-| DeveloperDashboard | Bugs filtered by `assigned_to` + `project_id` | Correct |
-| AdminQADashboard | All queries scoped by `project_id` with inner joins | Correct |
+**Add to `profiles` table:**
+- `phone_number` (text, nullable) — WhatsApp-enabled number with country code
+- `whatsapp_enabled` (boolean, default false) — User-level opt-in
 
-### One Issue Found: ProjectContext Fetches ALL Projects
+**Add to `projects` table:**
+- `whatsapp_notifications_enabled` (boolean, default false) — Project-level toggle
 
-**File:** `src/contexts/ProjectContext.tsx` (line 44)
-
-```typescript
-const res = await supabase.from("projects").select("*").order("created_at", { ascending: true });
+**New table: `notification_templates`:**
+```
+id, project_id, notification_type, whatsapp_template_name, is_enabled
 ```
 
-This fetches **all** projects from the database. For **admins**, this is fine because the `has_project_access` function grants admins access to all projects. For **non-admin users**, this still works because:
-- The RLS policy on the `projects` table is: `has_project_access(auth.uid(), id) OR has_role(auth.uid(), 'admin')`
-- So RLS automatically filters the result to only projects the user has access to
+### Phase 2: Enhanced Notification Types (Role-Based)
 
-**Verdict: This is actually safe.** RLS handles the filtering server-side. Non-admin users will only see their assigned projects in the selector. No code change needed.
+**For Developers:**
+- Bug assigned to you
+- Bug reopened (fix failed verification)
+- Daily digest: X bugs assigned, Y pending >24h
+
+**For QA Testers:**
+- Fix ready for verification (instant)
+- Daily reminder: X fixes awaiting your verification >24h
+- Test run completed summary
+
+**For Admins:**
+- Daily summary: X bugs reported, Y fixed, Z verified
+- Stale bugs alert (no activity >48h)
+- New user registration pending approval
+
+### Phase 3: WhatsApp Business API Integration
+
+**Edge Function: `send-whatsapp-notification`**
+- Accepts: `{ user_id, template_name, template_params }`
+- Checks: user has phone, user opted-in, project has WhatsApp enabled
+- Calls Meta Business API with approved template
+
+**Edge Function: `daily-notification-digest`**
+- Scheduled via pg_cron (e.g., 9:00 AM daily)
+- Queries pending retests, stale bugs, unassigned issues
+- Sends digest to relevant users (in-app + WhatsApp if enabled)
+
+### Phase 4: Registration & Admin UI Updates
+
+**Registration page:**
+- Add optional phone number field (with country code picker)
+- Add WhatsApp opt-in checkbox
+
+**Admin Dashboard:**
+- Toggle WhatsApp notifications per project
+- View/edit user phone numbers
+- Manage notification templates
+
+**User Profile:**
+- Update phone number
+- Toggle personal WhatsApp preference
 
 ---
 
-## Conclusion
+## Implementation Summary
 
-Your platform **fully supports** multi-project access for any user role. A developer or QA tester can be assigned to 2+ projects, switch between them via the project selector, and all data (bugs, scenarios, runs, analytics) is strictly isolated per project through:
+| Task | Type |
+|------|------|
+| Add `phone_number`, `whatsapp_enabled` to `profiles` | Migration |
+| Add `whatsapp_notifications_enabled` to `projects` | Migration |
+| Create `notification_templates` table | Migration |
+| Update Registration form with phone field | Frontend |
+| Create `send-whatsapp-notification` edge function | Backend |
+| Create `daily-notification-digest` edge function + cron | Backend |
+| Add project notification settings in Admin | Frontend |
+| Add user phone/WhatsApp settings in profile | Frontend |
+| Extend `createNotification` to optionally trigger WhatsApp | Lib |
 
-1. **Insert-time isolation** — every create operation stamps `project_id: currentProject.id`
-2. **Query-time isolation** — every list/fetch filters by `project_id`
-3. **RLS enforcement** — database-level policies prevent any cross-project access even if UI code has bugs
+---
 
-**No changes needed.** The multi-project architecture is solid and properly implemented.
+## Technical Notes
+
+- Meta Business API requires pre-approved message templates
+- Phone numbers must include country code (e.g., +91XXXXXXXXXX)
+- WhatsApp integration will use an edge function that calls the Meta API
+- API credentials will be stored as Supabase secrets (user provides later)
+- RLS policies on new tables follow existing patterns
 
