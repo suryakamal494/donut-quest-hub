@@ -188,7 +188,7 @@ export default function BugReport() {
       const { data, error, count } = await query.range(from, to);
 
       if (error) throw error;
-      const bugsData = (data || []) as BugType[];
+      const bugsData = (data || []) as unknown as BugType[];
       setBugs(bugsData);
       setTotalCount(count || 0);
       setSelected(new Set());
