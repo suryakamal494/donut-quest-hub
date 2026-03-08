@@ -107,8 +107,8 @@ export default function QADashboard() {
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
       setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
-      setFailedTests(failedResults as TestResult[]);
-      setAllResults(manualResults as TestResult[] || []);
+      setFailedTests(failedResults as unknown as TestResult[]);
+      setAllResults(manualResults as unknown as TestResult[] || []);
 
     } catch (error) {
       console.error("Error loading dashboard:", error);

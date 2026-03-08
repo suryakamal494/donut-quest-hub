@@ -102,7 +102,7 @@ export default function BugList() {
       ]);
 
       if (error) throw error;
-      const bugsData = (data || []) as BugType[];
+      const bugsData = (data || []) as unknown as BugType[];
       setBugs(bugsData);
       setTotalCount(count || 0);
 
