@@ -1,38 +1,37 @@
 
 
-# Template Management UI for WhatsApp Notifications
+## Pain Point Explanation
 
-## What We're Building
+You have correctly identified the issue. Here is the root cause:
 
-An admin UI component that lets admins view, create, edit, and toggle WhatsApp message templates per notification type and per project. This will be added to the Admin Dashboard below the existing WhatsApp Project Settings section.
+**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
 
-## Component: `NotificationTemplateManager`
+The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
 
-**Location:** `src/components/admin/NotificationTemplateManager.tsx`
+**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
 
-### Features
-- Lists all templates from `notification_templates` table grouped by project
-- Each row shows: notification type, WhatsApp template name, enabled/disabled toggle
-- "Add Template" dialog to create new templates (select project, notification type, enter Meta template name)
-- Delete button per template
-- Pre-seeded notification types derived from existing code: `test_run_completed`, `test_failed`, `bug_assigned`, `fix_ready`, `bug_reopened`, `daily_digest`
+## Implementation Plan
 
-### UI Layout
-- Card with header "Notification Templates"
-- Project filter dropdown (or "Global" for null project_id)
-- Table: Notification Type | Template Name | Enabled | Actions
-- Add Template button opens a Dialog with form fields:
-  - Project (select from projects list, or "Global")
-  - Notification Type (select from predefined list)
-  - WhatsApp Template Name (text input — must match Meta-approved template)
-  - Enabled toggle
+**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
 
-### Integration
-- Add the component to `AdminDashboard.tsx` between the WhatsApp Project Settings and Pending Approvals sections
-- Pass `projects` prop for the project selector
+This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
 
-### Technical Details
-- Uses `supabase.from("notification_templates")` for CRUD
-- RLS already configured: admins have full access, users have read access for their projects
-- No database changes needed — `notification_templates` table already exists with correct schema (`id`, `project_id`, `notification_type`, `whatsapp_template_name`, `is_enabled`, `created_at`, `updated_at`)
+### Changes to `src/pages/bugs/BugList.tsx`
+
+1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
+
+2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
+
+3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
+
+4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
+
+### Summary of the fix
+
+| Mode | Before | After |
+|------|--------|-------|
+| All (flat) | Server-side pagination, 25/page | No change |
+| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
+
+This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
 
