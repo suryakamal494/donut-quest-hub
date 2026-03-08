@@ -1,37 +1,79 @@
 
 
-## Pain Point Explanation
+# Performance Audit: Root Causes and Optimization Plan
 
-You have correctly identified the issue. Here is the root cause:
+## Root Causes Identified
 
-**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
+### 1. Waterfall (Sequential) Queries on Every Page Load
+Most pages fetch data in a **waterfall pattern** -- first bugs, then profiles, then reopen counts from `bug_history`. Each query waits for the previous one to finish.
 
-The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
+**Affected pages:** BugList, BugReport, PendingRetest, ClosedBugs, BugDetail
 
-**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
+```text
+BugList load sequence:
+  [bugs query]        ~200-500ms
+      ↓
+  [profiles query]    ~100-300ms
+      ↓
+  [bug_history query] ~100-300ms
+      ↓
+  [features query]    ~100-200ms (parallel useEffect, but still separate)
+  [aggregates query]  ~200-400ms (separate useEffect)
 
-## Implementation Plan
+Total: 700-1700ms per page load
+```
 
-**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
+**Fix:** Parallelize with `Promise.all`. Profiles + reopen counts + features can all be fetched simultaneously after the bugs query returns IDs.
 
-This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
+### 2. Duplicate Aggregate Query on BugList
+`BugList.tsx` runs **two separate queries** that both hit the `bugs` table:
+- Line 58-89: Main bugs query with `select("*", { count: "exact" })`
+- Line 194-198: Separate aggregate query fetching `severity, fix_status, login_type` for stats bar
 
-### Changes to `src/pages/bugs/BugList.tsx`
+The aggregate query re-runs on every filter change (line 217 dependency array), duplicating work the main query already does.
 
-1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
+**Fix:** Compute severity/login stats from the main query's `count` + the loaded page data, or combine into a single query.
 
-2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
+### 3. Unbounded `bug_history` Queries
+`AdminQADashboard.tsx` (line 107-111) fetches `bug_history` with an inner join on `bugs` but is **capped at 1000 rows** by default. As data grows, this becomes both slow and incomplete.
 
-3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
+Similarly, BugList/BugReport fetch reopen counts for each page of bugs -- this is fine per-page, but the `bug_history` table has no limit and could return thousands of rows if many bugs have been reopened multiple times.
 
-4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
+**Fix:** Add `.limit()` guards and consider a materialized reopen count column on the `bugs` table.
 
-### Summary of the fix
+### 4. `select("*")` Fetching All Columns
+Every bug list page uses `select("*")` which pulls **all 30+ columns** including `description`, `steps_to_reproduce`, `expected_behavior`, `actual_behavior`, `attachments` -- large text/array fields not needed for list views.
 
-| Mode | Before | After |
-|------|--------|-------|
-| All (flat) | Server-side pagination, 25/page | No change |
-| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
+**Fix:** Select only the columns needed for card/list rendering: `id, bug_code, title, severity, status, fix_status, bug_type, login_type, feature_id, assigned_to, reported_by, created_at, updated_at, sub_module, source`.
 
-This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
+### 5. QADashboard Fetches Up to 500 Test Results
+`QADashboard.tsx` (line 76-83) fetches up to **500 test_results** with joined `test_cases(*)` -- pulling full test case objects just to compute pass/fail counts.
+
+**Fix:** Select only needed columns (`id, status, fix_status, executed_at, test_case_id`) and compute counts server-side or with minimal columns.
+
+### 6. AdminQADashboard Loads All Profiles + All Bugs
+`AdminQADashboard.tsx` loads **all approved profiles**, **all project bugs**, and **all bug history** in one massive parallel call. As the project scales, this grows unbounded.
+
+**Fix:** Use aggregate queries or limit to recent data windows for performance stats.
+
+### 7. No Query Caching / React Query Underutilization
+The app uses `@tanstack/react-query` but **none of the pages use it**. Every page uses raw `useState` + `useEffect` + `supabase` calls, meaning:
+- No caching between page navigations
+- No stale-while-revalidate
+- Full reload on every page visit or back-navigation
+
+**Fix:** Migrate data fetching to `useQuery` hooks with appropriate `staleTime` and `gcTime`. This is the **single highest-impact change** -- users navigating between bugs list → bug detail → back would see instant loads.
+
+## Optimization Plan (Priority Order)
+
+| Priority | Change | Impact | Risk |
+|----------|--------|--------|------|
+| 1 | **Use React Query** for bug lists, features, profiles | Eliminates redundant fetches on navigation | Low -- additive change |
+| 2 | **Slim `select()` columns** on list pages | Reduces payload 60-80% | Low -- UI only uses listed fields |
+| 3 | **Parallelize** profile + history + feature queries | Cuts waterfall by 300-600ms | Low |
+| 4 | **Remove duplicate aggregate query** in BugList | Eliminates 1 extra DB round-trip per filter change | Low |
+| 5 | **Slim QADashboard** test_results select to needed columns only | Reduces payload significantly | Low |
+| 6 | **Add `reopen_count` column** to `bugs` table (incremented by trigger on `bug_history` insert) | Eliminates per-page history queries entirely | Medium -- requires migration |
+
+### No data is touched or compromised -- all changes are read-path optimizations only.
 
