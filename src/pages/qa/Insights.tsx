@@ -101,7 +101,7 @@ export default function Insights() {
         .from("test_runs")
         .select("id, executed_by, started_at")
         .eq("project_id", currentProject.id)
-        .gte("started_at", since30),
+        .gte("started_at", since),
     ]);
 
     setBugs((bugsRes.data as BugSlim[]) || []);
