@@ -64,14 +64,28 @@ export default function QADashboard() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const { data: allRunsData } = await supabase
-        .from("test_runs")
-        .select("*")
-        .eq("project_id", currentProject.id)
-        .gte("started_at", thirtyDaysAgo.toISOString())
-        .order("started_at", { ascending: false });
+      // Split: slim count query + limited display query (parallel)
+      const [{ count: totalRunsCount }, { count: inProgressRunsCount }, { data: recentRunsData }] = await Promise.all([
+        supabase
+          .from("test_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id)
+          .gte("started_at", thirtyDaysAgo.toISOString()),
+        supabase
+          .from("test_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id)
+          .eq("status", "in_progress"),
+        supabase
+          .from("test_runs")
+          .select("*")
+          .eq("project_id", currentProject.id)
+          .gte("started_at", thirtyDaysAgo.toISOString())
+          .order("started_at", { ascending: false })
+          .limit(5),
+      ]);
 
-      const inProgressRuns = allRunsData?.filter(r => r.status === "in_progress").length || 0;
+      const inProgressRuns = inProgressRunsCount || 0;
 
       const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
         supabase
@@ -101,12 +115,12 @@ export default function QADashboard() {
         smokeCount,
         intraLoginCount,
         interLoginCount,
-        totalRuns: allRunsData?.length || 0,
+        totalRuns: totalRunsCount || 0,
         inProgressRuns,
       });
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
-      setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
+      setRecentRuns((recentRunsData || []) as TestRun[]);
       setFailedTests(failedResults as unknown as TestResult[]);
       setAllResults(manualResults as unknown as TestResult[] || []);
 

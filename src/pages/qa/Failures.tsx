@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   AlertTriangle, Loader2, CheckCircle2, Clock, RefreshCw, Wrench,
-  ExternalLink, FolderKanban, ChevronDown, ChevronUp, Trash2
+  ExternalLink, FolderKanban, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { FailureThread, AttachmentGallery, SLABadge } from "@/components/qa";
 import { useFailures, type FilterTab } from "@/hooks/useFailures";
+import { PaginationInfo } from "@/components/bugs/PaginationInfo";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
 
 export default function Failures() {
@@ -30,6 +31,7 @@ export default function Failures() {
     selectedFailure, fixNote, setFixNote, submitting, role, user,
     getFilteredFailures, openMarkFixedDialog, handleMarkFixed, handleMarkVerified,
     loadFailures, unfixedCount, fixedCount, staleCount, overdueCount,
+    totalCount, page, setPage, totalPages, PAGE_SIZE,
   } = useFailures();
 
   const canDeleteFailure = (failure: any) => role === "admin" || user?.id === failure.executed_by;
@@ -74,14 +76,14 @@ export default function Failures() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Failures</h1>
-          <p className="text-muted-foreground">{failures.length} failed test{failures.length !== 1 ? "s" : ""} requiring attention</p>
+          <p className="text-muted-foreground">{totalCount} failed test{totalCount !== 1 ? "s" : ""} requiring attention</p>
         </div>
         <Button variant="outline" onClick={loadFailures}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="glass"><CardContent className="pt-4"><div className="text-2xl font-bold text-foreground">{failures.length}</div><p className="text-sm text-muted-foreground">Total Failures</p></CardContent></Card>
+        <Card className="glass"><CardContent className="pt-4"><div className="text-2xl font-bold text-foreground">{totalCount}</div><p className="text-sm text-muted-foreground">Total Failures</p></CardContent></Card>
         <Card className="glass border-red-200"><CardContent className="pt-4"><div className="text-2xl font-bold text-red-600">{unfixedCount}</div><p className="text-sm text-muted-foreground">Unfixed</p></CardContent></Card>
         <Card className="glass border-amber-200"><CardContent className="pt-4"><div className="text-2xl font-bold text-amber-600">{fixedCount}</div><p className="text-sm text-muted-foreground">Awaiting Re-test</p></CardContent></Card>
         <Card className="glass border-orange-200"><CardContent className="pt-4"><div className="text-2xl font-bold text-orange-600">{staleCount}</div><p className="text-sm text-muted-foreground">Stale (&gt;7 days)</p></CardContent></Card>
@@ -90,7 +92,7 @@ export default function Failures() {
       {/* Filter Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
         <TabsList className="grid w-full grid-cols-5 max-w-lg">
-          <TabsTrigger value="all">All ({failures.length})</TabsTrigger>
+          <TabsTrigger value="all">All ({totalCount})</TabsTrigger>
           <TabsTrigger value="unfixed">Unfixed ({unfixedCount})</TabsTrigger>
           <TabsTrigger value="fixed">Fixed ({fixedCount})</TabsTrigger>
           <TabsTrigger value="overdue" className="text-destructive">Overdue ({overdueCount})</TabsTrigger>
@@ -215,6 +217,24 @@ export default function Failures() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Pagination */}
+      <PaginationInfo page={page + 1} pageSize={PAGE_SIZE} totalCount={totalCount} label="failures" />
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page + 1} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 0}>
+              <ChevronLeft className="h-4 w-4 mr-1" />Previous
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
+              Next<ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Mark Fixed Dialog */}
       <Dialog open={fixDialogOpen} onOpenChange={setFixDialogOpen}>

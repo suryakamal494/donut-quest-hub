@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, RotateCcw, Wrench, Loader2 } from "lucide-react";
@@ -50,7 +50,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     });
   };
 
-  const handleMarkAsFixed = async () => {
+  const handleMarkAsFixed = useCallback(async () => {
     if (!user || !devResponse.trim()) {
       toast({ variant: "destructive", title: "Please add fix notes" });
       return;
@@ -85,9 +85,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, devResponse, bug, onUpdate, toast, fixStatus]);
 
-  const handleVerifyFix = async () => {
+  const handleVerifyFix = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -115,9 +115,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, bug, onUpdate, toast, fixStatus]);
 
-  const handleReopen = async () => {
+  const handleReopen = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -148,7 +148,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, bug, onUpdate, toast, fixStatus]);
 
   if (!canMarkFixed && !canVerify && !canReopen) return null;
 

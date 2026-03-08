@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,8 @@ export interface FailedTestWithDetails extends TestResult {
 
 export type FilterTab = "all" | "unfixed" | "fixed" | "stale" | "overdue";
 
+const PAGE_SIZE = 25;
+
 export function useFailures() {
   const { user, role } = useAuth();
   const { currentProject, isLoading: projectLoading } = useProject();
@@ -32,6 +34,13 @@ export function useFailures() {
   const [fixNote, setFixNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [currentUserName, setCurrentUserName] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  // Lightweight counts for tabs
+  const [unfixedCount, setUnfixedCount] = useState(0);
+  const [fixedCount, setFixedCount] = useState(0);
+  const [staleCount, setStaleCount] = useState(0);
+  const [overdueCount, setOverdueCount] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -41,19 +50,74 @@ export function useFailures() {
   }, [user]);
 
   useEffect(() => {
-    if (user && currentProject) loadFailures();
-  }, [user, currentProject]);
+    if (user && currentProject) {
+      loadFailures();
+      loadTabCounts();
+    }
+  }, [user, currentProject, page, activeTab]);
 
-  const loadFailures = async () => {
+  // Reset page when tab changes
+  useEffect(() => {
+    setPage(0);
+  }, [activeTab]);
+
+  const loadTabCounts = useCallback(async () => {
+    if (!currentProject) return;
+    const now = new Date();
+    const staleThreshold = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Parallel count queries — head:true means no rows returned, just count
+    const baseFilter = (q: any) => q
+      .from("test_results")
+      .select(`*, test_case:test_cases!inner(*, scenario:test_scenarios!inner(id, project_id))`, { count: "exact", head: true })
+      .eq("status", "fail")
+      .eq("test_case.scenario.project_id", currentProject.id);
+
+    const [unfixedRes, fixedRes, staleRes, overdueRes, totalRes] = await Promise.all([
+      baseFilter(supabase).or("fix_status.is.null,fix_status.eq.unfixed"),
+      baseFilter(supabase).eq("fix_status", "fixed"),
+      baseFilter(supabase).or("fix_status.is.null,fix_status.eq.unfixed").lt("executed_at", staleThreshold),
+      baseFilter(supabase).neq("fix_status", "verified").lt("due_date", now.toISOString()),
+      baseFilter(supabase), // total
+    ]);
+
+    setUnfixedCount(unfixedRes.count || 0);
+    setFixedCount(fixedRes.count || 0);
+    setStaleCount(staleRes.count || 0);
+    setOverdueCount(overdueRes.count || 0);
+    setTotalCount(totalRes.count || 0);
+  }, [currentProject]);
+
+  const loadFailures = useCallback(async () => {
     if (!currentProject) return;
     try {
       setLoading(true);
-      const { data: resultsData, error } = await supabase
+
+      let query = supabase
         .from("test_results")
-        .select(`*, test_case:test_cases!inner(*, scenario:test_scenarios!inner(id, name, scenario_code, project_id))`)
+        .select(`*, test_case:test_cases!inner(*, scenario:test_scenarios!inner(id, name, scenario_code, project_id))`, { count: "exact" })
         .eq("status", "fail")
         .eq("test_case.scenario.project_id", currentProject.id)
         .order("executed_at", { ascending: false });
+
+      // Apply tab-specific filters server-side
+      const now = new Date();
+      if (activeTab === "unfixed") {
+        query = query.or("fix_status.is.null,fix_status.eq.unfixed");
+      } else if (activeTab === "fixed") {
+        query = query.eq("fix_status", "fixed");
+      } else if (activeTab === "stale") {
+        const staleThreshold = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.or("fix_status.is.null,fix_status.eq.unfixed").lt("executed_at", staleThreshold);
+      } else if (activeTab === "overdue") {
+        query = query.neq("fix_status", "verified").lt("due_date", now.toISOString());
+      }
+
+      // Paginate
+      const from = page * PAGE_SIZE;
+      query = query.range(from, from + PAGE_SIZE - 1);
+
+      const { data: resultsData, error } = await query;
       if (error) throw error;
 
       const testerIds = [...new Set(resultsData?.map(r => r.executed_by).filter(Boolean) || [])];
@@ -77,23 +141,7 @@ export function useFailures() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getFilteredFailures = () => {
-    const now = new Date();
-    return failures.filter(f => {
-      const fixStatus = f.fix_status || "unfixed";
-      const daysSinceFailure = f.executed_at ? differenceInDays(now, new Date(f.executed_at)) : 0;
-      const isOverdue = f.due_date && new Date(f.due_date) < now && fixStatus !== "verified";
-      switch (activeTab) {
-        case "unfixed": return fixStatus === "unfixed";
-        case "fixed": return fixStatus === "fixed";
-        case "stale": return fixStatus === "unfixed" && daysSinceFailure > 7;
-        case "overdue": return isOverdue;
-        default: return true;
-      }
-    });
-  };
+  }, [currentProject, page, activeTab]);
 
   const toggleThread = (failureId: string) => {
     setExpandedThreads(prev => {
@@ -109,7 +157,7 @@ export function useFailures() {
     setFixDialogOpen(true);
   };
 
-  const handleMarkFixed = async () => {
+  const handleMarkFixed = useCallback(async () => {
     if (!selectedFailure || !fixNote.trim()) {
       toast.error("Please describe what was fixed");
       return;
@@ -122,7 +170,6 @@ export function useFailures() {
       }).eq("id", selectedFailure.id);
       if (error) throw error;
 
-      // ISSUE 2 FIX: Pass currentProject.id for data isolation
       if (selectedFailure.executed_by && selectedFailure.executed_by !== user?.id) {
         await notifyFixedForVerification(
           selectedFailure.executed_by,
@@ -136,39 +183,37 @@ export function useFailures() {
       toast.success("Marked as fixed! Re-testing is now required.");
       setFixDialogOpen(false);
       loadFailures();
+      loadTabCounts();
     } catch (error) {
       console.error("Error marking as fixed:", error);
       toast.error("Failed to update status");
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [selectedFailure, fixNote, user, currentUserName, currentProject, loadFailures, loadTabCounts]);
 
-  const handleMarkVerified = async (failure: FailedTestWithDetails) => {
+  const handleMarkVerified = useCallback(async (failure: FailedTestWithDetails) => {
     try {
       const { error } = await supabase.from("test_results").update({ fix_status: "verified" }).eq("id", failure.id);
       if (error) throw error;
       toast.success("Marked as verified!");
       loadFailures();
+      loadTabCounts();
     } catch (error) {
       console.error("Error marking as verified:", error);
       toast.error("Failed to update status");
     }
-  };
+  }, [loadFailures, loadTabCounts]);
 
-  const unfixedCount = failures.filter(f => !f.fix_status || f.fix_status === "unfixed").length;
-  const fixedCount = failures.filter(f => f.fix_status === "fixed").length;
-  const staleCount = failures.filter(f => {
-    const d = f.executed_at ? differenceInDays(new Date(), new Date(f.executed_at)) : 0;
-    return (!f.fix_status || f.fix_status === "unfixed") && d > 7;
-  }).length;
-  const overdueCount = failures.filter(f => f.due_date && new Date(f.due_date) < new Date() && f.fix_status !== "verified").length;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   return {
     loading, projectLoading, currentProject, failures, activeTab, setActiveTab,
     expandedThreads, toggleThread, fixDialogOpen, setFixDialogOpen,
     selectedFailure, fixNote, setFixNote, submitting, role, user,
-    getFilteredFailures, openMarkFixedDialog, handleMarkFixed, handleMarkVerified,
+    getFilteredFailures: () => failures, // already server-filtered
+    openMarkFixedDialog, handleMarkFixed, handleMarkVerified,
     loadFailures, unfixedCount, fixedCount, staleCount, overdueCount,
+    totalCount, page, setPage, totalPages, PAGE_SIZE,
   };
 }

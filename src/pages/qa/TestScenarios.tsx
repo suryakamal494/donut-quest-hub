@@ -80,11 +80,12 @@ export default function TestScenarios() {
         .eq("project_id", currentProject.id)
         .order("order_index");
 
-      // Lightweight query for tab counts (all scenarios, minimal fields)
+      // Lightweight query for tab counts — only the fields needed for counting
       const { data: metaData } = await supabase
         .from("test_scenarios")
         .select("id, scenario_type, login_types")
-        .eq("project_id", currentProject.id);
+        .eq("project_id", currentProject.id)
+        .limit(5000);
 
       setAllScenariosMeta(metaData || []);
 

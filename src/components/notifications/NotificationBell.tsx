@@ -101,7 +101,7 @@ export function NotificationBell() {
 
       if (error) throw error;
       setNotifications(data || []);
-      setUnreadCount((data || []).filter((n) => !n.is_read).length);
+      // Don't overwrite unreadCount — the initial head:true query + realtime is more accurate
     } catch (error) {
       console.error("Error loading notifications:", error);
     } finally {
