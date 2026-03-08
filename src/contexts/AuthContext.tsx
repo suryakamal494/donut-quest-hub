@@ -160,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -169,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           emailRedirectTo: window.location.origin,
           data: {
             full_name: fullName,
+            phone_number: phoneNumber || null,
           },
         },
       });
