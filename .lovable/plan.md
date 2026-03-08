@@ -1,67 +1,37 @@
 
 
-# Bug Resolution Analytics -- CEO Insights Page
+## Pain Point Explanation
 
-## What You Already Have (and What's Missing)
+You have correctly identified the issue. Here is the root cause:
 
-**Currently available:**
-- Daily activity tracking (bugs reported, retests, reopened per day)
-- Developer performance table (assigned/open/resolved/avg time) -- snapshot only
-- Weekly bug creation trend chart (7 days)
-- Per-developer reopened count -- but just a number, no trend
+**Server-side pagination + client-side grouping = inconsistent "Others" counts per page.**
 
-**What's missing (what you're asking for):**
-1. **Resolution velocity over time** -- are bugs getting fixed faster or slower week over week?
-2. **Bug backlog trend** -- is the open bug count growing or shrinking? Are we creating bugs faster than resolving them?
-3. **Reopen rate per developer** -- not just a count, but a percentage that shows fix quality
-4. **Bug aging analysis** -- how many bugs have been open for 1 day, 3 days, 7 days, 30+ days?
-5. **QA vs Dev cycle time** -- how long from "bug reported" to "dev marks fixed" vs "fixed" to "QA verifies"
-6. **Team effectiveness scorecard** -- a single view that answers "is my team getting better or worse?"
+The database returns 25 bugs per page (sorted by `updated_at`). The client then groups those 25 bugs by feature. Bugs that don't match any known feature fall into "Others." Since the 25-bug slice is different on each page, the "Others" group gets a random subset on each page -- 2 on page 1, 10 on page 2, 5 on page 3. This is expected behavior given the current architecture, but it creates a confusing UX.
 
-## Proposal: New "Insights" Page
+**The core conflict**: Pagination is server-side (good for performance), but feature grouping is client-side (happens after the page slice). These two operations don't compose well together.
 
-A dedicated `/qa/insights` page accessible from the sidebar, focused on **trend-based analytics** (not daily snapshots). All data derived from existing `bugs`, `bug_history`, and `test_runs` tables -- no schema changes needed.
+## Implementation Plan
 
-### Sections
+**Solution**: When a login type is selected (grouped view), **remove server-side pagination and load ALL bugs for that login type at once**, then group and paginate client-side by feature groups.
 
-**1. Bug Backlog Trend (Line Chart, 30 days)**
-- Two lines: "Bugs Opened" vs "Bugs Resolved" per day
-- Shows whether you're gaining ground or falling behind
-- Net change indicator: "+12 this month" or "-8 this month"
+This works because the login-type filter already narrows the dataset significantly (e.g., 66 Institute bugs), which is well within browser capacity.
 
-**2. Resolution Speed Trend (Bar Chart, 4 weeks)**
-- Average hours from `created_at` to `resolved_at` per week
-- Instant view of whether devs are getting faster or slower
-- Color-coded: green if improving, red if degrading
+### Changes to `src/pages/bugs/BugList.tsx`
 
-**3. Bug Aging Breakdown (Horizontal Bar)**
-- Buckets: <1 day, 1-3 days, 3-7 days, 7-14 days, 14-30 days, 30+ days
-- Shows distribution of currently open bugs by age
-- Highlights the "30+ days" bucket in red as stale
+1. **When `loginTypeFilter !== "all"` (grouped mode)**: Remove the `.range(from, to)` call -- fetch all matching bugs in one query (no server pagination).
 
-**4. Developer Effectiveness Table**
-- Per developer: Assigned, Resolved, Resolution Rate %, Avg Fix Time, Reopen Rate %
-- Reopen rate = (reopen_count sum / resolved count) * 100
-- Color-coded cells: green for good rates, red for concerning ones
-- Sortable columns
+2. **Disable the pagination UI** when in grouped mode, since all bugs are loaded and grouped correctly.
 
-**5. QA Team Productivity Table**
-- Per QA tester: Bugs Reported (30d), Test Runs (30d), Retests Done, Reopened Count
-- Shows who is actively testing and finding issues
+3. **Optionally add client-side pagination** within each feature group if groups get large, but for now showing all bugs under their correct feature group solves the immediate problem.
 
-**6. Cycle Time Breakdown (Optional)**
-- Average time per phase: Report → Assign → Fix → Verify → Close
-- Identifies bottlenecks in the workflow
+4. **When `loginTypeFilter === "all"` (flat mode)**: Keep current server-side pagination as-is (no change).
 
-### Technical Approach
+### Summary of the fix
 
-**Data source:** All computed from `bugs` table columns (`created_at`, `resolved_at`, `status`, `assigned_to`, `reopen_count`) plus `bug_history` for phase transitions. No new tables or migrations needed.
+| Mode | Before | After |
+|------|--------|-------|
+| All (flat) | Server-side pagination, 25/page | No change |
+| Login type (grouped) | Server-side pagination, grouping on partial data | Fetch all, group correctly, no pagination or client-side pagination |
 
-**Files to create/modify:**
-1. **`src/pages/qa/Insights.tsx`** -- New page with all 5-6 sections
-2. **`src/components/qa/layout/QASidebar.tsx`** -- Add "Insights" nav item with `BarChart3` icon
-3. **`src/components/qa/layout/QABottomNav.tsx`** -- Add mobile nav entry
-4. **`src/App.tsx`** -- Add lazy route `/qa/insights`
-
-**Performance:** Uses slim selects (only needed columns), 30-day data window, parallelized queries.
+This is a minimal, targeted fix: one conditional in `loadBugs` to skip `.range()` when grouped, and hide pagination in grouped mode.
 

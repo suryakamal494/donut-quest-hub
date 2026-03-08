@@ -42,6 +42,7 @@ const AutomationDashboard = lazy(() => import("./pages/qa/AutomationDashboard"))
 const AutomationBugs = lazy(() => import("./pages/qa/AutomationBugs"));
 const AutomationTestRuns = lazy(() => import("./pages/qa/AutomationTestRuns"));
 const HealthMap = lazy(() => import("./pages/qa/HealthMap"));
+const Insights = lazy(() => import("./pages/qa/Insights"));
 const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
@@ -125,6 +126,7 @@ const App = () => (
                 <Route path="automation/runs" element={<AutomationGuard><AutomationTestRuns /></AutomationGuard>} />
                 <Route path="coverage" element={<Coverage />} />
                 <Route path="health-map" element={<HealthMap />} />
+                <Route path="insights" element={<Insights />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
               </Route>
 

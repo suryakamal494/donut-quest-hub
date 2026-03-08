@@ -11,7 +11,8 @@ import {
   RotateCcw,
   Zap,
   X,
-  BookOpen
+  BookOpen,
+  LineChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +91,12 @@ const moreNavItems = [
     href: "/qa/coverage",
     icon: BarChart3,
     description: "Test coverage analytics",
+  },
+  {
+    title: "Insights",
+    href: "/qa/insights",
+    icon: LineChart,
+    description: "Bug resolution analytics & team effectiveness",
   },
 ];
 
