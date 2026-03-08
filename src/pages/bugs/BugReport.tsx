@@ -159,7 +159,7 @@ export default function BugReport() {
 
       let query = supabase
         .from("bugs")
-        .select("*", { count: "exact" })
+        .select("id, bug_code, title, severity, status, fix_status, bug_type, login_type, feature_id, assigned_to, reported_by, created_at, updated_at, resolved_at, sub_module, source, description, reopen_count", { count: "exact" })
         .eq("project_id", currentProject.id);
 
       // Status view filter
@@ -188,7 +188,7 @@ export default function BugReport() {
       const { data, error, count } = await query.range(from, to);
 
       if (error) throw error;
-      const bugsData = (data || []) as BugType[];
+      const bugsData = (data || []) as unknown as BugType[];
       setBugs(bugsData);
       setTotalCount(count || 0);
       setSelected(new Set());

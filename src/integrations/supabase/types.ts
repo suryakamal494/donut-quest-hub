@@ -381,6 +381,7 @@ export type Database = {
           id: string
           login_type: Database["public"]["Enums"]["login_type"] | null
           project_id: string | null
+          reopen_count: number
           reopened_by: string | null
           reported_by: string | null
           resolution_notes: string | null
@@ -419,6 +420,7 @@ export type Database = {
           id?: string
           login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
+          reopen_count?: number
           reopened_by?: string | null
           reported_by?: string | null
           resolution_notes?: string | null
@@ -457,6 +459,7 @@ export type Database = {
           id?: string
           login_type?: Database["public"]["Enums"]["login_type"] | null
           project_id?: string | null
+          reopen_count?: number
           reopened_by?: string | null
           reported_by?: string | null
           resolution_notes?: string | null

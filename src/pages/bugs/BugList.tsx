@@ -25,6 +25,9 @@ import { LoginTypeBadge } from "@/components/qa/badges/LoginTypeBadge";
 
 const PAGE_SIZE = 25;
 
+// Slim columns for list view — avoid large text fields
+const BUG_LIST_COLUMNS = "id, bug_code, title, severity, status, fix_status, bug_type, login_type, feature_id, assigned_to, reported_by, created_at, updated_at, sub_module, source, external_reporter_name, reopened_by, reopen_count";
+
 export default function BugList() {
   const { user } = useAuth();
   const { currentProject } = useProject();
@@ -40,8 +43,12 @@ export default function BugList() {
   const [fixStatusFilter, setFixStatusFilter] = useState<string>("all");
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   const [reporterNames, setReporterNames] = useState<Record<string, string>>({});
-  const [reopenCounts, setReopenCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
+
+  // Aggregate stats derived from a single lightweight query
+  const [severityStats, setSeverityStats] = useState<Record<string, number>>({});
+  const [loginCounts, setLoginCounts] = useState<Record<string, number>>({});
+  const [reopenedCount, setReopenedCount] = useState(0);
 
   useEffect(() => {
     if (user && currentProject) {
@@ -55,45 +62,66 @@ export default function BugList() {
     try {
       setLoading(true);
 
-      let query = supabase
-        .from("bugs")
-        .select("*", { count: "exact" })
-        .eq("project_id", currentProject.id)
-        .in("status", ["open", "in_progress"]);
+      // Build base filter for both main query and aggregates
+      const buildBaseQuery = (selectExpr: string, opts?: { count?: "exact" }) => {
+        let q = supabase
+          .from("bugs")
+          .select(selectExpr, opts ? { count: opts.count } : undefined)
+          .eq("project_id", currentProject.id)
+          .in("status", ["open", "in_progress"]);
+        if (severityFilter !== "all") q = q.eq("severity", severityFilter as any);
+        if (bugTypeFilter !== "all") q = q.eq("bug_type", bugTypeFilter as any);
+        if (loginTypeFilter !== "all") q = q.eq("login_type", loginTypeFilter as any);
+        if (assignedFilter === "mine" && user) q = q.eq("assigned_to", user.id);
+        if (assignedFilter === "unassigned") q = q.is("assigned_to", null);
+        if (fixStatusFilter !== "all") q = q.eq("fix_status", fixStatusFilter);
+        if (search) {
+          q = q.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
+        }
+        return q;
+      };
 
-      // Apply server-side filters
-      if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);
-      if (bugTypeFilter !== "all") query = query.eq("bug_type", bugTypeFilter as any);
-      if (loginTypeFilter !== "all") query = query.eq("login_type", loginTypeFilter as any);
-      if (assignedFilter === "mine" && user) query = query.eq("assigned_to", user.id);
-      if (assignedFilter === "unassigned") query = query.is("assigned_to", null);
-      if (fixStatusFilter !== "all") query = query.eq("fix_status", fixStatusFilter);
-
-      // Search filter (ilike on title and bug_code)
-      if (search) {
-        query = query.or(`title.ilike.%${search}%,bug_code.ilike.%${search}%,description.ilike.%${search}%,sub_module.ilike.%${search}%`);
-      }
-
-      // In grouped mode (login type selected), fetch ALL bugs to group correctly
-      // In flat mode, use server-side pagination
       const isGroupedMode = loginTypeFilter !== "all";
 
-      let finalQuery = query.order("updated_at", { ascending: false });
+      // Run main query and aggregate query in parallel
+      let mainQuery = buildBaseQuery(BUG_LIST_COLUMNS, { count: "exact" })
+        .order("updated_at", { ascending: false });
 
       if (!isGroupedMode) {
         const from = (page - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        finalQuery = finalQuery.range(from, to);
+        mainQuery = mainQuery.range(from, to);
       }
 
-      const { data, error, count } = await finalQuery;
+      // Aggregate query: only severity, fix_status, login_type (lightweight)
+      const aggQuery = buildBaseQuery("severity, fix_status, login_type");
+
+      const [{ data, error, count }, { data: aggData }] = await Promise.all([
+        mainQuery,
+        aggQuery,
+      ]);
 
       if (error) throw error;
-      const bugsData = (data || []) as BugType[];
+      const bugsData = (data || []) as unknown as BugType[];
       setBugs(bugsData);
       setTotalCount(count || 0);
 
-      // Fetch reporter + reopener names
+      // Compute aggregates from aggData
+      const sevCounts: Record<string, number> = {};
+      const ltCounts: Record<string, number> = { all: 0 };
+      let reopened = 0;
+      (aggData || []).forEach((b: any) => {
+        sevCounts[b.severity] = (sevCounts[b.severity] || 0) + 1;
+        if (b.fix_status === "reopened") reopened++;
+        const lt = b.login_type || "unknown";
+        ltCounts[lt] = (ltCounts[lt] || 0) + 1;
+        ltCounts.all++;
+      });
+      setSeverityStats(sevCounts);
+      setReopenedCount(reopened);
+      setLoginCounts(ltCounts);
+
+      // Fetch reporter names in parallel (no waterfall)
       const userIds = [...new Set([
         ...bugsData.map(b => b.reported_by).filter(Boolean),
         ...bugsData.map(b => (b as any).reopened_by).filter(Boolean),
@@ -108,21 +136,7 @@ export default function BugList() {
         setReporterNames(nameMap);
       }
 
-      // Fetch reopen counts from bug_history
-      const bugIds = bugsData.map(b => b.id);
-      if (bugIds.length > 0) {
-        const { data: historyData } = await supabase
-          .from("bug_history")
-          .select("bug_id")
-          .in("bug_id", bugIds)
-          .eq("field_changed", "fix_status")
-          .eq("new_value", "reopened");
-        const counts: Record<string, number> = {};
-        (historyData || []).forEach(h => {
-          counts[h.bug_id] = (counts[h.bug_id] || 0) + 1;
-        });
-        setReopenCounts(counts);
-      }
+      // reopen_count is now a column on bugs — no separate bug_history query needed
     } catch (error) {
       console.error("Error loading bugs:", error);
     } finally {
@@ -134,7 +148,7 @@ export default function BugList() {
     if (!currentProject) return;
     const { data } = await supabase
       .from("features")
-      .select("*")
+      .select("id, name, login_type, order_index")
       .eq("project_id", currentProject.id)
       .order("order_index");
     setFeatures((data || []) as Feature[]);
@@ -152,7 +166,6 @@ export default function BugList() {
     loginFeatures.forEach(f => {
       groups[f.id] = { feature: f, bugs: [] };
     });
-    // Find the "Others" feature for this login type (same logic as HealthMap)
     const othersFeature = loginFeatures.find(f => f.name === "Others");
     groups["uncategorized"] = { feature: othersFeature || null, bugs: [] };
 
@@ -181,40 +194,6 @@ export default function BugList() {
       return next;
     });
   };
-
-  // Server-side severity stats for BugStatsBar
-  const [severityStats, setSeverityStats] = useState<Record<string, number>>({});
-  const [loginCounts, setLoginCounts] = useState<Record<string, number>>({});
-  const [reopenedCount, setReopenedCount] = useState(0);
-
-  useEffect(() => {
-    if (!currentProject) return;
-    const fetchAggregates = async () => {
-      // Single query for all aggregate data
-      const { data: aggData } = await supabase
-        .from("bugs")
-        .select("severity, fix_status, login_type")
-        .eq("project_id", currentProject.id)
-        .in("status", ["open", "in_progress"]);
-
-      const sevCounts: Record<string, number> = {};
-      const ltCounts: Record<string, number> = { all: 0 };
-      let reopened = 0;
-
-      (aggData || []).forEach((b: any) => {
-        sevCounts[b.severity] = (sevCounts[b.severity] || 0) + 1;
-        if (b.fix_status === "reopened") reopened++;
-        const lt = b.login_type || "unknown";
-        ltCounts[lt] = (ltCounts[lt] || 0) + 1;
-        ltCounts.all++;
-      });
-
-      setSeverityStats(sevCounts);
-      setReopenedCount(reopened);
-      setLoginCounts(ltCounts);
-    };
-    fetchAggregates();
-  }, [currentProject, severityFilter, bugTypeFilter, loginTypeFilter, assignedFilter, fixStatusFilter, search]);
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
@@ -489,9 +468,9 @@ export default function BugList() {
                                 {bug.title}
                               </span>
                               {bug.login_type && <LoginTypeBadge type={bug.login_type as LoginType} size="sm" />}
-                              {reopenCounts[bug.id] > 0 && (
+                              {(bug as any).reopen_count > 0 && (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300 dark:border-orange-700 animate-pulse">
-                                  🔄 {reopenCounts[bug.id]}x Reopened
+                                  🔄 {(bug as any).reopen_count}x Reopened
                                 </span>
                               )}
                             </div>
@@ -545,7 +524,7 @@ export default function BugList() {
               bug.fix_status === "reopened" ? "border-l-orange-500" : "border-l-transparent"
             )}>
               <CardContent className="p-3">
-                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} reopenCount={reopenCounts[bug.id]} />
+                <BugCard bug={bug} reporterNames={reporterNames} onFixed={loadBugs} reopenCount={(bug as any).reopen_count} />
               </CardContent>
             </Card>
           ))}
