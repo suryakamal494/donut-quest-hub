@@ -87,16 +87,21 @@ export default function Insights() {
     setLoading(true);
     const since = subDays(new Date(), rangeDays).toISOString();
 
-    const [bugsRes, historyRes, profilesRes, runsRes] = await Promise.all([
+    const [bugsRes, historyRes, accessRes, runsRes] = await Promise.all([
       supabase
         .from("bugs")
         .select("id, created_at, resolved_at, status, assigned_to, reopen_count, fix_status, verified_at")
-        .eq("project_id", currentProject.id),
+        .eq("project_id", currentProject.id)
+        .gte("created_at", since),
       supabase
         .from("bug_history")
-        .select("bug_id, field_changed, old_value, new_value, created_at, changed_by")
+        .select("bug_id, field_changed, old_value, new_value, created_at, changed_by, bugs!inner(project_id)")
+        .eq("bugs.project_id", currentProject.id)
         .gte("created_at", since),
-      supabase.from("profiles").select("user_id, full_name"),
+      supabase
+        .from("user_project_access")
+        .select("user_id")
+        .eq("project_id", currentProject.id),
       supabase
         .from("test_runs")
         .select("id, executed_by, started_at")
@@ -104,9 +109,20 @@ export default function Insights() {
         .gte("started_at", since),
     ]);
 
+    // Get project member user IDs, then fetch only their profiles
+    const memberIds = (accessRes.data || []).map(a => a.user_id);
+    let projectProfiles: ProfileSlim[] = [];
+    if (memberIds.length > 0) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", memberIds);
+      projectProfiles = (data as ProfileSlim[]) || [];
+    }
+
     setBugs((bugsRes.data as BugSlim[]) || []);
-    setHistory((historyRes.data as HistorySlim[]) || []);
-    setProfiles((profilesRes.data as ProfileSlim[]) || []);
+    setHistory(((historyRes.data as any[]) || []).map(({ bugs: _, ...rest }) => rest) as HistorySlim[]);
+    setProfiles(projectProfiles);
     setRuns((runsRes.data as RunSlim[]) || []);
     setLoading(false);
   }, [currentProject, rangeDays]);
