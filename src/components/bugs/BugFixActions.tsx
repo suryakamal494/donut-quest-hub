@@ -85,9 +85,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, devResponse, bug, onUpdate, toast, fixStatus]);
 
-  const handleVerifyFix = async () => {
+  const handleVerifyFix = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
