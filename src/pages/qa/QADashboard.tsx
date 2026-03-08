@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { 
   Plus, 
@@ -10,9 +9,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
-import { useProject } from "@/contexts/ProjectContext";
-import { supabase } from "@/integrations/supabase/client";
 import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
@@ -20,122 +16,21 @@ import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
 import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 import { AdminQADashboard } from "@/components/dashboard/AdminQADashboard";
-import type { TestScenario, TestRun, TestResult } from "@/types/qa";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useQADashboard } from "@/hooks/useQADashboard";
+import { Badge } from "@/components/ui/badge";
 
 export default function QADashboard() {
-  const { user, role } = useAuth();
-  const { currentProject, isLoading: projectLoading } = useProject();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalScenarios: 0,
-    smokeCount: 0,
-    intraLoginCount: 0,
-    interLoginCount: 0,
-    totalRuns: 0,
-    inProgressRuns: 0,
-  });
-  const [recentScenarios, setRecentScenarios] = useState<TestScenario[]>([]);
-  const [recentRuns, setRecentRuns] = useState<TestRun[]>([]);
-  const [failedTests, setFailedTests] = useState<TestResult[]>([]);
-  const [allResults, setAllResults] = useState<TestResult[]>([]);
-
-  const loadDashboardData = useCallback(async () => {
-    if (!currentProject) return;
-    
-    try {
-      setLoading(true);
-
-      const { data: scenarios } = await supabase
-        .from("test_scenarios")
-        .select("id, scenario_type")
-        .eq("project_id", currentProject.id);
-
-      const smokeCount = scenarios?.filter(s => s.scenario_type === "smoke").length || 0;
-      const intraLoginCount = scenarios?.filter(s => s.scenario_type === "intra_login").length || 0;
-      const interLoginCount = scenarios?.filter(s => s.scenario_type === "inter_login").length || 0;
-
-      const { data: recentScenariosData } = await supabase
-        .from("test_scenarios")
-        .select("*")
-        .eq("project_id", currentProject.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      // Split: slim count query + limited display query (parallel)
-      const [{ count: totalRunsCount }, { count: inProgressRunsCount }, { data: recentRunsData }] = await Promise.all([
-        supabase
-          .from("test_runs")
-          .select("id", { count: "exact", head: true })
-          .eq("project_id", currentProject.id)
-          .gte("started_at", thirtyDaysAgo.toISOString()),
-        supabase
-          .from("test_runs")
-          .select("id", { count: "exact", head: true })
-          .eq("project_id", currentProject.id)
-          .eq("status", "in_progress"),
-        supabase
-          .from("test_runs")
-          .select("*")
-          .eq("project_id", currentProject.id)
-          .gte("started_at", thirtyDaysAgo.toISOString())
-          .order("started_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      const inProgressRuns = inProgressRunsCount || 0;
-
-      const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
-        supabase
-          .from("test_results")
-          .select("id, status, fix_status, executed_at, test_case_id, test_runs!inner(project_id)")
-          .eq("test_runs.project_id", currentProject.id)
-          .gte("executed_at", thirtyDaysAgo.toISOString())
-          .order("executed_at", { ascending: false })
-          .limit(500),
-        supabase
-          .from("automation_results")
-          .select("test_result_id, automation_runs!inner(project_id)")
-          .eq("automation_runs.project_id", currentProject.id)
-      ]);
-
-      // Exclude automation-generated results from dashboard metrics
-      const automationResultIds = new Set(
-        (automationResultsData || [])
-          .map(ar => ar.test_result_id)
-          .filter(Boolean)
-      );
-      const manualResults = (allResultsData || []).filter(r => !automationResultIds.has(r.id));
-      const failedResults = manualResults.filter(r => r.status === "fail");
-
-      setStats({
-        totalScenarios: scenarios?.length || 0,
-        smokeCount,
-        intraLoginCount,
-        interLoginCount,
-        totalRuns: totalRunsCount || 0,
-        inProgressRuns,
-      });
-
-      setRecentScenarios(recentScenariosData as TestScenario[] || []);
-      setRecentRuns((recentRunsData || []) as TestRun[]);
-      setFailedTests(failedResults as unknown as TestResult[]);
-      setAllResults(manualResults as unknown as TestResult[] || []);
-
-    } catch (error) {
-      console.error("Error loading dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentProject]);
-
-  useEffect(() => {
-    if (user && currentProject && role !== "developer" && role !== "admin") {
-      loadDashboardData();
-    }
-  }, [user, currentProject, role, loadDashboardData]);
+  const {
+    loading,
+    stats,
+    recentScenarios,
+    recentRuns,
+    failedTests,
+    allResults,
+    currentProject,
+    role,
+  } = useQADashboard();
 
   // Developer gets their own dashboard
   if (role === "developer") {
@@ -147,10 +42,31 @@ export default function QADashboard() {
     return <AdminQADashboard />;
   }
 
-  if (loading || projectLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="glass">
+              <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
+              <CardContent><Skeleton className="h-9 w-12 mb-1" /><Skeleton className="h-3.5 w-20" /></CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Skeleton className="h-[200px] rounded-lg" />
+          <Skeleton className="h-[200px] rounded-lg" />
+        </div>
       </div>
     );
   }
@@ -168,6 +84,10 @@ export default function QADashboard() {
       </Card>
     );
   }
+
+  const passRate = allResults.length > 0
+    ? Math.round((allResults.filter(r => r.status === "pass").length / allResults.length) * 100)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -207,15 +127,15 @@ export default function QADashboard() {
           <CardContent>
             <div className="text-3xl font-bold text-foreground">{stats.totalScenarios}</div>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded">
+              <Badge variant="secondary" className="text-xs">
                 {stats.smokeCount} Smoke
-              </span>
-              <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded">
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
                 {stats.intraLoginCount} Intra
-              </span>
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
                 {stats.interLoginCount} Inter
-              </span>
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -253,10 +173,10 @@ export default function QADashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {allResults.length > 0 ? (
+            {passRate !== null ? (
               <>
-                <div className="text-3xl font-bold text-emerald-600">
-                  {Math.round((allResults.filter(r => r.status === "pass").length / allResults.length) * 100)}%
+                <div className="text-3xl font-bold text-success">
+                  {passRate}%
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
                   {allResults.filter(r => r.status === "pass").length} / {allResults.length} tests
@@ -278,7 +198,7 @@ export default function QADashboard() {
         <CoverageSummaryWidget />
       </div>
 
-      {/* Stale Failures Alert (Admin/Developer only) */}
+      {/* Stale Failures Alert */}
       <StaleFailuresAlert />
 
       {/* Failed Tests Reminder */}
@@ -286,7 +206,6 @@ export default function QADashboard() {
 
       {/* Today's Testing Activity */}
       <TodayActivityPanel />
-
 
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-2 gap-6">
@@ -373,15 +292,12 @@ export default function QADashboard() {
                           {run.run_code} • {new Date(run.started_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        run.status === 'completed' 
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : run.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {run.status === 'in_progress' ? 'In Progress' : run.status}
-                      </span>
+                      <Badge
+                        variant={run.status === "completed" ? "default" : "secondary"}
+                        className="shrink-0 text-xs"
+                      >
+                        {run.status === "in_progress" ? "In Progress" : run.status}
+                      </Badge>
                     </div>
                   </Link>
                 ))}

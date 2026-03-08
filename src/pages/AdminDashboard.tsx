@@ -1,9 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { ClearTestDataDialog } from "@/components/qa/ClearTestDataDialog";
 import { CreateProjectDialog, AssignProjectDialog } from "@/components/projects";
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
@@ -12,85 +9,32 @@ import { UserListSection } from "@/components/admin/UserListSection";
 import { WhatsAppProjectSettings } from "@/components/admin/WhatsAppProjectSettings";
 import { NotificationTemplateManager } from "@/components/admin/NotificationTemplateManager";
 import {
-  LogOut, ClipboardCheck, Loader2,
+  LogOut, ClipboardCheck,
   TestTube2, PlayCircle, BarChart3, Settings,
   FolderKanban, Plus, FolderOpen, Key,
 } from "lucide-react";
-import type { Project } from "@/types/project";
-
-interface ProjectWithWhatsApp extends Project {
-  whatsapp_notifications_enabled: boolean;
-}
-
-interface UserProfile {
-  id: string;
-  user_id: string;
-  full_name: string;
-  email: string;
-  approval_status: "pending" | "approved" | "rejected";
-  automation_enabled: boolean;
-  docs_enabled: boolean;
-  created_at: string;
-}
+import { useAdminDashboard, type UserProfile } from "@/hooks/useAdminDashboard";
 
 const AdminDashboard: React.FC = () => {
-  const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const {
+    profile,
+    signOut,
+    projects,
+    userProjectCounts,
+    isLoading,
+    actionLoading,
+    pendingUsers,
+    approvedUsers,
+    rejectedUsers,
+    users,
+    handleApproval,
+    loadAllData,
+    fetchProjects,
+  } = useAdminDashboard();
 
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [projects, setProjects] = useState<ProjectWithWhatsApp[]>([]);
-  const [userProjectCounts, setUserProjectCounts] = useState<Map<string, number>>(new Map());
-  const [isLoading, setIsLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [assignProjectUser, setAssignProjectUser] = useState<UserProfile | null>(null);
-
-  const fetchUsers = async () => {
-    try {
-      const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-      if (error) { toast({ variant: "destructive", title: "Error", description: "Failed to load users" }); return; }
-      setUsers(data || []);
-    } catch (error) { console.error("Error:", error); } finally { setIsLoading(false); }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const { data } = await supabase.from("projects").select("*").order("created_at");
-      setProjects((data || []) as ProjectWithWhatsApp[]);
-    } catch (error) { console.error("Error:", error); }
-  };
-
-  const fetchUserProjectCounts = async () => {
-    try {
-      const { data } = await supabase.from("user_project_access").select("user_id, project_id");
-      const counts = new Map<string, number>();
-      (data || []).forEach(access => { counts.set(access.user_id, (counts.get(access.user_id) || 0) + 1); });
-      setUserProjectCounts(counts);
-    } catch (error) { console.error("Error:", error); }
-  };
-
-  const loadAllData = async () => {
-    setIsLoading(true);
-    await Promise.all([fetchUsers(), fetchProjects(), fetchUserProjectCounts()]);
-    setIsLoading(false);
-  };
-
-  useEffect(() => { loadAllData(); }, []);
-
-  const handleApproval = async (userId: string, newStatus: "approved" | "rejected") => {
-    setActionLoading(userId);
-    try {
-      const { error } = await supabase.from("profiles").update({ approval_status: newStatus }).eq("user_id", userId);
-      if (error) { toast({ variant: "destructive", title: "Error", description: "Failed to update user status" }); return; }
-      toast({ title: "Success", description: `User has been ${newStatus}` });
-      fetchUsers();
-    } catch (error) { console.error("Error:", error); } finally { setActionLoading(null); }
-  };
-
-  const pendingUsers = users.filter(u => u.approval_status === "pending");
-  const approvedUsers = users.filter(u => u.approval_status === "approved");
-  const rejectedUsers = users.filter(u => u.approval_status === "rejected");
 
   return (
     <div className="min-h-screen bg-gradient-warm">

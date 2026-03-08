@@ -1,144 +1,57 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Bug, CheckCircle2, Clock, AlertTriangle, ArrowRight, FolderKanban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
-import { useProject } from "@/contexts/ProjectContext";
-import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   BUG_SEVERITY_COLORS,
   BUG_STATUS_LABELS,
   BUG_FIX_STATUS_LABELS,
   BUG_FIX_STATUS_COLORS,
 } from "@/types/bugs";
-import type { Bug as BugType } from "@/types/bugs";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-
-interface BugStats {
-  open: number;
-  in_progress: number;
-  resolved: number;
-  closed: number;
-  wont_fix: number;
-}
-
-interface PerformanceStats {
-  totalAssigned: number;
-  totalResolved: number;
-  avgResolutionHours: number | null;
-  reopenedCount: number;
-}
+import { useDeveloperDashboard } from "@/hooks/useDeveloperDashboard";
 
 const PIE_COLORS = [
-  "hsl(217, 91%, 60%)", // open - blue
-  "hsl(271, 91%, 65%)", // in_progress - purple
-  "hsl(152, 69%, 41%)", // resolved - green
-  "hsl(220, 9%, 46%)",  // closed - gray
-  "hsl(215, 14%, 50%)", // wont_fix - slate
+  "hsl(217, 91%, 60%)",
+  "hsl(271, 91%, 65%)",
+  "hsl(152, 69%, 41%)",
+  "hsl(220, 9%, 46%)",
+  "hsl(215, 14%, 50%)",
 ];
 
 export function DeveloperDashboard() {
-  const { user } = useAuth();
-  const { currentProject, isLoading: projectLoading } = useProject();
-  const [loading, setLoading] = useState(true);
-  const [assignedBugs, setAssignedBugs] = useState<BugType[]>([]);
-  const [bugStats, setBugStats] = useState<BugStats>({ open: 0, in_progress: 0, resolved: 0, closed: 0, wont_fix: 0 });
-  const [perfStats, setPerfStats] = useState<PerformanceStats>({ totalAssigned: 0, totalResolved: 0, avgResolutionHours: null, reopenedCount: 0 });
+  const {
+    loading,
+    currentProject,
+    perfStats,
+    bugStats,
+    activeBugs,
+    resolvedBugs,
+    pieData,
+  } = useDeveloperDashboard();
 
-  useEffect(() => {
-    if (user && currentProject) {
-      loadDevData();
-    }
-  }, [user, currentProject]);
-
-  const loadDevData = async () => {
-    if (!currentProject || !user) return;
-    try {
-      setLoading(true);
-
-      // Fetch all bugs assigned to this developer for this project
-      const { data: bugs } = await supabase
-        .from("bugs")
-        .select("*, feature:features(id, name), scenario:test_scenarios(id, scenario_code, name)")
-        .eq("project_id", currentProject.id)
-        .eq("assigned_to", user.id)
-        .order("updated_at", { ascending: false });
-
-      const bugList = (bugs || []) as BugType[];
-      setAssignedBugs(bugList);
-
-      // Calculate stats
-      const stats: BugStats = { open: 0, in_progress: 0, resolved: 0, closed: 0, wont_fix: 0 };
-      bugList.forEach((b) => {
-        if (b.status in stats) stats[b.status as keyof BugStats]++;
-      });
-      setBugStats(stats);
-
-      // Performance: resolved count + reopened count
-      const resolvedCount = bugList.filter((b) => b.status === "resolved" || b.status === "closed").length;
-      const reopenedCount = bugList.filter((b) => b.fix_status === "reopened").length;
-
-      // Avg resolution time from bug_history - scoped to assigned bugs only
-      const assignedBugIds = bugList.map(b => b.id);
-      const { data: historyData } = assignedBugIds.length > 0
-        ? await supabase
-            .from("bug_history")
-            .select("bug_id, created_at, field_changed, new_value")
-            .in("bug_id", assignedBugIds.slice(0, 200))
-            .in("field_changed", ["status", "fix_status"])
-            .limit(500)
-        : { data: [] as any[] };
-
-      let totalHours = 0;
-      let resolvedWithTime = 0;
-
-      if (historyData && historyData.length > 0) {
-        // Group history by bug_id
-        const historyByBug: Record<string, typeof historyData> = {};
-        historyData.forEach((h) => {
-          if (!historyByBug[h.bug_id]) historyByBug[h.bug_id] = [];
-          historyByBug[h.bug_id].push(h);
-        });
-
-        bugList.forEach((bug) => {
-          if (bug.status === "resolved" || bug.status === "closed") {
-            const fixedEntry = historyByBug[bug.id]?.find(
-              (h) => (h.field_changed === "fix_status" && h.new_value === "fixed") ||
-                     (h.field_changed === "status" && h.new_value === "resolved")
-            );
-            if (fixedEntry) {
-              const created = new Date(bug.created_at).getTime();
-              const fixed = new Date(fixedEntry.created_at).getTime();
-              const hours = (fixed - created) / (1000 * 60 * 60);
-              if (hours > 0) {
-                totalHours += hours;
-                resolvedWithTime++;
-              }
-            }
-          }
-        });
-      }
-
-      setPerfStats({
-        totalAssigned: bugList.length,
-        totalResolved: resolvedCount,
-        avgResolutionHours: resolvedWithTime > 0 ? Math.round(totalHours / resolvedWithTime) : null,
-        reopenedCount,
-      });
-    } catch (error) {
-      console.error("Error loading developer dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading || projectLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-8 w-56 mb-2" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="glass">
+              <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
+              <CardContent><Skeleton className="h-9 w-12 mb-1" /><Skeleton className="h-3.5 w-20" /></CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-[300px] rounded-lg" />
+          <Skeleton className="h-[300px] rounded-lg" />
+        </div>
       </div>
     );
   }
@@ -156,16 +69,6 @@ export function DeveloperDashboard() {
       </Card>
     );
   }
-
-  const pieData = [
-    { name: "Open", value: bugStats.open },
-    { name: "In Progress", value: bugStats.in_progress },
-    { name: "Resolved", value: bugStats.resolved },
-    { name: "Closed", value: bugStats.closed },
-    { name: "Won't Fix", value: bugStats.wont_fix },
-  ].filter((d) => d.value > 0);
-
-  const activeBugs = assignedBugs.filter((b) => b.status === "open" || b.status === "in_progress");
 
   return (
     <div className="space-y-6">
@@ -201,7 +104,7 @@ export function DeveloperDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-emerald-600">{perfStats.totalResolved}</div>
+            <div className="text-3xl font-bold text-success">{perfStats.totalResolved}</div>
             <p className="text-sm text-muted-foreground mt-1">
               {perfStats.totalAssigned > 0
                 ? `${Math.round((perfStats.totalResolved / perfStats.totalAssigned) * 100)}% rate`
@@ -322,13 +225,12 @@ export function DeveloperDashboard() {
                           )}
                         </div>
                       </div>
-                      <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        bug.status === "open"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-purple-100 text-purple-700"
-                      }`}>
+                      <Badge
+                        variant={bug.status === "open" ? "secondary" : "outline"}
+                        className="shrink-0 text-[10px]"
+                      >
                         {BUG_STATUS_LABELS[bug.status]}
-                      </span>
+                      </Badge>
                     </div>
                     {bug.feature && (
                       <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -344,38 +246,31 @@ export function DeveloperDashboard() {
       </div>
 
       {/* Recent Resolved */}
-      {assignedBugs.filter((b) => b.status === "resolved" || b.status === "closed").length > 0 && (
+      {resolvedBugs.length > 0 && (
         <Card className="glass">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <CheckCircle2 className="h-5 w-5 text-success" />
               Recently Resolved
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {assignedBugs
-                .filter((b) => b.status === "resolved" || b.status === "closed")
-                .slice(0, 5)
-                .map((bug) => (
-                  <Link
-                    key={bug.id}
-                    to={`/bugs/${bug.id}`}
-                    className="flex items-center justify-between p-2.5 rounded-lg border border-border hover:border-primary/20 hover:bg-primary/5 transition-all"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{bug.title}</p>
-                      <span className="text-xs text-muted-foreground">{bug.bug_code}</span>
-                    </div>
-                    <Badge variant="outline" className={`text-[10px] shrink-0 ${
-                      bug.status === "closed"
-                        ? "bg-muted text-muted-foreground"
-                        : "bg-emerald-100 text-emerald-700"
-                    }`}>
-                      {BUG_STATUS_LABELS[bug.status]}
-                    </Badge>
-                  </Link>
-                ))}
+              {resolvedBugs.slice(0, 5).map((bug) => (
+                <Link
+                  key={bug.id}
+                  to={`/bugs/${bug.id}`}
+                  className="flex items-center justify-between p-2.5 rounded-lg border border-border hover:border-primary/20 hover:bg-primary/5 transition-all"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{bug.title}</p>
+                    <span className="text-xs text-muted-foreground">{bug.bug_code}</span>
+                  </div>
+                  <Badge variant={bug.status === "closed" ? "secondary" : "default"} className="text-[10px] shrink-0">
+                    {BUG_STATUS_LABELS[bug.status]}
+                  </Badge>
+                </Link>
+              ))}
             </div>
           </CardContent>
         </Card>
