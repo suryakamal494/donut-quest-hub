@@ -222,6 +222,9 @@ const Register: React.FC = () => {
               {errors.phoneNumber && (
                 <p className="text-sm text-destructive">{errors.phoneNumber}</p>
               )}
+            </div>
+
+            {/* Submit Button */}
             <Button 
               type="submit" 
               className="w-full h-12 rounded-xl bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-warm transition-smooth"
