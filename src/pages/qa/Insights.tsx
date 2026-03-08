@@ -379,7 +379,7 @@ export default function Insights() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Bug Backlog Trend</CardTitle>
-            <CardDescription>Opened vs Resolved per day (30 days)</CardDescription>
+            <CardDescription>Opened vs Resolved per day ({rangeDays} days)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-56 md:h-64">
