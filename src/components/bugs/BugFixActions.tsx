@@ -115,9 +115,9 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, bug, onUpdate, toast, fixStatus]);
 
-  const handleReopen = async () => {
+  const handleReopen = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
