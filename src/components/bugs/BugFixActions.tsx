@@ -148,7 +148,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, bug, onUpdate, toast, fixStatus]);
 
   if (!canMarkFixed && !canVerify && !canReopen) return null;
 
