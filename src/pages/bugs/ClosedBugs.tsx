@@ -73,10 +73,9 @@ export default function ClosedBugs() {
 
       let query = supabase
         .from("bugs")
-        .select("*", { count: "exact" })
+        .select("id, bug_code, title, severity, status, fix_status, bug_type, login_type, feature_id, reported_by, resolved_by, verified_by, created_at, updated_at, sub_module", { count: "exact" })
         .eq("project_id", currentProject.id)
         .in("status", ["resolved", "closed", "wont_fix"])
-        // Exclude resolved+fixed bugs that are pending retest (not yet verified)
         .not("fix_status", "eq", "fixed");
 
       if (severityFilter !== "all") query = query.eq("severity", severityFilter as any);

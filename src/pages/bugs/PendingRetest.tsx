@@ -65,7 +65,7 @@ export default function PendingRetest() {
 
       let query = supabase
         .from("bugs")
-        .select("*", { count: "exact" })
+        .select("id, bug_code, title, severity, status, fix_status, bug_type, login_type, assigned_to, reported_by, resolved_by, resolved_at, developer_response, created_at, updated_at, sub_module, reopened_by", { count: "exact" })
         .eq("project_id", currentProject.id)
         .eq("fix_status", "fixed")
         .eq("status", "resolved");
