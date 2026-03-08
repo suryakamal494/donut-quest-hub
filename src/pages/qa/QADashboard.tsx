@@ -115,12 +115,12 @@ export default function QADashboard() {
         smokeCount,
         intraLoginCount,
         interLoginCount,
-        totalRuns: allRunsData?.length || 0,
+        totalRuns: totalRunsCount || 0,
         inProgressRuns,
       });
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
-      setRecentRuns((allRunsData?.slice(0, 5) || []) as TestRun[]);
+      setRecentRuns((recentRunsData || []) as TestRun[]);
       setFailedTests(failedResults as unknown as TestResult[]);
       setAllResults(manualResults as unknown as TestResult[] || []);
 
