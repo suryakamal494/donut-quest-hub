@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -67,7 +72,7 @@ export function NotificationTemplateManager({ projects }: Props) {
   const [formTemplateName, setFormTemplateName] = useState("");
   const [formEnabled, setFormEnabled] = useState(true);
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("notification_templates")
@@ -78,9 +83,9 @@ export function NotificationTemplateManager({ projects }: Props) {
     }
     setTemplates((data as Template[]) || []);
     setLoading(false);
-  };
+  }, [toast]);
 
-  useEffect(() => { fetchTemplates(); }, []);
+  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
   const filtered = filterProject === "all"
     ? templates
@@ -93,9 +98,24 @@ export function NotificationTemplateManager({ projects }: Props) {
       toast({ variant: "destructive", title: "Validation", description: "Fill all required fields" });
       return;
     }
+
+    // Duplicate check: same project + notification_type
+    const projectId = formProject === "global" ? null : formProject;
+    const duplicate = templates.find(
+      (t) => t.project_id === projectId && t.notification_type === formType
+    );
+    if (duplicate) {
+      toast({
+        variant: "destructive",
+        title: "Duplicate",
+        description: `A template for "${getTypeLabel(formType)}" already exists for ${projectId ? projects.find(p => p.id === projectId)?.name : "Global"}`,
+      });
+      return;
+    }
+
     setSaving(true);
     const { error } = await supabase.from("notification_templates").insert({
-      project_id: formProject === "global" ? null : formProject,
+      project_id: projectId,
       notification_type: formType,
       whatsapp_template_name: formTemplateName.trim(),
       is_enabled: formEnabled,
@@ -223,15 +243,35 @@ export function NotificationTemplateManager({ projects }: Props) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10"
-                        disabled={deleting === t.id}
-                        onClick={() => handleDelete(t.id)}
-                      >
-                        {deleting === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            disabled={deleting === t.id}
+                          >
+                            {deleting === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Remove the "{getTypeLabel(t.notification_type)}" template for {projectName(t.project_id)}? This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(t.id)}
+                              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -246,6 +286,9 @@ export function NotificationTemplateManager({ projects }: Props) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Notification Template</DialogTitle>
+            <DialogDescription>
+              Map a system notification type to a Meta-approved WhatsApp template.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
