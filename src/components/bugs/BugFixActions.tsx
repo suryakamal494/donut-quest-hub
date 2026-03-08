@@ -50,7 +50,7 @@ export function BugFixActions({ bug, onUpdate, compact = false }: BugFixActionsP
     });
   };
 
-  const handleMarkAsFixed = async () => {
+  const handleMarkAsFixed = useCallback(async () => {
     if (!user || !devResponse.trim()) {
       toast({ variant: "destructive", title: "Please add fix notes" });
       return;
