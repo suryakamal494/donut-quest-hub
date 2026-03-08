@@ -47,7 +47,7 @@ const Register: React.FC = () => {
     e.preventDefault();
     setErrors({});
 
-    const result = registerSchema.safeParse({ fullName, email, password, confirmPassword });
+    const result = registerSchema.safeParse({ fullName, email, password, confirmPassword, phoneNumber: phoneNumber || undefined });
     if (!result.success) {
       const fieldErrors: typeof errors = {};
       result.error.errors.forEach((err) => {
