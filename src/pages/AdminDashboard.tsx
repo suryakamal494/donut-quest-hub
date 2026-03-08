@@ -56,7 +56,7 @@ const AdminDashboard: React.FC = () => {
   const fetchProjects = async () => {
     try {
       const { data } = await supabase.from("projects").select("*").order("created_at");
-      setProjects(data || []);
+      setProjects((data || []) as ProjectWithWhatsApp[]);
     } catch (error) { console.error("Error:", error); }
   };
 
