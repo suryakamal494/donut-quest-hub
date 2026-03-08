@@ -152,18 +152,13 @@ export default function BugDetail() {
       setBug(prev => prev ? { ...prev, ...updateData } : null);
       toast({ title: "Status updated" });
 
-      // Fire-and-forget notifications
+      // ISSUE 6 FIX: Use notification helper with WhatsApp support + projectId
       const notifyIds = [
         bug.reported_by !== user.id ? bug.reported_by : null,
         bug.assigned_to !== user.id && bug.assigned_to !== bug.reported_by ? bug.assigned_to : null,
       ].filter(Boolean) as string[];
       notifyIds.forEach(uid => {
-        supabase.from("notifications").insert({
-          user_id: uid, title: "Bug Status Updated",
-          message: `${bug.bug_code}: "${bug.title}" status changed to ${newStatus.replace("_", " ")}`,
-          type: newStatus === "resolved" ? "success" : "info",
-          link: `/bugs/${bug.id}`,
-        }).then(() => {});
+        notifyBugStatusChanged(uid, bug.bug_code, bug.title, bug.id, newStatus, bug.project_id || undefined);
       });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
