@@ -92,6 +92,12 @@ const moreNavItems = [
     icon: BarChart3,
     description: "Test coverage analytics",
   },
+  {
+    title: "Insights",
+    href: "/qa/insights",
+    icon: LineChart,
+    description: "Bug resolution analytics & team effectiveness",
+  },
 ];
 
 export function QABottomNav() {

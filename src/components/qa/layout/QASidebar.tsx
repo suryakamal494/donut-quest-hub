@@ -87,6 +87,11 @@ const navItems = [
     href: "/qa/coverage",
     icon: BarChart3,
   },
+  {
+    title: "Insights",
+    href: "/qa/insights",
+    icon: LineChart,
+  },
 ];
 
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {

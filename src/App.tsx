@@ -126,6 +126,7 @@ const App = () => (
                 <Route path="automation/runs" element={<AutomationGuard><AutomationTestRuns /></AutomationGuard>} />
                 <Route path="coverage" element={<Coverage />} />
                 <Route path="health-map" element={<HealthMap />} />
+                <Route path="insights" element={<Insights />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
               </Route>
 
