@@ -53,7 +53,7 @@ export function WhatsAppProjectSettings({ projects, onUpdate }: WhatsAppProjectS
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-green-600" />
+          <MessageSquare className="h-5 w-5 text-primary" />
           WhatsApp Notifications
         </CardTitle>
         <CardDescription>
