@@ -122,7 +122,7 @@ export default function Insights() {
   // ==================== Section 1: Backlog Trend ====================
   const backlogData = useMemo(() => {
     const days: { date: string; label: string; opened: number; resolved: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
+    for (let i = rangeDays - 1; i >= 0; i--) {
       const d = startOfDay(subDays(new Date(), i));
       days.push({ date: format(d, "yyyy-MM-dd"), label: format(d, "MMM d"), opened: 0, resolved: 0 });
     }
