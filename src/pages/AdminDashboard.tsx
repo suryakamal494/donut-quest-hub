@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import type { Project } from "@/types/project";
 
+interface ProjectWithWhatsApp extends Project {
+  whatsapp_notifications_enabled: boolean;
+}
+
 interface UserProfile {
   id: string;
   user_id: string;
