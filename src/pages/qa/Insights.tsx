@@ -221,12 +221,12 @@ export default function Insights() {
 
   // ==================== Section 5: QA Productivity ====================
   const qaStats = useMemo(() => {
-    const since30 = subDays(new Date(), 30);
+    const sinceDate = subDays(new Date(), rangeDays);
     const qaMap: Record<string, { reported: number; testRuns: number; retests: number; reopened: number }> = {};
 
-    // Bugs reported in last 30 days
+    // Bugs reported in range
     bugs.forEach(b => {
-      if (!b.created_at || parseISO(b.created_at) < since30) return;
+      if (!b.created_at || parseISO(b.created_at) < sinceDate) return;
       // reported_by not in slim select, use history to find reporters
     });
 
