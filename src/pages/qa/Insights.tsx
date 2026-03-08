@@ -76,6 +76,7 @@ const BUCKET_COLORS = [
 export default function Insights() {
   const { currentProject } = useProject();
   const [loading, setLoading] = useState(true);
+  const [rangeDays, setRangeDays] = useState(30);
   const [bugs, setBugs] = useState<BugSlim[]>([]);
   const [history, setHistory] = useState<HistorySlim[]>([]);
   const [profiles, setProfiles] = useState<ProfileSlim[]>([]);
@@ -84,7 +85,7 @@ export default function Insights() {
   const loadData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
-    const since30 = subDays(new Date(), 30).toISOString();
+    const since = subDays(new Date(), rangeDays).toISOString();
 
     const [bugsRes, historyRes, profilesRes, runsRes] = await Promise.all([
       supabase
