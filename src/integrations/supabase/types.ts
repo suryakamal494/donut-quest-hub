@@ -367,6 +367,7 @@ export type Database = {
           bug_code: string
           bug_type: Database["public"]["Enums"]["bug_type"] | null
           created_at: string
+          cycle_scenario_id: string | null
           description: string | null
           developer_response: string | null
           environment: string | null
@@ -406,6 +407,7 @@ export type Database = {
           bug_code: string
           bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
+          cycle_scenario_id?: string | null
           description?: string | null
           developer_response?: string | null
           environment?: string | null
@@ -445,6 +447,7 @@ export type Database = {
           bug_code?: string
           bug_type?: Database["public"]["Enums"]["bug_type"] | null
           created_at?: string
+          cycle_scenario_id?: string | null
           description?: string | null
           developer_response?: string | null
           environment?: string | null
@@ -479,6 +482,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bugs_cycle_scenario_id_fkey"
+            columns: ["cycle_scenario_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bugs_feature_id_fkey"
             columns: ["feature_id"]
             isOneToOne: false
@@ -504,6 +514,188 @@ export type Database = {
             columns: ["test_result_id"]
             isOneToOne: false
             referencedRelation: "test_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cycle_groups: {
+        Row: {
+          created_at: string
+          cycle_id: string
+          description: string | null
+          id: string
+          name: string
+          order_index: number
+        }
+        Insert: {
+          created_at?: string
+          cycle_id: string
+          description?: string | null
+          id?: string
+          name: string
+          order_index?: number
+        }
+        Update: {
+          created_at?: string
+          cycle_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          order_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_groups_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "test_cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cycle_results: {
+        Row: {
+          attachments: string[] | null
+          bug_id: string | null
+          comment: string | null
+          executed_at: string | null
+          id: string
+          run_id: string
+          scenario_id: string
+          status: Database["public"]["Enums"]["test_status"]
+        }
+        Insert: {
+          attachments?: string[] | null
+          bug_id?: string | null
+          comment?: string | null
+          executed_at?: string | null
+          id?: string
+          run_id: string
+          scenario_id: string
+          status?: Database["public"]["Enums"]["test_status"]
+        }
+        Update: {
+          attachments?: string[] | null
+          bug_id?: string | null
+          comment?: string | null
+          executed_at?: string | null
+          id?: string
+          run_id?: string
+          scenario_id?: string
+          status?: Database["public"]["Enums"]["test_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_results_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_results_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cycle_runs: {
+        Row: {
+          completed_at: string | null
+          cycle_id: string
+          executed_by: string
+          id: string
+          project_id: string | null
+          run_code: string
+          started_at: string
+          status: Database["public"]["Enums"]["run_status"]
+        }
+        Insert: {
+          completed_at?: string | null
+          cycle_id: string
+          executed_by: string
+          id?: string
+          project_id?: string | null
+          run_code: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["run_status"]
+        }
+        Update: {
+          completed_at?: string | null
+          cycle_id?: string
+          executed_by?: string
+          id?: string
+          project_id?: string | null
+          run_code?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["run_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_runs_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "test_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cycle_scenarios: {
+        Row: {
+          created_at: string
+          description: string | null
+          group_id: string
+          has_steps: boolean
+          id: string
+          order_index: number
+          scenario_code: string
+          steps: Json | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          group_id: string
+          has_steps?: boolean
+          id?: string
+          order_index?: number
+          scenario_code?: string
+          steps?: Json | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          group_id?: string
+          has_steps?: boolean
+          id?: string
+          order_index?: number
+          scenario_code?: string
+          steps?: Json | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_scenarios_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -918,6 +1110,53 @@ export type Database = {
           },
         ]
       }
+      test_cycles: {
+        Row: {
+          created_at: string
+          created_by: string
+          cycle_code: string
+          description: string | null
+          id: string
+          name: string
+          priority: Database["public"]["Enums"]["priority_level"]
+          project_id: string | null
+          status: Database["public"]["Enums"]["cycle_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          cycle_code: string
+          description?: string | null
+          id?: string
+          name: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["cycle_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          cycle_code?: string
+          description?: string | null
+          id?: string
+          name?: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["cycle_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_cycles_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_results: {
         Row: {
           actual_result: string | null
@@ -1290,6 +1529,7 @@ export type Database = {
         | "data"
         | "security"
         | "other"
+      cycle_status: "draft" | "active" | "archived"
       login_type:
         | "super_admin"
         | "institute"
@@ -1440,6 +1680,7 @@ export const Constants = {
         "security",
         "other",
       ],
+      cycle_status: ["draft", "active", "archived"],
       login_type: ["super_admin", "institute", "teacher", "student", "general"],
       priority_level: ["critical", "high", "medium", "low"],
       run_status: ["in_progress", "completed", "aborted"],
