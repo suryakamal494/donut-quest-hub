@@ -1,57 +1,41 @@
 
 
-## Understanding of Your Requests
+## My Understanding
 
-You've asked for 3 changes:
+The uploaded document **"Curriculum Scope QA — Batch, Teacher, Student & Exam Isolation Testing"** is a single, comprehensive test cycle. You want me to **inject this entire document as a test cycle directly into the database** — not through the UI, but via backend SQL inserts.
 
-### 1. Create Cycle Form — Simplify steps and add rich text for Context
+Here's how the document maps to the cycle structure:
 
-**Current state:** 4-step wizard: Metadata → Context → Scenarios → Review. Metadata has Cycle Name + Priority. Context uses a plain `<Textarea>`.
+### Cycle Details
+- **Title**: "Curriculum Scope QA — Batch, Teacher, Student & Exam Isolation Testing"
+- **Description (Context & Theory)**: Everything from the document BEFORE the scenarios section — the domain glossary, "How the Platform Links Everything Together" (with diagrams), entity relationship model, filtering logic, mid-year edit cascade model, prerequisites, AND the "Quick Reference Matrix" and "What Working Correctly Looks Like" summary from the END of the document. All stored as rich HTML.
+- **Priority**: `medium` (hardcoded default)
+- **Status**: `active`
 
-**What you want:**
-- **Remove Priority** from the form entirely
-- **Merge Metadata and Context into one step** — Step 1 has Cycle Name + Description (rich text)
-- **Rich text editor for Context & Theory** — supports bold, underline, headings, subheadings, images/diagrams, and proper document-like formatting
-- **CycleContextPanel** (display side) must also render rich HTML properly, not just plain text
+### 5 Scenario Groups (matching the document's groupings)
 
-**Plan:**
-- Reduce steps from 4 to 3: **"Details" → "Scenarios" → "Review"**
-- Step 1 ("Details"): Cycle Name input + rich text editor for description
-- Remove the Priority `<Select>` and hardcode priority to `"medium"` on save
-- Replace plain `<Textarea>` with a proper rich text editor using **TipTap** (a headless rich text framework for React that supports bold, italic, underline, headings, images, lists, etc.)
-- Install `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-underline`, `@tiptap/extension-image`, `@tiptap/extension-heading`
-- Create a reusable `RichTextEditor` component with a toolbar (bold, italic, underline, H1-H3, bullet/ordered lists, image upload)
-- Store content as HTML string in the `description` field
-- Update `CycleContextPanel` to render HTML via `dangerouslySetInnerHTML` with proper prose styling (similar to `MarkdownRenderer`)
-- Apply same changes to `EditCycle.tsx`
+| Group | Name | Scenarios |
+|-------|------|-----------|
+| **A** | Batch Creation Scenarios | A1–A8 (8 scenarios) |
+| **B** | Teacher Assignment Scenarios | B1–B8 (8 scenarios) |
+| **C** | Cross-Entity Scope Validation | C1–C10 (10 scenarios) |
+| **D** | Edit & Mid-Year Change Scenarios | D1–D8 (8 scenarios) |
+| **E** | Student Visibility Scenarios | E1–E5 (5 scenarios) |
 
-### 2. Sidebar Navigation — Reorder and restructure
+**Total: 39 scenarios across 5 groups**
 
-**Current order:** Dashboard → Bug Tracker → Test Scenarios → Test Cycles → Test Runs → Failures → Automation → Coverage → Insights
+Each scenario has a code (A1, B3, etc.), a title, and a description extracted from the document.
 
-**What you want:**
-- **New order:** Dashboard → Bug Tracker → **Test Cycles** → **Test Scenarios** → Test Runs → Failures → ...
-- **Remove dropdown sub-items from Test Cycles** (no "All Cycles" / "Create New" sub-nav)
-- **Bundle "Test Scenarios", "Test Runs", and "Failures" together** under a collapsible "Test Scenarios" parent — clicking expands/collapses to show sub-items (All Scenarios, Create New, Test Runs sub-items, Failures)
+### Implementation Plan
 
-**Plan — QASidebar.tsx:**
-- Reorder `navItems`: Dashboard → Bug Tracker → Test Cycles (no subItems) → Test Scenarios (with collapsible sub-items including All Scenarios, Create New, All Runs, Start Run, Failures) → Automation → Coverage → Insights
-- Add expand/collapse toggle (chevron) on "Test Scenarios" that shows/hides its children
-- Use `Collapsible` from radix or simple state toggle
+1. **Convert the context/theory sections to HTML** — Take the glossary tables, ASCII diagrams, filtering logic, relationship model, cascade rules, quick reference matrix, and summary, and format them as clean HTML with headings, tables, code blocks, and lists.
 
-**Plan — QABottomNav.tsx:**
-- Update `mainNavItems` order to match: Dashboard → Bugs → Cycles → Scenarios
-- Move Test Runs and Failures into the "More" menu
+2. **Insert into the database via a script**:
+   - Insert 1 row into `test_cycles` (name, description as HTML, project_id, created_by as admin user `88326c88-...`, status=active, priority=medium)
+   - Insert 5 rows into `cycle_groups` (one per group A–E)
+   - Insert 39 rows into `cycle_scenarios` (each with scenario_code, title, description)
 
-### 3. Files to modify
+3. **Use the admin user** (`thedonut.ai@gmail.com`, user_id: `88326c88-1370-4d30-8eeb-e05941e74931`) as the `created_by` and **"The Donut AI"** project (`11111111-1111-1111-1111-111111111111`) as the `project_id`.
 
-| File | Change |
-|------|--------|
-| `src/pages/qa/CreateCycle.tsx` | Remove Priority, merge Metadata+Context into 1 step, use rich text editor |
-| `src/pages/qa/EditCycle.tsx` | Same changes as CreateCycle |
-| `src/components/qa/cycles/CycleContextPanel.tsx` | Render HTML content instead of plain text |
-| `src/components/qa/layout/QASidebar.tsx` | Reorder nav, remove Cycles sub-items, bundle Scenarios+Runs+Failures with collapse |
-| `src/components/qa/layout/QABottomNav.tsx` | Reorder bottom nav items |
-| New: `src/components/ui/rich-text-editor.tsx` | Reusable TipTap-based rich text editor component |
-| `package.json` | Add TipTap dependencies |
+No UI changes needed — this is purely a data insertion task using the existing cycle tables and schema.
 
