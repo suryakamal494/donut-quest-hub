@@ -24,6 +24,7 @@ interface CycleExecutionViewProps {
   onComplete: () => void;
   onAbort: () => void;
   runCode: string;
+  onReportBug?: (result: CycleResultWithScenario) => void;
 }
 
 export function CycleExecutionView({
