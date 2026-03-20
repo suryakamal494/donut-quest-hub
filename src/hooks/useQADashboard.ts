@@ -4,6 +4,16 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
+interface CycleRunBrief {
+  id: string;
+  run_code: string;
+  cycle_id: string;
+  cycle_name: string;
+  cycle_code: string;
+  status: string;
+  started_at: string;
+}
+
 interface DashboardStats {
   totalScenarios: number;
   smokeCount: number;
@@ -11,6 +21,8 @@ interface DashboardStats {
   interLoginCount: number;
   totalRuns: number;
   inProgressRuns: number;
+  totalCycles: number;
+  activeCycleRuns: number;
 }
 
 export function useQADashboard() {
