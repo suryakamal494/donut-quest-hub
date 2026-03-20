@@ -27,6 +27,7 @@ export default function QADashboard() {
     stats,
     recentScenarios,
     recentRuns,
+    recentCycleRuns,
     failedTests,
     allResults,
     currentProject,
