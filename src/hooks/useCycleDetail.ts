@@ -22,7 +22,7 @@ export function useCycleList() {
         .order("updated_at", { ascending: false });
 
       if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
+        query = query.eq("status", statusFilter as any);
       }
       if (search.trim()) {
         query = query.or(`name.ilike.%${search.trim()}%,cycle_code.ilike.%${search.trim()}%`);
