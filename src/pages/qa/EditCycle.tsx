@@ -104,7 +104,7 @@ export default function EditCycle() {
                 description: s.description || null,
                 order_index: sIdx,
                 has_steps: s.has_steps,
-                steps: s.has_steps && s.steps.length > 0 ? s.steps : null,
+                steps: s.has_steps && s.steps.length > 0 ? (s.steps as unknown as any) : null,
               }))
             );
           if (scenarioError) throw scenarioError;
