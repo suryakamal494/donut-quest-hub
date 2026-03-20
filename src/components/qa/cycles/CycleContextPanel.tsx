@@ -34,7 +34,7 @@ export function CycleContextPanel({ content, defaultExpanded = true }: CycleCont
       <div
         className={cn(
           "overflow-hidden transition-all duration-300",
-          expanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-[20000px] opacity-100" : "max-h-0 opacity-0"
         )}
       >
         <CardContent className="pt-0 pb-4 px-4">
