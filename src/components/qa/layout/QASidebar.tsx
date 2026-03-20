@@ -16,7 +16,8 @@ import {
   RotateCcw,
   Zap,
   BookOpen,
-  LineChart
+  LineChart,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,15 @@ const navItems = [
     subItems: [
       { title: "All Scenarios", href: "/qa/scenarios", icon: List },
       { title: "Create New", href: "/qa/scenarios/create", icon: Plus },
+    ],
+  },
+  {
+    title: "Test Cycles",
+    href: "/qa/cycles",
+    icon: RefreshCw,
+    subItems: [
+      { title: "All Cycles", href: "/qa/cycles", icon: List },
+      { title: "Create New", href: "/qa/cycles/create", icon: Plus },
     ],
   },
   {

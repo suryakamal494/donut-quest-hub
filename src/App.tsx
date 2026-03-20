@@ -43,6 +43,10 @@ const AutomationBugs = lazy(() => import("./pages/qa/AutomationBugs"));
 const AutomationTestRuns = lazy(() => import("./pages/qa/AutomationTestRuns"));
 const HealthMap = lazy(() => import("./pages/qa/HealthMap"));
 const Insights = lazy(() => import("./pages/qa/Insights"));
+const CycleList = lazy(() => import("./pages/qa/CycleList"));
+const CreateCycle = lazy(() => import("./pages/qa/CreateCycle"));
+const CycleDetail = lazy(() => import("./pages/qa/CycleDetail"));
+const EditCycle = lazy(() => import("./pages/qa/EditCycle"));
 const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
@@ -116,6 +120,10 @@ const App = () => (
                 <Route path="scenarios/:id" element={<ScenarioDetail />} />
                 <Route path="scenarios/:id/edit" element={<EditScenario />} />
                 <Route path="test-cases/:id/history" element={<TestCaseHistory />} />
+                <Route path="cycles" element={<CycleList />} />
+                <Route path="cycles/create" element={<CreateCycle />} />
+                <Route path="cycles/:id" element={<CycleDetail />} />
+                <Route path="cycles/:id/edit" element={<EditCycle />} />
                 <Route path="runs" element={<TestRuns />} />
                 <Route path="runs/create" element={<CreateTestRun />} />
                 <Route path="runs/:id" element={<ScenarioDetail />} />
