@@ -38,13 +38,19 @@ const mainNavItems = [
     icon: FileText,
   },
   {
-    title: "Runs",
-    href: "/qa/runs",
-    icon: PlayCircle,
+    title: "Cycles",
+    href: "/qa/cycles",
+    icon: RefreshCw,
   },
 ];
 
 const moreNavItems = [
+  {
+    title: "Test Runs",
+    href: "/qa/runs",
+    icon: PlayCircle,
+    description: "Manual test run execution",
+  },
   {
     title: "Bugs",
     href: "/bugs",

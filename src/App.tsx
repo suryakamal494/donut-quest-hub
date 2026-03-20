@@ -120,6 +120,10 @@ const App = () => (
                 <Route path="scenarios/:id" element={<ScenarioDetail />} />
                 <Route path="scenarios/:id/edit" element={<EditScenario />} />
                 <Route path="test-cases/:id/history" element={<TestCaseHistory />} />
+                <Route path="cycles" element={<CycleList />} />
+                <Route path="cycles/create" element={<CreateCycle />} />
+                <Route path="cycles/:id" element={<CycleDetail />} />
+                <Route path="cycles/:id/edit" element={<EditCycle />} />
                 <Route path="runs" element={<TestRuns />} />
                 <Route path="runs/create" element={<CreateTestRun />} />
                 <Route path="runs/:id" element={<ScenarioDetail />} />

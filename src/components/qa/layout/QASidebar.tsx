@@ -60,6 +60,15 @@ const navItems = [
     ],
   },
   {
+    title: "Test Cycles",
+    href: "/qa/cycles",
+    icon: RefreshCw,
+    subItems: [
+      { title: "All Cycles", href: "/qa/cycles", icon: List },
+      { title: "Create New", href: "/qa/cycles/create", icon: Plus },
+    ],
+  },
+  {
     title: "Test Runs",
     href: "/qa/runs",
     icon: PlayCircle,
