@@ -210,7 +210,7 @@ export default function QADashboard() {
       <TodayActivityPanel />
 
       {/* Recent Activity */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Scenarios */}
         <Card className="glass">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -299,6 +299,55 @@ export default function QADashboard() {
                         className="shrink-0 text-xs"
                       >
                         {run.status === "in_progress" ? "In Progress" : run.status}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Cycle Runs */}
+        <Card className="glass">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-primary" />
+              Recent Cycle Runs
+            </CardTitle>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/qa/cycles">View all</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentCycleRuns.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <RotateCcw className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p>No cycle runs yet</p>
+                <Button asChild className="mt-4" size="sm">
+                  <Link to="/qa/cycles">View Cycles</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentCycleRuns.map((cr) => (
+                  <Link
+                    key={cr.id}
+                    to={cr.status === "in_progress" ? `/qa/cycles/${cr.cycle_id}/execute/${cr.id}` : `/qa/cycles/${cr.cycle_id}/runs/${cr.id}`}
+                    className="block p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate">{cr.cycle_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {cr.cycle_code} / {cr.run_code} • {new Date(cr.started_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={cr.status === "completed" ? "default" : cr.status === "in_progress" ? "secondary" : "outline"}
+                        className="shrink-0 text-xs"
+                      >
+                        {cr.status.replace("_", " ")}
                       </Badge>
                     </div>
                   </Link>
