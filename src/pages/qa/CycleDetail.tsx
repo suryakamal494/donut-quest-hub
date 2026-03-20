@@ -149,7 +149,7 @@ export default function CycleDetail() {
                   <div key={scenario.id} className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border">
                     <Badge variant="secondary" className="font-mono text-xs mt-0.5 flex-shrink-0">{scenario.scenario_code}</Badge>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-foreground">{scenario.title}</p>
+                      <p className="font-medium text-base text-foreground">{scenario.title}</p>
                       {scenario.description && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{scenario.description}</p>
                       )}
