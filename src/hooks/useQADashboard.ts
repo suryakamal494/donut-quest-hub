@@ -36,9 +36,12 @@ export function useQADashboard() {
     interLoginCount: 0,
     totalRuns: 0,
     inProgressRuns: 0,
+    totalCycles: 0,
+    activeCycleRuns: 0,
   });
   const [recentScenarios, setRecentScenarios] = useState<TestScenario[]>([]);
   const [recentRuns, setRecentRuns] = useState<TestRun[]>([]);
+  const [recentCycleRuns, setRecentCycleRuns] = useState<CycleRunBrief[]>([]);
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
