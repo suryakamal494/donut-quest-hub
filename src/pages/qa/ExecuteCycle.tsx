@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CycleExecutionView } from "@/components/qa/cycles/CycleExecutionView";
+import { CycleBugReportDialog } from "@/components/qa/cycles/CycleBugReportDialog";
 import { useCycleExecution } from "@/hooks/useCycleExecution";
+import type { CycleResultWithScenario } from "@/hooks/useCycleExecution";
 
 export default function ExecuteCycle() {
   const { id: cycleId, runId } = useParams<{ id: string; runId: string }>();
   const navigate = useNavigate();
+  const [bugDialogOpen, setBugDialogOpen] = useState(false);
+  const [bugTarget, setBugTarget] = useState<CycleResultWithScenario | null>(null);
 
   const {
     loading,
@@ -26,6 +31,16 @@ export default function ExecuteCycle() {
     completeRun,
     abortRun,
   } = useCycleExecution(cycleId, runId);
+
+  const handleReportBug = (result: CycleResultWithScenario) => {
+    setBugTarget(result);
+    setBugDialogOpen(true);
+  };
+
+  const handleBugCreated = (resultId: string, bugId: string) => {
+    // The bug is already linked to the result in the dialog
+    setBugTarget(null);
+  };
 
   if (loading) {
     return (
@@ -47,21 +62,32 @@ export default function ExecuteCycle() {
   }
 
   return (
-    <CycleExecutionView
-      cycle={cycle}
-      groups={groups}
-      activeGroupIndex={activeGroupIndex}
-      setActiveGroupIndex={setActiveGroupIndex}
-      activeGroupResults={activeGroupResults}
-      completedCount={completedCount}
-      totalCount={totalCount}
-      passedCount={passedCount}
-      failedCount={failedCount}
-      saving={saving}
-      onSaveResult={saveResult}
-      onComplete={completeRun}
-      onAbort={abortRun}
-      runCode={run.run_code}
-    />
+    <>
+      <CycleExecutionView
+        cycle={cycle}
+        groups={groups}
+        activeGroupIndex={activeGroupIndex}
+        setActiveGroupIndex={setActiveGroupIndex}
+        activeGroupResults={activeGroupResults}
+        completedCount={completedCount}
+        totalCount={totalCount}
+        passedCount={passedCount}
+        failedCount={failedCount}
+        saving={saving}
+        onSaveResult={saveResult}
+        onComplete={completeRun}
+        onAbort={abortRun}
+        runCode={run.run_code}
+        onReportBug={handleReportBug}
+      />
+      <CycleBugReportDialog
+        open={bugDialogOpen}
+        onOpenChange={setBugDialogOpen}
+        result={bugTarget}
+        cycleName={cycle.name}
+        runCode={run.run_code}
+        onBugCreated={handleBugCreated}
+      />
+    </>
   );
 }

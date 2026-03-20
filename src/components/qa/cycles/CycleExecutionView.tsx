@@ -42,6 +42,7 @@ export function CycleExecutionView({
   onComplete,
   onAbort,
   runCode,
+  onReportBug,
 }: CycleExecutionViewProps) {
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
   const allDone = completedCount === totalCount && totalCount > 0;
