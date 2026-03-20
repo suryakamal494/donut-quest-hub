@@ -134,6 +134,7 @@ export function CycleExecutionView({
                 result={result}
                 saving={saving}
                 onSave={onSaveResult}
+                onReportBug={onReportBug}
               />
             ))
           )}
