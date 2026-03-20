@@ -170,6 +170,7 @@ export function useQADashboard() {
     stats,
     recentScenarios,
     recentRuns,
+    recentCycleRuns,
     failedTests,
     allResults,
     currentProject,
