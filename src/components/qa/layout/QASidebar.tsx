@@ -7,6 +7,8 @@ import {
   BarChart3, 
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Plus,
   List,
   Bug,
@@ -51,36 +53,22 @@ const navItems = [
     ],
   },
   {
-    title: "Test Scenarios",
-    href: "/qa/scenarios",
-    icon: FileText,
-    subItems: [
-      { title: "All Scenarios", href: "/qa/scenarios", icon: List },
-      { title: "Create New", href: "/qa/scenarios/create", icon: Plus },
-    ],
-  },
-  {
     title: "Test Cycles",
     href: "/qa/cycles",
     icon: RefreshCw,
-    subItems: [
-      { title: "All Cycles", href: "/qa/cycles", icon: List },
-      { title: "Create New", href: "/qa/cycles/create", icon: Plus },
-    ],
   },
   {
-    title: "Test Runs",
-    href: "/qa/runs",
-    icon: PlayCircle,
+    title: "Test Scenarios",
+    href: "/qa/scenarios",
+    icon: FileText,
+    collapsible: true,
     subItems: [
-      { title: "All Runs", href: "/qa/runs", icon: List },
+      { title: "All Scenarios", href: "/qa/scenarios", icon: List },
+      { title: "Create Scenario", href: "/qa/scenarios/create", icon: Plus },
+      { title: "All Runs", href: "/qa/runs", icon: PlayCircle },
       { title: "Start Run", href: "/qa/runs/create", icon: Plus },
+      { title: "Failures", href: "/qa/failures", icon: AlertTriangle },
     ],
-  },
-  {
-    title: "Failures",
-    href: "/qa/failures",
-    icon: AlertTriangle,
   },
   {
     title: "Automation",
@@ -109,9 +97,11 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const { currentProject } = useProject();
   const { profile } = useAuth();
   const [retestCount, setRetestCount] = useState(0);
+  const [scenariosExpanded, setScenariosExpanded] = useState(true);
   
   const automationEnabled = profile?.automation_enabled === true;
   const docsEnabled = profile?.docs_enabled === true;
+
   useEffect(() => {
     if (currentProject) {
       supabase
@@ -123,6 +113,14 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
         .then(({ count }) => setRetestCount(count || 0));
     }
   }, [currentProject, location.pathname]);
+
+  // Auto-expand scenarios section if a child route is active
+  useEffect(() => {
+    const scenarioItem = navItems.find(i => i.collapsible);
+    if (scenarioItem?.subItems?.some(s => location.pathname === s.href || location.pathname.startsWith(s.href + "/"))) {
+      setScenariosExpanded(true);
+    }
+  }, [location.pathname]);
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;
@@ -136,29 +134,45 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      {/* Nav Items */}
       <nav className="flex-1 p-3 space-y-1">
         {navItems.filter(item => item.title !== "Automation" || automationEnabled).map((item) => {
           const active = isActive(item.href, item.end);
           const Icon = item.icon;
+          const isCollapsible = (item as any).collapsible;
           
           return (
-            <div key={item.href}>
-              <NavLink
-                to={item.href}
-                end={item.end}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all",
-                  "hover:bg-orange-50",
-                  active && "bg-primary/10 text-primary font-medium"
+            <div key={item.title}>
+              <div className="flex items-center">
+                <NavLink
+                  to={item.href}
+                  end={item.end}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all flex-1",
+                    "hover:bg-orange-50",
+                    active && "bg-primary/10 text-primary font-medium"
+                  )}
+                >
+                  <Icon className={cn("h-5 w-5 flex-shrink-0", active && "text-primary")} />
+                  {!collapsed && <span>{item.title}</span>}
+                </NavLink>
+                {/* Collapse toggle for Test Scenarios */}
+                {!collapsed && isCollapsible && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 flex-shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setScenariosExpanded(!scenariosExpanded);
+                    }}
+                  >
+                    {scenariosExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
                 )}
-              >
-                <Icon className={cn("h-5 w-5 flex-shrink-0", active && "text-primary")} />
-                {!collapsed && <span>{item.title}</span>}
-              </NavLink>
+              </div>
               
-              {/* Sub items - only show when expanded and has subItems */}
-              {!collapsed && item.subItems && (
+              {/* Sub items */}
+              {!collapsed && item.subItems && (!isCollapsible || scenariosExpanded) && (
                 <div className="ml-8 mt-1 space-y-1">
                   {item.subItems.map((subItem) => {
                     const subActive = location.pathname === subItem.href;
@@ -206,7 +220,6 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
         )}
       </nav>
       
-      {/* Collapse Toggle */}
       <div className="p-3 border-t border-orange-100/50">
         <Button
           variant="ghost"
