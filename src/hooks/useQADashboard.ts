@@ -90,7 +90,7 @@ export function useQADashboard() {
           .limit(5),
       ]);
 
-      const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
+      const [{ data: allResultsData }, { data: automationResultsData }, { count: totalCyclesCount }, { count: activeCycleRunsCount }, { data: recentCycleRunsData }] = await Promise.all([
         supabase
           .from("test_results")
           .select("id, status, fix_status, executed_at, test_case_id, test_runs!inner(project_id)")
@@ -102,6 +102,21 @@ export function useQADashboard() {
           .from("automation_results")
           .select("test_result_id, automation_runs!inner(project_id)")
           .eq("automation_runs.project_id", currentProject.id),
+        supabase
+          .from("test_cycles")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id),
+        supabase
+          .from("cycle_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id)
+          .eq("status", "in_progress"),
+        supabase
+          .from("cycle_runs")
+          .select("id, run_code, cycle_id, status, started_at, test_cycles!inner(name, cycle_code, project_id)")
+          .eq("test_cycles.project_id", currentProject.id)
+          .order("started_at", { ascending: false })
+          .limit(5),
       ]);
 
       const automationResultIds = new Set(
@@ -110,6 +125,17 @@ export function useQADashboard() {
       const manualResults = (allResultsData || []).filter(r => !automationResultIds.has(r.id));
       const failedResults = manualResults.filter(r => r.status === "fail");
 
+      // Map cycle runs
+      const cycleRunsBrief: CycleRunBrief[] = (recentCycleRunsData || []).map((cr: any) => ({
+        id: cr.id,
+        run_code: cr.run_code,
+        cycle_id: cr.cycle_id,
+        cycle_name: cr.test_cycles?.name || "Unknown",
+        cycle_code: cr.test_cycles?.cycle_code || "",
+        status: cr.status,
+        started_at: cr.started_at,
+      }));
+
       setStats({
         totalScenarios: scenarios?.length || 0,
         smokeCount,
@@ -117,10 +143,13 @@ export function useQADashboard() {
         interLoginCount,
         totalRuns: totalRunsCount || 0,
         inProgressRuns: inProgressRunsCount || 0,
+        totalCycles: totalCyclesCount || 0,
+        activeCycleRuns: activeCycleRunsCount || 0,
       });
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
       setRecentRuns((recentRunsData || []) as TestRun[]);
+      setRecentCycleRuns(cycleRunsBrief);
       setFailedTests(failedResults as unknown as TestResult[]);
       setAllResults(manualResults as unknown as TestResult[] || []);
     } catch (error) {
