@@ -99,7 +99,7 @@ export default function CreateCycle() {
                 description: s.description || null,
                 order_index: sIdx,
                 has_steps: s.has_steps,
-                steps: s.has_steps && s.steps.length > 0 ? JSON.stringify(s.steps) : null,
+                steps: s.has_steps && s.steps.length > 0 ? s.steps : null,
               }))
             );
           if (scenarioError) throw scenarioError;
