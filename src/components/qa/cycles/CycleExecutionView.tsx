@@ -112,7 +112,7 @@ export function CycleExecutionView({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 pb-24">
         {/* Context panel */}
-        <CycleContextPanel content={cycle.description} defaultOpen={false} />
+        <CycleContextPanel content={cycle.description} defaultExpanded={false} />
 
         {/* Group description */}
         {activeGroup?.description && (
