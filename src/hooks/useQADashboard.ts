@@ -4,6 +4,16 @@ import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { TestScenario, TestRun, TestResult } from "@/types/qa";
 
+interface CycleRunBrief {
+  id: string;
+  run_code: string;
+  cycle_id: string;
+  cycle_name: string;
+  cycle_code: string;
+  status: string;
+  started_at: string;
+}
+
 interface DashboardStats {
   totalScenarios: number;
   smokeCount: number;
@@ -11,6 +21,8 @@ interface DashboardStats {
   interLoginCount: number;
   totalRuns: number;
   inProgressRuns: number;
+  totalCycles: number;
+  activeCycleRuns: number;
 }
 
 export function useQADashboard() {
@@ -24,9 +36,12 @@ export function useQADashboard() {
     interLoginCount: 0,
     totalRuns: 0,
     inProgressRuns: 0,
+    totalCycles: 0,
+    activeCycleRuns: 0,
   });
   const [recentScenarios, setRecentScenarios] = useState<TestScenario[]>([]);
   const [recentRuns, setRecentRuns] = useState<TestRun[]>([]);
+  const [recentCycleRuns, setRecentCycleRuns] = useState<CycleRunBrief[]>([]);
   const [failedTests, setFailedTests] = useState<TestResult[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
 
@@ -75,7 +90,7 @@ export function useQADashboard() {
           .limit(5),
       ]);
 
-      const [{ data: allResultsData }, { data: automationResultsData }] = await Promise.all([
+      const [{ data: allResultsData }, { data: automationResultsData }, { count: totalCyclesCount }, { count: activeCycleRunsCount }, { data: recentCycleRunsData }] = await Promise.all([
         supabase
           .from("test_results")
           .select("id, status, fix_status, executed_at, test_case_id, test_runs!inner(project_id)")
@@ -87,6 +102,21 @@ export function useQADashboard() {
           .from("automation_results")
           .select("test_result_id, automation_runs!inner(project_id)")
           .eq("automation_runs.project_id", currentProject.id),
+        supabase
+          .from("test_cycles")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id),
+        supabase
+          .from("cycle_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", currentProject.id)
+          .eq("status", "in_progress"),
+        supabase
+          .from("cycle_runs")
+          .select("id, run_code, cycle_id, status, started_at, test_cycles!inner(name, cycle_code, project_id)")
+          .eq("test_cycles.project_id", currentProject.id)
+          .order("started_at", { ascending: false })
+          .limit(5),
       ]);
 
       const automationResultIds = new Set(
@@ -95,6 +125,17 @@ export function useQADashboard() {
       const manualResults = (allResultsData || []).filter(r => !automationResultIds.has(r.id));
       const failedResults = manualResults.filter(r => r.status === "fail");
 
+      // Map cycle runs
+      const cycleRunsBrief: CycleRunBrief[] = (recentCycleRunsData || []).map((cr: any) => ({
+        id: cr.id,
+        run_code: cr.run_code,
+        cycle_id: cr.cycle_id,
+        cycle_name: cr.test_cycles?.name || "Unknown",
+        cycle_code: cr.test_cycles?.cycle_code || "",
+        status: cr.status,
+        started_at: cr.started_at,
+      }));
+
       setStats({
         totalScenarios: scenarios?.length || 0,
         smokeCount,
@@ -102,10 +143,13 @@ export function useQADashboard() {
         interLoginCount,
         totalRuns: totalRunsCount || 0,
         inProgressRuns: inProgressRunsCount || 0,
+        totalCycles: totalCyclesCount || 0,
+        activeCycleRuns: activeCycleRunsCount || 0,
       });
 
       setRecentScenarios(recentScenariosData as TestScenario[] || []);
       setRecentRuns((recentRunsData || []) as TestRun[]);
+      setRecentCycleRuns(cycleRunsBrief);
       setFailedTests(failedResults as unknown as TestResult[]);
       setAllResults(manualResults as unknown as TestResult[] || []);
     } catch (error) {
@@ -126,6 +170,7 @@ export function useQADashboard() {
     stats,
     recentScenarios,
     recentRuns,
+    recentCycleRuns,
     failedTests,
     allResults,
     currentProject,
