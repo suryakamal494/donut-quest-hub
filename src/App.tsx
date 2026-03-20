@@ -127,6 +127,7 @@ const App = () => (
                 <Route path="cycles/:id" element={<CycleDetail />} />
                 <Route path="cycles/:id/edit" element={<EditCycle />} />
                 <Route path="cycles/:id/execute/:runId" element={<ExecuteCycle />} />
+                <Route path="cycles/:id/runs/:runId" element={<CycleRunReport />} />
                 <Route path="runs" element={<TestRuns />} />
                 <Route path="runs/create" element={<CreateTestRun />} />
                 <Route path="runs/:id" element={<ScenarioDetail />} />
