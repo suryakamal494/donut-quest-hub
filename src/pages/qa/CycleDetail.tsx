@@ -134,24 +134,24 @@ export default function CycleDetail() {
             <CardHeader className="pb-2 px-4 pt-4">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono text-[10px]">Group {String.fromCharCode(65 + gIdx)}</Badge>
-                <CardTitle className="text-sm font-semibold">{group.name}</CardTitle>
+                <CardTitle className="text-base font-semibold">{group.name}</CardTitle>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {group.scenarios?.length || 0} scenario{(group.scenarios?.length || 0) !== 1 ? "s" : ""}
                 </span>
               </div>
               {group.description && (
-                <p className="text-xs text-muted-foreground mt-1">{group.description}</p>
+                <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
               )}
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <div className="space-y-2">
                 {(group.scenarios || []).map((scenario) => (
                   <div key={scenario.id} className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border">
-                    <Badge variant="secondary" className="font-mono text-[10px] mt-0.5 flex-shrink-0">{scenario.scenario_code}</Badge>
+                    <Badge variant="secondary" className="font-mono text-xs mt-0.5 flex-shrink-0">{scenario.scenario_code}</Badge>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-foreground">{scenario.title}</p>
+                      <p className="font-medium text-base text-foreground">{scenario.title}</p>
                       {scenario.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{scenario.description}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{scenario.description}</p>
                       )}
                       {scenario.has_steps && (
                         <Badge variant="outline" className="text-[10px] mt-1">Has steps</Badge>
