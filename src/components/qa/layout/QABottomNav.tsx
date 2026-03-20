@@ -10,7 +10,6 @@ import {
   BarChart3,
   RotateCcw,
   Zap,
-  X,
   BookOpen,
   LineChart,
   RefreshCw
@@ -33,14 +32,19 @@ const mainNavItems = [
     end: true,
   },
   {
-    title: "Scenarios",
-    href: "/qa/scenarios",
-    icon: FileText,
+    title: "Bugs",
+    href: "/bugs",
+    icon: Bug,
   },
   {
     title: "Cycles",
     href: "/qa/cycles",
     icon: RefreshCw,
+  },
+  {
+    title: "Scenarios",
+    href: "/qa/scenarios",
+    icon: FileText,
   },
 ];
 
@@ -50,12 +54,6 @@ const moreNavItems = [
     href: "/qa/runs",
     icon: PlayCircle,
     description: "Manual test run execution",
-  },
-  {
-    title: "Bugs",
-    href: "/bugs",
-    icon: Bug,
-    description: "View and manage bugs",
   },
   {
     title: "Pending Retest",
@@ -131,7 +129,6 @@ export function QABottomNav() {
     return location.pathname.startsWith(href);
   };
 
-  // Check if any "more" item is active
   const isMoreActive = filteredMoreItems.some(item => isActive(item.href));
 
   return (
@@ -165,7 +162,6 @@ export function QABottomNav() {
           );
         })}
 
-        {/* More Button with Sheet */}
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger asChild>
             <button
