@@ -24,6 +24,7 @@ interface CycleExecutionViewProps {
   onComplete: () => void;
   onAbort: () => void;
   runCode: string;
+  onReportBug?: (result: CycleResultWithScenario) => void;
 }
 
 export function CycleExecutionView({
@@ -41,6 +42,7 @@ export function CycleExecutionView({
   onComplete,
   onAbort,
   runCode,
+  onReportBug,
 }: CycleExecutionViewProps) {
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
   const allDone = completedCount === totalCount && totalCount > 0;
@@ -132,6 +134,7 @@ export function CycleExecutionView({
                 result={result}
                 saving={saving}
                 onSave={onSaveResult}
+                onReportBug={onReportBug}
               />
             ))
           )}
