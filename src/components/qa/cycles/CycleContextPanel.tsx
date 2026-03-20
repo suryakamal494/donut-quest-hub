@@ -40,7 +40,7 @@ export function CycleContextPanel({ content, defaultExpanded = true }: CycleCont
         <CardContent className="pt-0 pb-4 px-4">
           {isHtml ? (
             <div
-              className="prose prose-sm max-w-none text-foreground/90 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mb-2 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-3 [&_hr]:my-4 [&_strong]:font-bold [&_em]:italic [&_u]:underline"
+              className="prose prose-sm max-w-none text-foreground/90 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mb-2 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-3 [&_hr]:my-4 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-auto [&_table]:w-full [&_td]:p-2 [&_th]:p-2 [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50"
               dangerouslySetInnerHTML={{ __html: content }}
             />
           ) : (

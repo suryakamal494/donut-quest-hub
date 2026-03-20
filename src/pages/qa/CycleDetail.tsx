@@ -151,7 +151,7 @@ export default function CycleDetail() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-base text-foreground">{scenario.title}</p>
                       {scenario.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{scenario.description}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{scenario.description}</p>
                       )}
                       {scenario.has_steps && (
                         <Badge variant="outline" className="text-[10px] mt-1">Has steps</Badge>
