@@ -140,7 +140,7 @@ export default function CycleDetail() {
                 </span>
               </div>
               {group.description && (
-                <p className="text-xs text-muted-foreground mt-1">{group.description}</p>
+                <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
               )}
             </CardHeader>
             <CardContent className="px-4 pb-4">
