@@ -134,7 +134,7 @@ export default function CycleDetail() {
             <CardHeader className="pb-2 px-4 pt-4">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono text-[10px]">Group {String.fromCharCode(65 + gIdx)}</Badge>
-                <CardTitle className="text-sm font-semibold">{group.name}</CardTitle>
+                <CardTitle className="text-base font-semibold">{group.name}</CardTitle>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {group.scenarios?.length || 0} scenario{(group.scenarios?.length || 0) !== 1 ? "s" : ""}
                 </span>
