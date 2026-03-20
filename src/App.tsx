@@ -47,6 +47,7 @@ const CycleList = lazy(() => import("./pages/qa/CycleList"));
 const CreateCycle = lazy(() => import("./pages/qa/CreateCycle"));
 const CycleDetail = lazy(() => import("./pages/qa/CycleDetail"));
 const EditCycle = lazy(() => import("./pages/qa/EditCycle"));
+const ExecuteCycle = lazy(() => import("./pages/qa/ExecuteCycle"));
 const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
