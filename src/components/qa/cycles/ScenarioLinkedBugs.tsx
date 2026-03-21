@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bug, ExternalLink, RefreshCw, Loader2, Plus } from "lucide-react";
+import { Bug, ExternalLink, RefreshCw, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
+import { BugDetailSheet } from "./BugDetailSheet";
 
 interface LinkedBug {
   id: string;
@@ -46,6 +46,8 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
   const [bugs, setBugs] = useState<LinkedBug[]>([]);
   const [loading, setLoading] = useState(true);
   const [reopening, setReopening] = useState<string | null>(null);
+  const [sheetBugId, setSheetBugId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const loadBugs = useCallback(async () => {
     const { data, error } = await supabase
@@ -60,7 +62,7 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
       return;
     }
 
-    // Get reporter names
+    // Batch profile lookup
     const reporterIds = [...new Set((data || []).map((b: any) => b.reported_by).filter(Boolean))];
     let profileMap: Record<string, string> = {};
     if (reporterIds.length > 0) {
@@ -91,13 +93,11 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
     if (!user) return;
     try {
       setReopening(bugId);
-      // Update bug status
       await supabase
         .from("bugs")
         .update({ status: "open", fix_status: "reopened", reopened_by: user.id })
         .eq("id", bugId);
 
-      // Record in history
       await supabase.from("bug_history").insert({
         bug_id: bugId,
         changed_by: user.id,
@@ -113,6 +113,11 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
     } finally {
       setReopening(null);
     }
+  };
+
+  const handleViewBug = (bugId: string) => {
+    setSheetBugId(bugId);
+    setSheetOpen(true);
   };
 
   if (loading) {
@@ -174,16 +179,25 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
                     Reopen
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
-                  <Link to={`/bugs/${bug.id}`}>
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> View
-                  </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleViewBug(bug.id)}
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" /> View
                 </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <BugDetailSheet
+        bugId={sheetBugId}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+      />
     </div>
   );
 }
