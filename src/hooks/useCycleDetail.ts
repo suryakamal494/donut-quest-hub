@@ -63,15 +63,58 @@ export function useCycleList() {
         (groupsByCycle[g.cycle_id] ||= []).push(g.id);
       });
 
-      // Batch: scenario counts per group
+      // Batch: scenario counts per group + bug counts + comment counts
       let scenarioCountByGroup: Record<string, number> = {};
-      if (groupIds.length > 0) {
-        const { data: scenarios } = await supabase
-          .from("cycle_scenarios")
-          .select("group_id")
-          .in("group_id", groupIds);
-        (scenarios || []).forEach((s: any) => {
-          scenarioCountByGroup[s.group_id] = (scenarioCountByGroup[s.group_id] || 0) + 1;
+      let scenarioIdsByCycle: Record<string, string[]> = {};
+
+      const [scenariosRes2, commentsRes] = await Promise.all([
+        groupIds.length > 0
+          ? supabase.from("cycle_scenarios").select("id, group_id").in("group_id", groupIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from("cycle_scenario_comments").select("cycle_id").in("cycle_id", cycleIds),
+      ]);
+
+      (scenariosRes2.data || []).forEach((s: any) => {
+        scenarioCountByGroup[s.group_id] = (scenarioCountByGroup[s.group_id] || 0) + 1;
+        // Map scenario IDs back to their cycle
+        for (const [cId, gIds2] of Object.entries(groupsByCycle)) {
+          if ((gIds2 as string[]).includes(s.group_id)) {
+            (scenarioIdsByCycle[cId] ||= []).push(s.id);
+            break;
+          }
+        }
+      });
+
+      // Comment counts per cycle
+      const commentCountByCycle: Record<string, number> = {};
+      (commentsRes.data || []).forEach((c: any) => {
+        commentCountByCycle[c.cycle_id] = (commentCountByCycle[c.cycle_id] || 0) + 1;
+      });
+
+      // Bug counts: fetch bugs linked to any cycle_scenario_id in our set
+      const allScenarioIds = Object.values(scenarioIdsByCycle).flat();
+      let bugCountByCycle: Record<string, number> = {};
+      let openBugCountByCycle: Record<string, number> = {};
+      if (allScenarioIds.length > 0) {
+        const { data: bugsData } = await supabase
+          .from("bugs")
+          .select("cycle_scenario_id, status")
+          .in("cycle_scenario_id", allScenarioIds);
+        
+        // Reverse map: scenario_id → cycle_id
+        const scenarioToCycle: Record<string, string> = {};
+        for (const [cId, sIds] of Object.entries(scenarioIdsByCycle)) {
+          for (const sId of sIds) scenarioToCycle[sId] = cId;
+        }
+        
+        (bugsData || []).forEach((b: any) => {
+          const cId = scenarioToCycle[b.cycle_scenario_id];
+          if (cId) {
+            bugCountByCycle[cId] = (bugCountByCycle[cId] || 0) + 1;
+            if (b.status !== 'closed' && b.status !== 'wont_fix') {
+              openBugCountByCycle[cId] = (openBugCountByCycle[cId] || 0) + 1;
+            }
+          }
         });
       }
 
@@ -95,6 +138,9 @@ export function useCycleList() {
           total_scenarios: totalScenarios,
           last_run: latestRunByCycle[cycle.id] || null,
           creator_name: profileMap[cycle.created_by] || "Unknown",
+          bug_count: bugCountByCycle[cycle.id] || 0,
+          open_bug_count: openBugCountByCycle[cycle.id] || 0,
+          comment_count: commentCountByCycle[cycle.id] || 0,
         } as TestCycle;
       });
 

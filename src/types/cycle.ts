@@ -30,6 +30,9 @@ export interface TestCycle {
   creator_name?: string;
   total_scenarios?: number;
   last_run?: CycleRun | null;
+  bug_count?: number;
+  open_bug_count?: number;
+  comment_count?: number;
 }
 
 export interface CycleGroup {
