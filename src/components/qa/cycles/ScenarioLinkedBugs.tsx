@@ -174,9 +174,9 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
                     Reopen
                   </Button>
                 )}
-                <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
                   <Link to={`/bugs/${bug.id}`}>
-                    <ExternalLink className="h-3.5 w-3.5" />
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> View
                   </Link>
                 </Button>
               </div>
@@ -184,10 +184,6 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
           ))}
         </div>
       )}
-
-      <Button variant="outline" size="sm" className="w-full text-xs" onClick={onReportBug}>
-        <Plus className="h-3.5 w-3.5 mr-1" /> Report New Bug
-      </Button>
     </div>
   );
 }

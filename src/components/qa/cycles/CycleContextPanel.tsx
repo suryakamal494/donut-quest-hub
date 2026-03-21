@@ -25,7 +25,7 @@ export function CycleContextPanel({ content, defaultExpanded = false }: CycleCon
       >
         <div className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm text-foreground">Context & Theory</span>
+          <span className="font-semibold text-sm text-foreground">Testing Guide</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -85,26 +85,48 @@ export function ScenarioWorkspaceCard({
             )}
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 mt-0.5">
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReportBug(scenario);
+            }}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" /> Report Bug
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {/* Expanded content */}
       {expanded && (
         <CardContent className="pt-0 pb-4 px-3 sm:px-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full grid grid-cols-3 h-8">
-              <TabsTrigger value="comments" className="text-xs">
+            <TabsList className="w-full grid grid-cols-3 h-9 bg-muted/60 p-0.5 rounded-lg">
+              <TabsTrigger
+                value="comments"
+                className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+              >
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
                 Comments {commentCount > 0 && `(${commentCount})`}
               </TabsTrigger>
-              <TabsTrigger value="bugs" className="text-xs">
+              <TabsTrigger
+                value="bugs"
+                className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+              >
                 <Bug className="h-3.5 w-3.5 mr-1" />
                 Bugs {bugCount > 0 && `(${bugCount})`}
               </TabsTrigger>
               {scenario.has_steps && (
-                <TabsTrigger value="steps" className="text-xs">
+                <TabsTrigger
+                  value="steps"
+                  className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                >
                   <CheckSquare className="h-3.5 w-3.5 mr-1" />
                   Steps
                 </TabsTrigger>

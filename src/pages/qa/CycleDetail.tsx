@@ -75,7 +75,7 @@ export default function CycleDetail() {
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-sm font-mono text-muted-foreground">{cycle.cycle_code}</span>
             <Badge variant={statusVariant[cycle.status]}>{CYCLE_STATUS_LABELS[cycle.status]}</Badge>
-            <PriorityBadge priority={cycle.priority} />
+            
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">{cycle.name}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
