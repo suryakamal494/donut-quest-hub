@@ -1,30 +1,24 @@
 
 
-# Cycle Card Cleanup & Metrics
+# Add Content to Testing Guide — Curriculum Scope QA Cycle
 
-## Changes
+## What We're Doing
+Updating the Testing Guide (stored as HTML in the `test_cycles.description` field) for cycle `a1b2c3d4-e5f6-7890-abcd-ef1234567890` with three new content blocks.
 
-### 1. Remove Status & Priority badges from CycleCard
-Strip `<Badge>` (Active) and `<PriorityBadge>` (Medium) from the card. Keep only the cycle code, styled with a highlighted mono badge for quick identification.
+## Insertion Points (based on current HTML structure)
 
-### 2. Add quick metrics to CycleCard
-Add a second row of metrics showing:
-- **Bugs reported** — count of bugs linked to the cycle's scenarios (`bugs.cycle_scenario_id` → `cycle_scenarios` → `cycle_groups.cycle_id`)
-- **Open bugs** — subset with status != closed/verified
-- **Comments** — count from `cycle_scenario_comments` where `cycle_id` matches
+### Addition 1 — Course Rule Note
+**After:** The Golden Rule paragraph (`<h3>The Golden Rule</h3>` + its `<p>` block)
+**Insert:** A `<blockquote>` note explaining the rule applies equally to courses, with references to related QA docs.
 
-### 3. Data fetching (useCycleList hook)
-In the batch-fetch section of `useCycleList()`, add two more parallel queries:
-1. Bug counts per cycle: join `bugs` → `cycle_scenarios` → `cycle_groups` to get cycle_id, group by cycle
-2. Comment counts: `cycle_scenario_comments` grouped by `cycle_id`
+### Addition 2 — Class-Agnostic Course Note
+**After:** The Entity Relationship Model section (which covers batch creation with curriculum/subject assignments). This is the closest match to "Batch Creation section" in the current guide — insert right after the `</code></pre>` that ends the Entity Relationship Model diagram, before the Teacher Filtering Logic heading.
+**Insert:** A `<blockquote>` note explaining courses are class-agnostic during batch creation.
 
-Enrich each `TestCycle` with `bug_count`, `open_bug_count`, `comment_count`.
+### Addition 3 — Related Documents Section
+**Before:** The final summary section (`<h2>What "Working Correctly" Looks Like — Summary</h2>`).
+**Insert:** A new `<h2>Related Documents</h2>` section with a list linking to the two QA documents.
 
-### Files to modify
-
-| File | Change |
-|------|--------|
-| `src/components/qa/cycles/CycleCard.tsx` | Remove Badge + PriorityBadge, highlight cycle code, add bug/comment metrics row |
-| `src/hooks/useCycleDetail.ts` | Add batch queries for bug counts + comment counts per cycle |
-| `src/types/cycle.ts` | Add optional `bug_count`, `open_bug_count`, `comment_count` to `TestCycle` |
+## Implementation
+Single database migration to update the `description` column with the enriched HTML content, inserting the three blocks at their respective positions.
 
