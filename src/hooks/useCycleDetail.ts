@@ -138,6 +138,9 @@ export function useCycleList() {
           total_scenarios: totalScenarios,
           last_run: latestRunByCycle[cycle.id] || null,
           creator_name: profileMap[cycle.created_by] || "Unknown",
+          bug_count: bugCountByCycle[cycle.id] || 0,
+          open_bug_count: openBugCountByCycle[cycle.id] || 0,
+          comment_count: commentCountByCycle[cycle.id] || 0,
         } as TestCycle;
       });
 
