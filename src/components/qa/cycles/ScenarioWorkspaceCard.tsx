@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
