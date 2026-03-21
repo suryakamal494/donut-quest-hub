@@ -1,92 +1,67 @@
 
 
-# Collaborative Cycle Testing — Redesign
+# Issues Summary & Implementation Plan
 
-## The Problem with the Current Model
+## Issue 1: Remove "Medium" priority badge from cycle header
+The `PriorityBadge` component renders "Medium" next to the cycle status. User says it's unnecessary clutter.
 
-The current cycle execution follows a **"run-based" snapshot model**: one person starts a run, marks each scenario pass/fail, completes the run. This breaks down when:
-- Multiple people test the same cycle continuously
-- The cycle is a living document, not a one-shot exam
-- Pass/fail has no meaning when the same scenario gets tested by different people on different days
-- There's no comment history, no visibility of what others found
+**Fix:** Remove `<PriorityBadge priority={cycle.priority} />` from `CycleDetail.tsx` line 78.
 
-## The Right Model: Scenario-as-Workspace
+---
 
-In real-world QA teams (think Notion checklists, shared test documents), the **cycle itself is the workspace** and each **scenario is a conversation thread**. There are no "runs" to start/complete. Instead:
+## Issue 2: "Report Bug" button only visible when Bugs tab is active
+Currently the "Report New Bug" button lives inside `ScenarioLinkedBugs` (line 188), which only renders in the Bugs tab. User wants it always visible regardless of active tab.
 
-- A tester opens the cycle, picks a scenario, adds their observations as comments
-- If they find a bug, they report it — linked to that scenario
-- The next tester sees all previous comments and linked bugs before testing
-- Everyone's activity is logged automatically (who viewed/commented/reported)
+**Fix:** Move "Report Bug" out of `ScenarioLinkedBugs` and into `ScenarioWorkspaceCard` as a small button in the card header area (top-right corner), always visible even when collapsed. Make it compact — just an icon + "Report Bug" text, not full-width.
 
-## What Changes
+Also remove the full-width "Report New Bug" button from `ScenarioLinkedBugs.tsx` (line 188).
 
-### Remove from Cycles
-- **No more "Start Cycle Test" button** that creates a run
-- **No more pass/fail/skip/blocked buttons** per scenario
-- **No more "Complete Run" / "Abort" flow**
-- The `cycle_runs` and `cycle_results` tables stay (for historical data) but no new runs get created
+---
 
-### Add to Each Scenario Card
-1. **Comment Thread** — timestamped, per-user, with history (like bug comments). Anyone can add observations. Supports text + optional attachments.
-2. **Linked Bugs Panel** — shows all bugs reported against this scenario with current status (open/resolved/verified/reopened). Clicking shows bug detail.
-3. **"Report Bug" button** (renamed from "Bug") — opens the bug report dialog, pre-filled with scenario context. Before submitting, shows existing bugs so the tester can choose to **reopen an existing bug** instead of creating a duplicate.
-4. **Activity ribbon** — small indicators showing "Tested by Ravi 2h ago", "Priya commented yesterday", etc.
+## Issue 3: Comments/Bugs tab styling — tabs not clearly highlighted
+The `TabsList` uses default styling which doesn't make the active tab obvious enough. 
 
-### New Database Tables
+**Fix:** Add explicit active-state styling to the tabs: stronger background on the active tab, visible border/underline, and better contrast.
 
-**`cycle_scenario_comments`** — comment thread per scenario
-```
-id, cycle_id, scenario_id, user_id, comment (text), attachments (text[]), created_at
-```
+---
 
-### UI Changes
+## Issue 4: Comments not saving
+The comment insert goes to `cycle_scenario_comments` table. The RLS policy requires `auth.uid() = user_id AND exists(test_cycles...)`. Need to test the actual save flow. Likely the `comment` field is empty or there's an RLS issue. Will add error logging and verify the insert works. Also check if the user is authenticated properly when posting.
 
-**Cycle Detail Page (`CycleDetail.tsx`)** becomes the primary workspace:
-- Each scenario card expands inline to show comments thread + linked bugs
-- No "Start Cycle Test" button — replaced with scenario-level interactions
-- The existing "Run History" section stays for legacy runs but is de-emphasized
+**Fix:** Debug and fix the comment save. Add proper error handling/toast on failure. Verify RLS policies allow insert for authenticated users with project access.
 
-**Scenario Card (new component replacing `ScenarioResultCard`):**
-```
-┌─────────────────────────────────────────┐
-│ [A1] Batch Creation – Basic Flow        │
-│ Description text...                     │
-│                                         │
-│ 🐛 2 bugs (1 open, 1 verified)    [▸]  │
-│ 💬 4 comments                      [▸]  │
-│ Last activity: Ravi, 2 hours ago        │
-│                                         │
-│ [Add Comment]  [Report Bug]             │
-└─────────────────────────────────────────┘
-```
+---
 
-Expanding a scenario shows:
-- **Bugs tab**: List of linked bugs with status badges, "Report New Bug" and "Reopen" options
-- **Comments tab**: Full threaded comment history with timestamps and user names
-- **Steps checklist** (if scenario has steps): kept as-is for reference
+## Issue 5: Bugs reported from cycle should appear in Active Bugs page + View option
+When a bug is reported from the cycle, it should:
+1. Appear in the main Bug List (`/bugs`) — this should already work since it inserts into `bugs` table
+2. In the cycle's Bugs tab, each bug should have a "View" link to navigate to the bug detail page
 
-**Admin Dashboard addition:**
-- "Cycle Activity" widget showing per-person testing activity across cycles (who commented on what, who reported bugs, when)
+**Fix:** The "View" link already exists (the `ExternalLink` icon button in `ScenarioLinkedBugs` line 177-181). Make it more visible — add a text "View" label instead of just an icon.
 
-### Files to Create/Modify
+---
 
-| File | Change |
-|------|--------|
-| **New migration** | Create `cycle_scenario_comments` table with RLS |
-| **New: `src/components/qa/cycles/ScenarioWorkspaceCard.tsx`** | Replaces ScenarioResultCard — expandable card with comments, bugs, activity |
-| **New: `src/components/qa/cycles/ScenarioCommentThread.tsx`** | Comment thread UI (load/post comments per scenario) |
-| **New: `src/components/qa/cycles/ScenarioLinkedBugs.tsx`** | Shows bugs linked to scenario with reopen option |
-| `src/pages/qa/CycleDetail.tsx` | Remove "Start Cycle Test", make scenario cards interactive workspace cards |
-| `src/components/qa/cycles/CycleBugReportDialog.tsx` | Add "existing bugs" section showing linked bugs with reopen option |
-| `src/hooks/useCycleDetail.ts` | Enrich scenarios with comment counts + linked bug counts |
+## Issue 6: Rename "Context & Theory" to a better title
+User wants a more appropriate title for the expandable section.
 
-### What Stays
-- Cycle creation flow (3-step wizard) — unchanged
-- Context & Theory panel — unchanged
-- Group structure — unchanged
-- The existing `cycle_runs`/`cycle_results` tables and execution page stay for any historical data, but the "Start Cycle Test" flow is removed from the UI
+**Fix:** Rename to "Testing Guide" in `CycleContextPanel.tsx` line 28.
 
-### Summary
-The cycle shifts from a **test execution tool** (start → mark → complete) to a **collaborative testing workspace** (open → observe → comment → report bugs → track). This mirrors how real QA teams work with shared documents — the document lives forever, people contribute over time, and the history tells the full story.
+---
+
+## Issue 7: Context panel should default to collapsed
+Currently `defaultExpanded = true` (line 12). User wants it collapsed by default; testers expand it if needed.
+
+**Fix:** Change `defaultExpanded` default to `false` in `CycleContextPanel.tsx` line 12. Also update the call in `CycleDetail.tsx` line 95 (remove any explicit `defaultExpanded` prop or ensure it's not passed as true).
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/qa/CycleDetail.tsx` | Remove PriorityBadge from header |
+| `src/components/qa/cycles/ScenarioWorkspaceCard.tsx` | Add always-visible "Report Bug" button in header; improve tab styling |
+| `src/components/qa/cycles/ScenarioLinkedBugs.tsx` | Remove full-width "Report New Bug" button; make "View" link more visible |
+| `src/components/qa/cycles/ScenarioCommentThread.tsx` | Debug/fix comment saving; add better error handling |
+| `src/components/qa/cycles/CycleContextPanel.tsx` | Rename to "Testing Guide"; default collapsed |
 
