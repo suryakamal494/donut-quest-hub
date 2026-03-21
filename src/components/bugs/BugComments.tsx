@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Loader2, Send, MessageSquare, Paperclip, X, Image as ImageIcon } from "lucide-react";
+import { Loader2, Send, MessageSquare, Paperclip, X, Image as ImageIcon, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
