@@ -110,14 +110,14 @@ export function ScenarioWorkspaceCard({
             <TabsList className="w-full grid grid-cols-3 h-9 bg-muted/60 p-0.5 rounded-lg">
               <TabsTrigger
                 value="comments"
-                className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                className="text-xs data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-400 rounded-md"
               >
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
                 Comments {commentCount > 0 && `(${commentCount})`}
               </TabsTrigger>
               <TabsTrigger
                 value="bugs"
-                className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                className="text-xs data-[state=active]:bg-red-50 data-[state=active]:text-red-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-red-950/30 dark:data-[state=active]:text-red-400 rounded-md"
               >
                 <Bug className="h-3.5 w-3.5 mr-1" />
                 Bugs {bugCount > 0 && `(${bugCount})`}
@@ -125,7 +125,7 @@ export function ScenarioWorkspaceCard({
               {scenario.has_steps && (
                 <TabsTrigger
                   value="steps"
-                  className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                  className="text-xs data-[state=active]:bg-green-50 data-[state=active]:text-green-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-green-950/30 dark:data-[state=active]:text-green-400 rounded-md"
                 >
                   <CheckSquare className="h-3.5 w-3.5 mr-1" />
                   Steps
