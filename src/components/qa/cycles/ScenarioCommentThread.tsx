@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, Send, Loader2, Trash2, Paperclip, X } from "lucide-react";
+import { MessageSquare, Send, Loader2, Trash2, Paperclip, X, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
