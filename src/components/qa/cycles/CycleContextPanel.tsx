@@ -9,7 +9,7 @@ interface CycleContextPanelProps {
   defaultExpanded?: boolean;
 }
 
-export function CycleContextPanel({ content, defaultExpanded = true }: CycleContextPanelProps) {
+export function CycleContextPanel({ content, defaultExpanded = false }: CycleContextPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   if (!content) return null;
