@@ -12,7 +12,7 @@ import { useCycleDetail } from "@/hooks/useCycleDetail";
 import { CycleContextPanel } from "@/components/qa/cycles/CycleContextPanel";
 import { ScenarioWorkspaceCard } from "@/components/qa/cycles/ScenarioWorkspaceCard";
 import { CycleBugReportDialog } from "@/components/qa/cycles/CycleBugReportDialog";
-import { PriorityBadge } from "@/components/qa/badges";
+
 import { CYCLE_STATUS_LABELS } from "@/types/cycle";
 import type { CycleScenario } from "@/types/cycle";
 import { formatDistanceToNow, format } from "date-fns";
