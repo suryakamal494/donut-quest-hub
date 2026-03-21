@@ -42,13 +42,49 @@ interface BugCommentsProps {
 }
 
 export function BugComments({ bugId }: BugCommentsProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [comments, setComments] = useState<BugComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canEditComment = (comment: BugComment) =>
+    user?.id === comment.user_id || role === "admin";
+
+  const startEdit = (comment: BugComment) => {
+    setEditingId(comment.id);
+    setEditText(comment.comment);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editText.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("bug_comments")
+        .update({ comment: editText.trim() })
+        .eq("id", editingId);
+      if (error) throw error;
+      toast.success("Comment updated");
+      setEditingId(null);
+      setEditText("");
+      await loadComments();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
