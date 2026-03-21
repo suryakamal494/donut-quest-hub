@@ -656,6 +656,51 @@ export type Database = {
           },
         ]
       }
+      cycle_scenario_comments: {
+        Row: {
+          attachments: string[] | null
+          comment: string
+          created_at: string
+          cycle_id: string
+          id: string
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          attachments?: string[] | null
+          comment: string
+          created_at?: string
+          cycle_id: string
+          id?: string
+          scenario_id: string
+          user_id: string
+        }
+        Update: {
+          attachments?: string[] | null
+          comment?: string
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_scenario_comments_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "test_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_scenario_comments_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cycle_scenarios: {
         Row: {
           created_at: string
