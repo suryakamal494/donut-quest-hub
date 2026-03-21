@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
-import { useAuth } from "@/contexts/AuthContext";
 import type { TestCycle, CycleGroup, CycleScenario, CycleRun } from "@/types/cycle";
 
 export function useCycleList() {
@@ -31,44 +30,73 @@ export function useCycleList() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // For each cycle, get group+scenario counts and last run
-      const enriched: TestCycle[] = await Promise.all(
-        (data || []).map(async (cycle: any) => {
-          const { count: scenarioCount } = await supabase
-            .from("cycle_scenarios")
-            .select("id", { count: "exact", head: true })
-            .in(
-              "group_id",
-              await supabase
-                .from("cycle_groups")
-                .select("id")
-                .eq("cycle_id", cycle.id)
-                .then(({ data }) => (data || []).map((g: any) => g.id))
-            );
+      const cycleList = data || [];
+      if (cycleList.length === 0) {
+        setCycles([]);
+        setLoading(false);
+        return;
+      }
 
-          const { data: lastRun } = await supabase
-            .from("cycle_runs")
-            .select("*")
-            .eq("cycle_id", cycle.id)
-            .order("started_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+      const cycleIds = cycleList.map((c: any) => c.id);
+      const creatorIds = [...new Set(cycleList.map((c: any) => c.created_by).filter(Boolean))];
 
-          // Get creator name
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", cycle.created_by)
-            .maybeSingle();
+      // Batch: all groups for all cycles, all runs (latest per cycle), all creator profiles
+      const [groupsRes, runsRes, profilesRes] = await Promise.all([
+        supabase
+          .from("cycle_groups")
+          .select("id, cycle_id")
+          .in("cycle_id", cycleIds),
+        supabase
+          .from("cycle_runs")
+          .select("*")
+          .in("cycle_id", cycleIds)
+          .order("started_at", { ascending: false }),
+        creatorIds.length > 0
+          ? supabase.from("profiles").select("user_id, full_name").in("user_id", creatorIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
-          return {
-            ...cycle,
-            total_scenarios: scenarioCount || 0,
-            last_run: lastRun || null,
-            creator_name: profile?.full_name || "Unknown",
-          } as TestCycle;
-        })
-      );
+      const groupIds = (groupsRes.data || []).map((g: any) => g.id);
+      // Group IDs per cycle
+      const groupsByCycle: Record<string, string[]> = {};
+      (groupsRes.data || []).forEach((g: any) => {
+        (groupsByCycle[g.cycle_id] ||= []).push(g.id);
+      });
+
+      // Batch: scenario counts per group
+      let scenarioCountByGroup: Record<string, number> = {};
+      if (groupIds.length > 0) {
+        const { data: scenarios } = await supabase
+          .from("cycle_scenarios")
+          .select("group_id")
+          .in("group_id", groupIds);
+        (scenarios || []).forEach((s: any) => {
+          scenarioCountByGroup[s.group_id] = (scenarioCountByGroup[s.group_id] || 0) + 1;
+        });
+      }
+
+      // Latest run per cycle
+      const latestRunByCycle: Record<string, any> = {};
+      (runsRes.data || []).forEach((r: any) => {
+        if (!latestRunByCycle[r.cycle_id]) latestRunByCycle[r.cycle_id] = r;
+      });
+
+      // Profile map
+      const profileMap: Record<string, string> = {};
+      (profilesRes.data || []).forEach((p: any) => {
+        profileMap[p.user_id] = p.full_name;
+      });
+
+      const enriched: TestCycle[] = cycleList.map((cycle: any) => {
+        const gIds = groupsByCycle[cycle.id] || [];
+        const totalScenarios = gIds.reduce((sum, gId) => sum + (scenarioCountByGroup[gId] || 0), 0);
+        return {
+          ...cycle,
+          total_scenarios: totalScenarios,
+          last_run: latestRunByCycle[cycle.id] || null,
+          creator_name: profileMap[cycle.created_by] || "Unknown",
+        } as TestCycle;
+      });
 
       setCycles(enriched);
     } catch (err) {
@@ -95,61 +123,56 @@ export function useCycleDetail(cycleId: string | undefined) {
     if (!cycleId) return;
     setLoading(true);
     try {
-      // Load cycle
-      const { data: cycleData, error } = await supabase
-        .from("test_cycles")
-        .select("*")
-        .eq("id", cycleId)
-        .single();
-      if (error) throw error;
+      // Load cycle + groups + runs in parallel
+      const [cycleRes, groupsRes, runsRes] = await Promise.all([
+        supabase.from("test_cycles").select("*").eq("id", cycleId).single(),
+        supabase.from("cycle_groups").select("*").eq("cycle_id", cycleId).order("order_index"),
+        supabase.from("cycle_runs").select("*").eq("cycle_id", cycleId).order("started_at", { ascending: false }).limit(20),
+      ]);
 
-      // Load creator name
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("user_id", cycleData.created_by)
-        .maybeSingle();
+      if (cycleRes.error) throw cycleRes.error;
+      const cycleData = cycleRes.data;
 
-      setCycle({ ...cycleData, creator_name: profile?.full_name || "Unknown" } as TestCycle);
+      // Collect all user IDs for batch profile lookup
+      const allUserIds = new Set<string>();
+      allUserIds.add(cycleData.created_by);
+      (runsRes.data || []).forEach((r: any) => allUserIds.add(r.executed_by));
 
-      // Load groups with scenarios
-      const { data: groupsData } = await supabase
-        .from("cycle_groups")
-        .select("*")
-        .eq("cycle_id", cycleId)
-        .order("order_index");
+      // Load scenarios for all groups + profiles in parallel
+      const groupIds = (groupsRes.data || []).map((g: any) => g.id);
+      const [scenariosRes, profilesRes] = await Promise.all([
+        groupIds.length > 0
+          ? supabase.from("cycle_scenarios").select("*").in("group_id", groupIds).order("order_index")
+          : Promise.resolve({ data: [] }),
+        allUserIds.size > 0
+          ? supabase.from("profiles").select("user_id, full_name").in("user_id", [...allUserIds])
+          : Promise.resolve({ data: [] }),
+      ]);
 
-      const enrichedGroups: CycleGroup[] = await Promise.all(
-        (groupsData || []).map(async (group: any) => {
-          const { data: scenarios } = await supabase
-            .from("cycle_scenarios")
-            .select("*")
-            .eq("group_id", group.id)
-            .order("order_index");
-          return { ...group, scenarios: scenarios || [] } as CycleGroup;
-        })
+      const profileMap: Record<string, string> = {};
+      (profilesRes.data || []).forEach((p: any) => { profileMap[p.user_id] = p.full_name; });
+
+      setCycle({ ...cycleData, creator_name: profileMap[cycleData.created_by] || "Unknown" } as TestCycle);
+
+      // Group scenarios by group_id
+      const scenariosByGroup: Record<string, CycleScenario[]> = {};
+      (scenariosRes.data || []).forEach((s: any) => {
+        (scenariosByGroup[s.group_id] ||= []).push(s as CycleScenario);
+      });
+
+      setGroups(
+        (groupsRes.data || []).map((group: any) => ({
+          ...group,
+          scenarios: scenariosByGroup[group.id] || [],
+        }) as CycleGroup)
       );
-      setGroups(enrichedGroups);
 
-      // Load runs
-      const { data: runsData } = await supabase
-        .from("cycle_runs")
-        .select("*")
-        .eq("cycle_id", cycleId)
-        .order("started_at", { ascending: false })
-        .limit(20);
-
-      const enrichedRuns: CycleRun[] = await Promise.all(
-        (runsData || []).map(async (run: any) => {
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", run.executed_by)
-            .maybeSingle();
-          return { ...run, executor_name: prof?.full_name || "Unknown" } as CycleRun;
-        })
+      setRuns(
+        (runsRes.data || []).map((run: any) => ({
+          ...run,
+          executor_name: profileMap[run.executed_by] || "Unknown",
+        }) as CycleRun)
       );
-      setRuns(enrichedRuns);
     } catch (err) {
       console.error("Error loading cycle:", err);
     } finally {
