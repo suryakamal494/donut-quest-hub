@@ -207,7 +207,17 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                   <span className="text-[10px] text-muted-foreground">
                     {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </span>
-                  {user?.id === c.user_id && (
+                  {canEditComment(c) && editingId !== c.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => startEdit(c)}
+                    >
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  )}
+                  {(user?.id === c.user_id || role === "admin") && editingId !== c.id && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -218,7 +228,33 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                     </Button>
                   )}
                 </div>
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap mt-0.5">{c.comment}</p>
+
+                {editingId === c.id ? (
+                  <div className="space-y-2 mt-0.5">
+                    <Textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={2}
+                      className="text-sm resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit();
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-6 text-xs" onClick={saveEdit} disabled={saving || !editText.trim()}>
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={cancelEdit} disabled={saving}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap mt-0.5">{c.comment}</p>
+                )}
+
                 {c.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-1.5">
                     {c.attachments.map((url, i) => (
