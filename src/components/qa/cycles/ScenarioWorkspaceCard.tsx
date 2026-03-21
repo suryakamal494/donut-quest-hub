@@ -89,13 +89,13 @@ export function ScenarioWorkspaceCard({
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-xs"
+            className="h-7 text-xs border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:border-orange-700 dark:bg-orange-950/30 dark:text-orange-400 dark:hover:bg-orange-950/50"
             onClick={(e) => {
               e.stopPropagation();
               onReportBug(scenario);
             }}
           >
-            <Plus className="h-3.5 w-3.5 mr-1" /> Report Bug
+            <Bug className="h-3.5 w-3.5 mr-1" /> Report Bug
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
