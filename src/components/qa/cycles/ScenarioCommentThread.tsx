@@ -101,22 +101,31 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
   };
 
   const handlePost = async () => {
-    if (!user || (!newComment.trim() && pendingFiles.length === 0)) return;
+    if (!user) {
+      toast({ title: "Please log in to comment", variant: "destructive" });
+      return;
+    }
+    if (!newComment.trim() && pendingFiles.length === 0) return;
     try {
       setPosting(true);
       const attachmentUrls = await uploadFiles();
+      const commentText = newComment.trim() || "(attachment)";
 
       const { error } = await supabase.from("cycle_scenario_comments").insert({
         cycle_id: cycleId,
         scenario_id: scenarioId,
         user_id: user.id,
-        comment: newComment.trim(),
+        comment: commentText,
         attachments: attachmentUrls,
       });
-      if (error) throw error;
+      if (error) {
+        console.error("Comment insert error:", error);
+        throw error;
+      }
       setNewComment("");
       setPendingFiles([]);
       await loadComments();
+      toast({ title: "Comment added" });
     } catch (err: any) {
       toast({ title: "Error posting comment", description: err.message, variant: "destructive" });
     } finally {

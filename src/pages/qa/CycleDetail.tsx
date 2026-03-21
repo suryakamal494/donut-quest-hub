@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, Loader2, FileText, Clock, User, Bug } from "lucide-react";
+import { ArrowLeft, Edit, Loader2, FileText, Clock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { useCycleDetail } from "@/hooks/useCycleDetail";
 import { CycleContextPanel } from "@/components/qa/cycles/CycleContextPanel";
 import { ScenarioWorkspaceCard } from "@/components/qa/cycles/ScenarioWorkspaceCard";
 import { CycleBugReportDialog } from "@/components/qa/cycles/CycleBugReportDialog";
-import { PriorityBadge } from "@/components/qa/badges";
+
 import { CYCLE_STATUS_LABELS } from "@/types/cycle";
 import type { CycleScenario } from "@/types/cycle";
 import { formatDistanceToNow, format } from "date-fns";
@@ -75,7 +75,7 @@ export default function CycleDetail() {
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-sm font-mono text-muted-foreground">{cycle.cycle_code}</span>
             <Badge variant={statusVariant[cycle.status]}>{CYCLE_STATUS_LABELS[cycle.status]}</Badge>
-            <PriorityBadge priority={cycle.priority} />
+            
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">{cycle.name}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
