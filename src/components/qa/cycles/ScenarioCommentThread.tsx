@@ -24,7 +24,7 @@ interface ScenarioCommentThreadProps {
 }
 
 export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChange }: ScenarioCommentThreadProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,42 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
   const [posting, setPosting] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canEditComment = (c: Comment) =>
+    user?.id === c.user_id || role === "admin";
+
+  const startEdit = (c: Comment) => {
+    setEditingId(c.id);
+    setEditText(c.comment);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editText.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("cycle_scenario_comments")
+        .update({ comment: editText.trim() })
+        .eq("id", editingId);
+      if (error) throw error;
+      toast({ title: "Comment updated" });
+      setEditingId(null);
+      setEditText("");
+      await loadComments();
+    } catch (err: any) {
+      toast({ title: "Error updating comment", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const loadComments = useCallback(async () => {
     const { data, error } = await supabase
