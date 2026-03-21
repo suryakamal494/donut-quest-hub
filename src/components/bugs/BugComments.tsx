@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Loader2, Send, MessageSquare, Paperclip, X, Image as ImageIcon } from "lucide-react";
+import { Loader2, Send, MessageSquare, Paperclip, X, Image as ImageIcon, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,13 +42,49 @@ interface BugCommentsProps {
 }
 
 export function BugComments({ bugId }: BugCommentsProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [comments, setComments] = useState<BugComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canEditComment = (comment: BugComment) =>
+    user?.id === comment.user_id || role === "admin";
+
+  const startEdit = (comment: BugComment) => {
+    setEditingId(comment.id);
+    setEditText(comment.comment);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editText.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("bug_comments")
+        .update({ comment: editText.trim() })
+        .eq("id", editingId);
+      if (error) throw error;
+      toast.success("Comment updated");
+      setEditingId(null);
+      setEditText("");
+      await loadComments();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -175,7 +211,7 @@ export function BugComments({ bugId }: BugCommentsProps) {
           ) : (
             <div className="space-y-4">
               {comments.map(comment => (
-                <div key={comment.id} className="flex gap-3">
+                <div key={comment.id} className="flex gap-3 group">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
                     {comment.profile?.full_name?.charAt(0) || "?"}
                   </div>
@@ -189,8 +225,43 @@ export function BugComments({ bugId }: BugCommentsProps) {
                         {" • "}
                         {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                       </span>
+                      {canEditComment(comment) && editingId !== comment.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => startEdit(comment)}
+                        >
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      )}
                     </div>
-                    <MarkdownRenderer content={comment.comment} className="text-sm" />
+
+                    {editingId === comment.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          rows={2}
+                          className="text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit();
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={saving || !editText.trim()}>
+                            {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={saving}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <MarkdownRenderer content={comment.comment} className="text-sm" />
+                    )}
 
                     {/* Comment attachments */}
                     {comment.attachments && comment.attachments.length > 0 && (

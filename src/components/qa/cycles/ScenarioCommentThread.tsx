@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, Send, Loader2, Trash2, Paperclip, X } from "lucide-react";
+import { MessageSquare, Send, Loader2, Trash2, Paperclip, X, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -24,7 +24,7 @@ interface ScenarioCommentThreadProps {
 }
 
 export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChange }: ScenarioCommentThreadProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,42 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
   const [posting, setPosting] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canEditComment = (c: Comment) =>
+    user?.id === c.user_id || role === "admin";
+
+  const startEdit = (c: Comment) => {
+    setEditingId(c.id);
+    setEditText(c.comment);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editText.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("cycle_scenario_comments")
+        .update({ comment: editText.trim() })
+        .eq("id", editingId);
+      if (error) throw error;
+      toast({ title: "Comment updated" });
+      setEditingId(null);
+      setEditText("");
+      await loadComments();
+    } catch (err: any) {
+      toast({ title: "Error updating comment", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const loadComments = useCallback(async () => {
     const { data, error } = await supabase
@@ -171,7 +207,17 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                   <span className="text-[10px] text-muted-foreground">
                     {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </span>
-                  {user?.id === c.user_id && (
+                  {canEditComment(c) && editingId !== c.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => startEdit(c)}
+                    >
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  )}
+                  {(user?.id === c.user_id || role === "admin") && editingId !== c.id && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -182,7 +228,33 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                     </Button>
                   )}
                 </div>
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap mt-0.5">{c.comment}</p>
+
+                {editingId === c.id ? (
+                  <div className="space-y-2 mt-0.5">
+                    <Textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={2}
+                      className="text-sm resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit();
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-6 text-xs" onClick={saveEdit} disabled={saving || !editText.trim()}>
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={cancelEdit} disabled={saving}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap mt-0.5">{c.comment}</p>
+                )}
+
                 {c.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-1.5">
                     {c.attachments.map((url, i) => (
