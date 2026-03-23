@@ -1,46 +1,83 @@
 
 
-# Add Edit Functionality to Comments Across the Platform
+# Plan: Create Two Test Cycles from PDF Upload QA Document
 
-## Overview
-Add an edit button to comments in two places: Bug Comments and Cycle Scenario Comments. Only the comment author or an admin can edit a comment.
+## Document Summary
 
-## Changes Required
+The uploaded document covers the **PDF Upload → Exam Creation → Student Attempt** end-to-end flow with **8 groups** and approximately **83 scenarios** total:
 
-### 1. Database: Add UPDATE RLS policies for both comment tables
+| Group | Name | Scenarios |
+|-------|------|-----------|
+| A | PDF Upload & Extraction Accuracy | A1–A12 (12) |
+| B | Question Review Page Verification | B1–B13 (13) |
+| C | Solutions Verification | C1–C8 (8) |
+| D | Tagging & Metadata Verification | D1–D10 (10) |
+| E | Save & Publish Verification | E1–E6 (6) |
+| F | Super Admin Sharing & Institute Assignment | F1–F7 (7) |
+| G | Student Test Panel Verification | G1–G13 (13) |
+| H | Result & Analytics Verification | H1–H9 (9) |
 
-**`bug_comments`** — currently has no UPDATE policy. Add:
-```sql
-CREATE POLICY "Users can update own comments or admin"
-ON bug_comments FOR UPDATE TO authenticated
-USING (auth.uid() = user_id OR has_role(auth.uid(), 'admin'))
-WITH CHECK (auth.uid() = user_id OR has_role(auth.uid(), 'admin'));
-```
+## Proposed Split into Two Cycles
 
-**`cycle_scenario_comments`** — currently has no UPDATE policy. Add:
-```sql
-CREATE POLICY "Users can update own comments or admin"
-ON cycle_scenario_comments FOR UPDATE TO authenticated
-USING (auth.uid() = user_id OR has_role(auth.uid(), 'admin'))
-WITH CHECK (auth.uid() = user_id OR has_role(auth.uid(), 'admin'));
-```
+The natural split follows the **content creation vs content delivery** boundary:
 
-### 2. UI: `src/components/bugs/BugComments.tsx`
-- Add edit state (`editingId`, `editText`)
-- Add a Pencil icon button next to each comment (visible to comment author or admin, on hover)
-- When editing: replace the rendered comment text with a Textarea + Save/Cancel buttons
-- On save: call `supabase.from("bug_comments").update({ comment: editText }).eq("id", editingId)` then reload comments
+### Cycle 1: **PDF Upload & Content Quality QA** (CYC-004)
+*"From PDF to Verified Question Bank — Does the extraction, review, solutions, and tagging work correctly?"*
 
-### 3. UI: `src/components/qa/cycles/ScenarioCommentThread.tsx`
-- Same pattern: add edit state, Pencil button (next to existing delete button), inline textarea on edit, save via `supabase.from("cycle_scenario_comments").update(...)`, reload on success
-- Show edit button for comment owner OR admin (using `role` from `useAuth()`)
+**Groups (4):** A, B, C, D — **43 scenarios total**
 
-### 4. Permission Logic (both components)
-- `const canEdit = (comment) => user?.id === comment.user_id || role === 'admin'`
-- Edit button only shown when `canEdit` is true
+| Group | Name | Count |
+|-------|------|-------|
+| A | PDF Upload & Extraction Accuracy | 12 |
+| B | Question Review Page Verification | 13 |
+| C | Solutions Verification | 8 |
+| D | Tagging & Metadata Verification | 10 |
 
-## Files Modified
-1. **Migration SQL** — 2 new RLS policies (one per table)
-2. **`src/components/bugs/BugComments.tsx`** — edit state + inline edit UI
-3. **`src/components/qa/cycles/ScenarioCommentThread.tsx`** — edit state + inline edit UI
+**Testing Guide contents:**
+- What Are We Testing (PDF upload → extraction → review → tagging)
+- Why This Matters (document format variability)
+- What to Download Before Testing (JEE, NEET, Allen, FIITJEE, Aakash, PW papers)
+- Document Types to Cover (Type 1–11 table)
+- What Testers Must Note (checklist of observations)
+- Pre-Test Checklist
+- Defect Severity Levels
+- Flow diagram: A → B → C → D
+
+### Cycle 2: **Exam Lifecycle & Student Experience QA** (CYC-005)
+*"From Save to Result — Does publishing, sharing, student attempt, and scoring work correctly?"*
+
+**Groups (4):** E, F, G, H — **35 scenarios total**
+
+| Group | Name | Count |
+|-------|------|-------|
+| E | Save & Publish Verification | 6 |
+| F | Super Admin Sharing & Institute Assignment | 7 |
+| G | Student Test Panel Verification | 13 |
+| H | Result & Analytics Verification | 9 |
+
+**Testing Guide contents:**
+- What Are We Testing (save → publish → share → attempt → result)
+- Prerequisites (exam must already be extracted and reviewed from Cycle 1)
+- Pre-Test Checklist (student account ready, batch assigned)
+- Defect Severity Levels
+- Flow diagram: E → F → G → H
+- Cross-reference link to CYC-004
+
+## Technical Implementation
+
+### Step 1: Insert CYC-004 (test_cycles + 4 groups + 43 scenarios)
+- Insert `test_cycles` row with HTML testing guide covering Sections 1.1–1.5 + severity levels
+- Insert 4 `cycle_groups` (A, B, C, D)
+- Insert 43 `cycle_scenarios` with titles, descriptions, and steps extracted from document
+
+### Step 2: Insert CYC-005 (test_cycles + 4 groups + 35 scenarios)
+- Insert `test_cycles` row with HTML testing guide covering exam lifecycle context
+- Insert 4 `cycle_groups` (E, F, G, H)
+- Insert 35 `cycle_scenarios` with titles, descriptions, and steps
+
+### Data Source
+All scenario titles, steps, and expected results are extracted verbatim from the document. Group C (C1–C8) was recovered from the page 9 screenshot since the text parser garbled it.
+
+### No Code Changes Required
+This is a data-only operation using backend insert tools — same approach as CYC-001, CYC-002, and CYC-003.
 
