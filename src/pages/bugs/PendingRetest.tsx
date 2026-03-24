@@ -295,7 +295,7 @@ export default function PendingRetest() {
       </div>
 
       {/* Login Type Chip Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {LOGIN_FILTERS.map((f) => (
           <Button
             key={f.value}
