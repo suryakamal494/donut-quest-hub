@@ -26,6 +26,9 @@ export function useCommentThread(
   const [editText, setEditText] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const onCommentCountChangeRef = useRef(onCommentCountChange);
+  onCommentCountChangeRef.current = onCommentCountChange;
+
   const canEditComment = (c: CommentData) =>
     user?.id === c.user_id || role === "admin";
 
