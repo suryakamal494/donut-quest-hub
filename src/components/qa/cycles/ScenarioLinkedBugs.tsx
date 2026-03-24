@@ -49,6 +49,9 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
   const [sheetBugId, setSheetBugId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const onBugCountChangeRef = useRef(onBugCountChange);
+  onBugCountChangeRef.current = onBugCountChange;
+
   const loadBugs = useCallback(async () => {
     const { data, error } = await supabase
       .from("bugs")
