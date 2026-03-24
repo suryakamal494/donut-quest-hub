@@ -77,6 +77,7 @@ export default function CycleInsights() {
     dateRange, setDateRange, selectedCycleId, setSelectedCycleId, refresh,
   } = useCycleInsights();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [activityCalOpen, setActivityCalOpen] = useState(false);
 
   if (loading) {
     return (
