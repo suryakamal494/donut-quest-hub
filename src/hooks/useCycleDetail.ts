@@ -57,13 +57,30 @@ export function useCycleList() {
       let scenarioCountByGroup: Record<string, number> = {};
       let scenarioIdsByCycle: Record<string, string[]> = {};
 
-      const [scenariosRes2, commentsRes, verdictsRes] = await Promise.all([
+      // For comments, use per-cycle count queries (head: true) to avoid fetching all rows
+      const commentCountPromises = cycleIds.map((cId: string) =>
+        supabase
+          .from("cycle_scenario_comments")
+          .select("id", { count: "exact", head: true })
+          .eq("cycle_id", cId)
+          .then(({ count }) => ({ cycleId: cId, count: count || 0 }))
+      );
+
+      const [scenariosRes2, ...commentCounts] = await Promise.all([
         groupIds.length > 0
           ? supabase.from("cycle_scenarios").select("id, group_id").in("group_id", groupIds)
           : Promise.resolve({ data: [] }),
-        supabase.from("cycle_scenario_comments").select("cycle_id").in("cycle_id", cycleIds),
-        supabase.from("cycle_scenario_verdicts").select("cycle_id, scenario_id, status, created_at").in("cycle_id", cycleIds).order("created_at", { ascending: false }),
+        ...commentCountPromises,
       ]);
+
+      // For verdicts, only select minimal columns needed for latest-per-scenario logic
+      const verdictsRes = await (
+        supabase
+          .from("cycle_scenario_verdicts")
+          .select("scenario_id, status")
+          .in("cycle_id", cycleIds)
+          .order("created_at", { ascending: false })
+      );
 
       (scenariosRes2.data || []).forEach((s: any) => {
         scenarioCountByGroup[s.group_id] = (scenarioCountByGroup[s.group_id] || 0) + 1;
