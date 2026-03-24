@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Bug, ExternalLink, RefreshCw, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,9 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
   const [sheetBugId, setSheetBugId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const onBugCountChangeRef = useRef(onBugCountChange);
+  onBugCountChangeRef.current = onBugCountChange;
+
   const loadBugs = useCallback(async () => {
     const { data, error } = await supabase
       .from("bugs")
@@ -81,9 +84,9 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
     }));
 
     setBugs(enriched);
-    onBugCountChange?.(enriched.length);
+    onBugCountChangeRef.current?.(enriched.length);
     setLoading(false);
-  }, [scenarioId, onBugCountChange]);
+  }, [scenarioId]);
 
   useEffect(() => {
     loadBugs();

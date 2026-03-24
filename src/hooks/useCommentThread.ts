@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,9 @@ export function useCommentThread(
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const onCommentCountChangeRef = useRef(onCommentCountChange);
+  onCommentCountChangeRef.current = onCommentCountChange;
 
   const canEditComment = (c: CommentData) =>
     user?.id === c.user_id || role === "admin";
@@ -63,9 +66,9 @@ export function useCommentThread(
     }));
 
     setComments(enriched);
-    onCommentCountChange?.(enriched.length);
+    onCommentCountChangeRef.current?.(enriched.length);
     setLoading(false);
-  }, [cycleId, scenarioId, onCommentCountChange]);
+  }, [cycleId, scenarioId]);
 
   const startEdit = (c: CommentData) => {
     setEditingId(c.id);
