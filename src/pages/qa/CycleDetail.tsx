@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, Loader2, FileText, Clock, User } from "lucide-react";
+import { ArrowLeft, Edit, Loader2, FileText, Clock, User, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,9 +31,8 @@ export default function CycleDetail() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentProject } = useProject();
-  const { cycle, groups, runs, loading, refresh } = useCycleDetail(id);
+  const { cycle, groups, runs, verdictMap, loading, refresh } = useCycleDetail(id);
 
-  // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [bugScenario, setBugScenario] = useState<CycleScenario | null>(null);
   const [showRunHistory, setShowRunHistory] = useState(false);
@@ -63,6 +62,9 @@ export default function CycleDetail() {
   }
 
   const totalScenarios = groups.reduce((sum, g) => sum + (g.scenarios?.length || 0), 0);
+  const passed = cycle.verdict_passed ?? 0;
+  const failed = cycle.verdict_failed ?? 0;
+  const untested = cycle.verdict_untested ?? totalScenarios;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -75,7 +77,6 @@ export default function CycleDetail() {
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-sm font-mono text-muted-foreground">{cycle.cycle_code}</span>
             <Badge variant={statusVariant[cycle.status]}>{CYCLE_STATUS_LABELS[cycle.status]}</Badge>
-            
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">{cycle.name}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
@@ -90,6 +91,26 @@ export default function CycleDetail() {
           </Button>
         </div>
       </div>
+
+      {/* Verdict Stats Bar */}
+      {totalScenarios > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/50 border text-sm">
+          <span className="flex items-center gap-1.5 text-green-600 font-medium">
+            <CheckCircle2 className="h-4 w-4" /> {passed} passed
+          </span>
+          <span className="flex items-center gap-1.5 text-red-600 font-medium">
+            <XCircle className="h-4 w-4" /> {failed} failed
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Minus className="h-4 w-4" /> {untested} untested
+          </span>
+          {totalScenarios > 0 && (
+            <span className="text-xs text-muted-foreground ml-auto">
+              {Math.round((passed / totalScenarios) * 100)}% pass rate
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Context */}
       <CycleContextPanel content={cycle.description} />
@@ -119,6 +140,8 @@ export default function CycleDetail() {
                   cycleId={cycle.id}
                   groupLabel={`Group ${String.fromCharCode(65 + gIdx)}`}
                   onReportBug={handleReportBug}
+                  latestVerdict={verdictMap[scenario.id] || null}
+                  onVerdictChange={refresh}
                 />
               ))}
             </div>
@@ -166,7 +189,7 @@ export default function CycleDetail() {
         </Collapsible>
       )}
 
-      {/* Bug Report Dialog — Workspace mode (no run/result dependency) */}
+      {/* Bug Report Dialog */}
       {bugScenario && (
         <CycleBugReportDialog
           open={bugDialogOpen}

@@ -1,10 +1,14 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Clock, User, PlayCircle, Bug, MessageSquare } from "lucide-react";
+import { FileText, Clock, User, PlayCircle, Bug, MessageSquare, CheckCircle2, XCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { TestCycle } from "@/types/cycle";
 
 export function CycleCard({ cycle }: { cycle: TestCycle }) {
+  const total = cycle.total_scenarios || 0;
+  const passed = cycle.verdict_passed ?? 0;
+  const failed = cycle.verdict_failed ?? 0;
+
   return (
     <Link to={`/qa/cycles/${cycle.id}`} className="block group">
       <Card className="transition-all duration-200 hover:shadow-md hover:border-primary/30 active:scale-[0.98]">
@@ -25,8 +29,22 @@ export function CycleCard({ cycle }: { cycle: TestCycle }) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs mb-3">
             <span className="flex items-center gap-1 text-muted-foreground">
               <FileText className="h-3.5 w-3.5" />
-              {cycle.total_scenarios || 0} scenarios
+              {total} scenarios
             </span>
+            {(passed > 0 || failed > 0) && (
+              <>
+                <span className="flex items-center gap-1 text-green-600 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {passed}/{total} ✓
+                </span>
+                {failed > 0 && (
+                  <span className="flex items-center gap-1 text-red-600 font-medium">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {failed} ✗
+                  </span>
+                )}
+              </>
+            )}
             {(cycle.bug_count ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-destructive font-medium">
                 <Bug className="h-3.5 w-3.5" />
