@@ -123,6 +123,7 @@ export function useCycleInsights() {
     to: new Date(),
   });
   const [selectedCycleId, setSelectedCycleId] = useState<string>("all");
+  const [activityData, setActivityData] = useState<UserActivity[]>([]);
 
   const loadData = useCallback(async () => {
     if (!currentProject) return;
