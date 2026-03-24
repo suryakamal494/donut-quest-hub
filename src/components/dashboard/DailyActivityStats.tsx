@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 interface PersonStats {
   user_id: string;
@@ -33,13 +34,27 @@ interface DaySummary {
   testRuns: number;
 }
 
+interface DateRange {
+  from: Date;
+  to: Date;
+}
+
+const QUICK_RANGES = [
+  { label: "Today", getDates: () => ({ from: new Date(), to: new Date() }) },
+  { label: "Yesterday", getDates: () => ({ from: subDays(new Date(), 1), to: subDays(new Date(), 1) }) },
+  { label: "Last 3 days", getDates: () => ({ from: subDays(new Date(), 2), to: new Date() }) },
+  { label: "Last 7 days", getDates: () => ({ from: subDays(new Date(), 6), to: new Date() }) },
+  { label: "Last 14 days", getDates: () => ({ from: subDays(new Date(), 13), to: new Date() }) },
+  { label: "Last 30 days", getDates: () => ({ from: subDays(new Date(), 29), to: new Date() }) },
+];
+
 interface DailyActivityStatsProps {
   projectId: string;
   teamMembers: { user_id: string; full_name: string; role: string }[];
 }
 
 export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStatsProps) {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dateRange, setDateRange] = useState<DateRange>({ from: new Date(), to: new Date() });
   const [loading, setLoading] = useState(false);
   const [qaStats, setQaStats] = useState<PersonStats[]>([]);
   const [devStats, setDevStats] = useState<DevDayStats[]>([]);
@@ -49,45 +64,39 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
 
   useEffect(() => {
     loadStats();
-  }, [selectedDate, projectId]);
+  }, [dateRange.from, dateRange.to, projectId]);
 
   const loadStats = async () => {
     setLoading(true);
     try {
-      const dayStart = new Date(selectedDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(selectedDate);
-      dayEnd.setHours(23, 59, 59, 999);
+      const rangeStart = startOfDay(dateRange.from).toISOString();
+      const rangeEnd = endOfDay(dateRange.to).toISOString();
 
       const qaTesters = teamMembers.filter(m => m.role === "user");
       const developers = teamMembers.filter(m => m.role === "developer");
 
-      // Fetch bugs reported on this date
-      const { data: bugsData } = await supabase
-        .from("bugs")
-        .select("reported_by")
-        .eq("project_id", projectId)
-        .gte("created_at", dayStart.toISOString())
-        .lte("created_at", dayEnd.toISOString());
+      const [{ data: bugsData }, { data: runsData }, { data: historyData }] = await Promise.all([
+        supabase
+          .from("bugs")
+          .select("reported_by")
+          .eq("project_id", projectId)
+          .gte("created_at", rangeStart)
+          .lte("created_at", rangeEnd),
+        supabase
+          .from("test_runs")
+          .select("executed_by")
+          .eq("project_id", projectId)
+          .gte("started_at", rangeStart)
+          .lte("started_at", rangeEnd),
+        supabase
+          .from("bug_history")
+          .select("changed_by, field_changed, old_value, new_value, created_at, bugs!inner(project_id)")
+          .eq("bugs.project_id", projectId)
+          .eq("field_changed", "fix_status")
+          .gte("created_at", rangeStart)
+          .lte("created_at", rangeEnd),
+      ]);
 
-      // Fetch test runs on this date
-      const { data: runsData } = await supabase
-        .from("test_runs")
-        .select("executed_by")
-        .eq("project_id", projectId)
-        .gte("started_at", dayStart.toISOString())
-        .lte("started_at", dayEnd.toISOString());
-
-      // Fetch bug_history for retests (verified) and fixes on this date
-      const { data: historyData } = await supabase
-        .from("bug_history")
-        .select("changed_by, field_changed, old_value, new_value, created_at, bugs!inner(project_id)")
-        .eq("bugs.project_id", projectId)
-        .eq("field_changed", "fix_status")
-        .gte("created_at", dayStart.toISOString())
-        .lte("created_at", dayEnd.toISOString());
-
-      // Compute day summary
       const summary: DaySummary = {
         bugsReported: bugsData?.length || 0,
         sentToRetest: (historyData || []).filter(h => h.new_value === "fixed").length,
@@ -97,7 +106,6 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
       };
       setDaySummary(summary);
 
-      // QA stats
       const qaResult: PersonStats[] = qaTesters.map(qa => ({
         user_id: qa.user_id,
         full_name: qa.full_name,
@@ -108,7 +116,6 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
       }));
       setQaStats(qaResult);
 
-      // Dev stats
       const devResult: DevDayStats[] = developers.map(dev => ({
         user_id: dev.user_id,
         full_name: dev.full_name,
@@ -130,7 +137,25 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
     }
   };
 
-  const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+  const isSingleDay = format(dateRange.from, "yyyy-MM-dd") === format(dateRange.to, "yyyy-MM-dd");
+  const isToday = isSingleDay && format(dateRange.from, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+
+  const getActiveQuickRange = () => {
+    const fromStr = format(dateRange.from, "yyyy-MM-dd");
+    const toStr = format(dateRange.to, "yyyy-MM-dd");
+    return QUICK_RANGES.find(r => {
+      const d = r.getDates();
+      return format(d.from, "yyyy-MM-dd") === fromStr && format(d.to, "yyyy-MM-dd") === toStr;
+    })?.label;
+  };
+
+  const activeRange = getActiveQuickRange();
+
+  const dateLabel = isToday
+    ? "Today"
+    : isSingleDay
+      ? format(dateRange.from, "dd MMM yyyy")
+      : `${format(dateRange.from, "dd MMM")} – ${format(dateRange.to, "dd MMM yyyy")}`;
 
   const summaryCards = [
     { label: "Bugs Reported", value: daySummary.bugsReported, icon: Bug, color: "text-red-500", bg: "bg-red-500/10" },
@@ -143,28 +168,50 @@ export function DailyActivityStats({ projectId, teamMembers }: DailyActivityStat
   return (
     <Card className="glass">
       <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-primary" />
-            Daily Activity {isToday ? "(Today)" : ""}
+            Activity {isToday ? "(Today)" : isSingleDay ? "" : `(${activeRange || "Custom"})`}
           </CardTitle>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal gap-2")}>
-                <CalendarIcon className="h-4 w-4" />
-                {format(selectedDate, "dd MMM yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d) => d && setSelectedDate(d)}
-                disabled={(d) => d > new Date()}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Quick range buttons */}
+            <div className="flex flex-wrap gap-1">
+              {QUICK_RANGES.map(range => (
+                <Button
+                  key={range.label}
+                  variant={activeRange === range.label ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => setDateRange(range.getDates())}
+                >
+                  {range.label}
+                </Button>
+              ))}
+            </div>
+            {/* Custom date range picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal gap-2 h-7 text-xs")}>
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {dateLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="range"
+                  selected={{ from: dateRange.from, to: dateRange.to }}
+                  onSelect={(range) => {
+                    if (range?.from) {
+                      setDateRange({ from: range.from, to: range.to || range.from });
+                    }
+                  }}
+                  disabled={(d) => d > new Date()}
+                  numberOfMonths={1}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
