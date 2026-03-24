@@ -56,7 +56,10 @@ export function ScenarioWorkspaceCard({
             {scenario.title}
           </p>
           {scenario.description && (
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">
+            <p className={cn(
+              "text-xs sm:text-sm text-muted-foreground mt-0.5 whitespace-pre-line",
+              !expanded && "line-clamp-2"
+            )}>
               {scenario.description}
             </p>
           )}
