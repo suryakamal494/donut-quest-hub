@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,10 @@ export function ScenarioWorkspaceCard({
   const [latestVerdict, setLatestVerdict] = useState<'pass' | 'fail' | null>(initialVerdict ?? null);
   const [activeTab, setActiveTab] = useState("verdicts");
   const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setLatestVerdict(initialVerdict ?? null);
+  }, [initialVerdict]);
 
   const toggleStep = (idx: number) => {
     setCheckedSteps((prev) => {
@@ -175,10 +179,8 @@ export function ScenarioWorkspaceCard({
                 cycleId={cycleId}
                 scenarioId={scenario.id}
                 onVerdictCountChange={setVerdictCount}
-                onLatestVerdictChange={(s) => {
-                  setLatestVerdict(s);
-                  onVerdictChange?.();
-                }}
+                onLatestVerdictChange={setLatestVerdict}
+                onSubmitted={onVerdictChange}
               />
             </TabsContent>
 
