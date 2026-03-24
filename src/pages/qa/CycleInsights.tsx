@@ -12,11 +12,11 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid,
 } from "recharts";
 import {
-  Activity, BarChart3, CalendarIcon, CheckCircle2, Clock, Loader2, RefreshCw, TrendingUp, Users, XCircle, Bug, MessageSquare, AlertTriangle
+  Activity, BarChart3, CalendarIcon, CheckCircle2, Clock, Loader2, RefreshCw, TrendingUp, Users, XCircle, Bug, MessageSquare, AlertTriangle, Timer
 } from "lucide-react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useCycleInsights, QUICK_RANGES, type CycleHealth } from "@/hooks/useCycleInsights";
+import { useCycleInsights, QUICK_RANGES, type CycleHealth, type UserActivity } from "@/hooks/useCycleInsights";
 
 function HealthTile({ cycle }: { cycle: CycleHealth }) {
   const healthColor = cycle.pass_rate >= 80 ? "border-l-green-500 bg-green-50/50" :
