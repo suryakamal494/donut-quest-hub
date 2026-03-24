@@ -369,6 +369,66 @@ export function useCycleInsights() {
         }));
       setCycleComparisons(compData);
 
+      // --- ACTIVITY TRACKING ---
+      const userActions: Record<string, { timestamps: number[]; verdicts: number; comments: number; bugs: number }> = {};
+      const ensureUser = (uid: string) => {
+        if (!userActions[uid]) userActions[uid] = { timestamps: [], verdicts: 0, comments: 0, bugs: 0 };
+      };
+
+      filteredVerdicts.forEach(v => {
+        ensureUser(v.user_id);
+        userActions[v.user_id].timestamps.push(new Date(v.created_at).getTime());
+        userActions[v.user_id].verdicts++;
+      });
+      filteredComments.forEach(c => {
+        ensureUser(c.user_id);
+        userActions[c.user_id].timestamps.push(new Date(c.created_at).getTime());
+        userActions[c.user_id].comments++;
+      });
+      filteredBugs.forEach(b => {
+        if (!b.reported_by) return;
+        ensureUser(b.reported_by);
+        userActions[b.reported_by].timestamps.push(new Date(b.created_at).getTime());
+        userActions[b.reported_by].bugs++;
+      });
+
+      const activity: UserActivity[] = Object.entries(userActions).map(([uid, data]) => {
+        const sorted = [...data.timestamps].sort((a, b) => a - b);
+        const { count, totalMs } = clusterIntoSessions(data.timestamps);
+
+        // Daily breakdown
+        const dailyMap: Record<string, { timestamps: number[]; actions: number }> = {};
+        sorted.forEach(ts => {
+          const day = format(new Date(ts), "yyyy-MM-dd");
+          if (!dailyMap[day]) dailyMap[day] = { timestamps: [], actions: 0 };
+          dailyMap[day].timestamps.push(ts);
+          dailyMap[day].actions++;
+        });
+
+        const daily_breakdown = Object.entries(dailyMap)
+          .map(([date, d]) => {
+            const { totalMs: dayMs } = clusterIntoSessions(d.timestamps);
+            return { date, hours: Math.round((dayMs / 3600000) * 100) / 100, actions: d.actions };
+          })
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        return {
+          user_id: uid,
+          full_name: profileMap[uid] || "Unknown",
+          total_actions: data.verdicts + data.comments + data.bugs,
+          estimated_hours: Math.round((totalMs / 3600000) * 100) / 100,
+          session_count: count,
+          first_action: sorted.length > 0 ? new Date(sorted[0]).toISOString() : null,
+          last_action: sorted.length > 0 ? new Date(sorted[sorted.length - 1]).toISOString() : null,
+          verdict_count: data.verdicts,
+          comment_count: data.comments,
+          bug_count: data.bugs,
+          daily_breakdown,
+        };
+      }).sort((a, b) => b.estimated_hours - a.estimated_hours);
+
+      setActivityData(activity);
+
     } catch (err) {
       console.error("Failed to load cycle insights:", err);
     } finally {
@@ -379,7 +439,7 @@ export function useCycleInsights() {
   useEffect(() => { loadData(); }, [loadData]);
 
   return {
-    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs,
+    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs, activityData,
     dateRange, setDateRange, selectedCycleId, setSelectedCycleId,
     refresh: loadData,
   };
