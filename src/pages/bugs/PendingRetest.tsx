@@ -270,7 +270,7 @@ export default function PendingRetest() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Pending Retest</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pending Retest</h1>
         <p className="text-sm text-muted-foreground">
           {totalCount} bug{totalCount !== 1 ? "s" : ""} awaiting QA verification
           {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
@@ -295,14 +295,14 @@ export default function PendingRetest() {
       </div>
 
       {/* Login Type Chip Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {LOGIN_FILTERS.map((f) => (
           <Button
             key={f.value}
             size="sm"
             variant={loginTypeFilter === f.value ? "default" : "outline"}
             className={cn(
-              "rounded-full text-xs h-8 px-3",
+              "rounded-full text-xs h-7 sm:h-8 px-2.5 sm:px-3 whitespace-nowrap",
               loginTypeFilter === f.value && "shadow-sm"
             )}
             onClick={() => { setLoginTypeFilter(f.value); setPage(1); }}

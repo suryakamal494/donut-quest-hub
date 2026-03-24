@@ -64,9 +64,9 @@ export function BugFilters({
           <Search className="h-4 w-4" />
         </Button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
         <Select value={severityFilter} onValueChange={onSeverityChange}>
-          <SelectTrigger className="w-[130px] h-8 text-sm">
+           <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
             <SelectValue placeholder="Severity" />
           </SelectTrigger>
           <SelectContent>
@@ -78,7 +78,7 @@ export function BugFilters({
           </SelectContent>
         </Select>
         <Select value={bugTypeFilter} onValueChange={onBugTypeChange}>
-          <SelectTrigger className="w-[130px] h-8 text-sm">
+           <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
             <SelectValue placeholder="Bug Type" />
           </SelectTrigger>
           <SelectContent>
@@ -90,7 +90,7 @@ export function BugFilters({
         </Select>
         {showAssignedFilter && onAssignedChange && (
           <Select value={assignedFilter} onValueChange={onAssignedChange}>
-            <SelectTrigger className="w-[130px] h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
               <SelectValue placeholder="Assigned" />
             </SelectTrigger>
             <SelectContent>
@@ -102,7 +102,7 @@ export function BugFilters({
         )}
         {fixStatusFilter && onFixStatusChange && (
           <Select value={fixStatusFilter} onValueChange={onFixStatusChange}>
-            <SelectTrigger className="w-[140px] h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-[140px] h-8 text-sm">
               <SelectValue placeholder="Fix Status" />
             </SelectTrigger>
             <SelectContent>

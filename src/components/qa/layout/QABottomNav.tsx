@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
-  LayoutDashboard, 
-  FileText, 
-  PlayCircle, 
   Bug,
   MoreHorizontal,
   AlertCircle,
@@ -12,7 +9,13 @@ import {
   Zap,
   BookOpen,
   LineChart,
-  RefreshCw
+  RefreshCw,
+  LayoutDashboard,
+  FileText,
+  PlayCircle,
+  ClipboardList,
+  XCircle,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,12 +29,6 @@ import {
 
 const mainNavItems = [
   {
-    title: "Dashboard",
-    href: "/qa",
-    icon: LayoutDashboard,
-    end: true,
-  },
-  {
     title: "Bugs",
     href: "/bugs",
     icon: Bug,
@@ -42,13 +39,25 @@ const mainNavItems = [
     icon: RefreshCw,
   },
   {
-    title: "Scenarios",
-    href: "/qa/scenarios",
-    icon: FileText,
+    title: "Retest",
+    href: "/bugs/retest",
+    icon: RotateCcw,
+  },
+  {
+    title: "Dashboard",
+    href: "/qa",
+    icon: LayoutDashboard,
+    end: true,
   },
 ];
 
 const moreNavItems = [
+  {
+    title: "Test Scenarios",
+    href: "/qa/scenarios",
+    icon: FileText,
+    description: "Manage test scenarios",
+  },
   {
     title: "Test Runs",
     href: "/qa/runs",
@@ -56,16 +65,22 @@ const moreNavItems = [
     description: "Manual test run execution",
   },
   {
-    title: "Pending Retest",
-    href: "/bugs/retest",
-    icon: RotateCcw,
-    description: "Bugs awaiting QA verification",
-  },
-  {
     title: "Bug Report",
     href: "/bugs/report",
-    icon: Bug,
+    icon: ClipboardList,
     description: "Comprehensive bug report view",
+  },
+  {
+    title: "Closed Bugs",
+    href: "/bugs/closed",
+    icon: XCircle,
+    description: "Previously resolved bugs",
+  },
+  {
+    title: "Report Bug",
+    href: "/bugs/create",
+    icon: Plus,
+    description: "Create a new bug report",
   },
   {
     title: "Failures",
@@ -126,6 +141,8 @@ export function QABottomNav() {
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;
+    // Special handling: /bugs should not match /bugs/retest
+    if (href === "/bugs") return location.pathname === "/bugs" || location.pathname.startsWith("/bugs/") && !location.pathname.startsWith("/bugs/retest") && !location.pathname.startsWith("/bugs/report") && !location.pathname.startsWith("/bugs/closed") && !location.pathname.startsWith("/bugs/create");
     return location.pathname.startsWith(href);
   };
 
@@ -133,7 +150,7 @@ export function QABottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border z-50 safe-area-pb">
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around h-14 px-1">
         {mainNavItems.map((item) => {
           const active = isActive(item.href, item.end);
           const Icon = item.icon;
@@ -144,16 +161,16 @@ export function QABottomNav() {
               to={item.href}
               end={item.end}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[60px] transition-all rounded-lg",
+                "flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 min-w-0 flex-1 transition-all rounded-lg",
                 active ? "text-primary" : "text-muted-foreground"
               )}
             >
               <Icon className={cn(
-                "h-5 w-5 transition-transform",
+                "h-5 w-5 transition-transform shrink-0",
                 active && "scale-110"
               )} />
               <span className={cn(
-                "text-[10px] font-medium",
+                "text-[10px] font-medium truncate max-w-full",
                 active && "text-primary"
               )}>
                 {item.title}
@@ -166,12 +183,12 @@ export function QABottomNav() {
           <SheetTrigger asChild>
             <button
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[60px] transition-all rounded-lg",
+                "flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 min-w-0 flex-1 transition-all rounded-lg",
                 isMoreActive ? "text-primary" : "text-muted-foreground"
               )}
             >
               <MoreHorizontal className={cn(
-                "h-5 w-5 transition-transform",
+                "h-5 w-5 transition-transform shrink-0",
                 isMoreActive && "scale-110"
               )} />
               <span className={cn(
@@ -182,11 +199,11 @@ export function QABottomNav() {
               </span>
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-auto max-h-[50vh] rounded-t-xl">
+          <SheetContent side="bottom" className="h-auto max-h-[60vh] rounded-t-xl">
             <SheetHeader className="pb-4">
               <SheetTitle>More Options</SheetTitle>
             </SheetHeader>
-            <div className="grid gap-2 pb-4">
+            <div className="grid gap-2 pb-4 overflow-y-auto">
               {filteredMoreItems.map((item) => {
                 const active = isActive(item.href);
                 const Icon = item.icon;
@@ -204,14 +221,14 @@ export function QABottomNav() {
                     )}
                   >
                     <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center",
+                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
                       active ? "bg-primary text-primary-foreground" : "bg-muted"
                     )}>
                       <Icon className="h-5 w-5" />
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                     </div>
                   </NavLink>
                 );

@@ -289,7 +289,7 @@ export default function BugList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Bug Tracker</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Bug Tracker</h1>
           <p className="text-sm text-muted-foreground">
             {totalCount} active bug{totalCount !== 1 ? "s" : ""}
             {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
@@ -313,7 +313,7 @@ export default function BugList() {
       <BugStatsBar severityStats={severityStats} totalCount={loginCounts.all || totalCount} reopenedCount={reopenedCount} />
 
       {/* Login Type Tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {[
           { value: "all", label: "All" },
           { value: "super_admin", label: "Super Admin" },
@@ -332,7 +332,7 @@ export default function BugList() {
                 setPage(1);
               }}
               className={cn(
-                "px-3.5 py-1.5 text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1.5",
+                "px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-xs sm:text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1 sm:gap-1.5 whitespace-nowrap",
                 isActive
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "bg-card text-foreground border-border hover:border-primary/50"

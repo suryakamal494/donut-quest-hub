@@ -46,23 +46,23 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
 
   return (
     <header className="bg-background/95 backdrop-blur-md border-b border-border sticky top-0 z-40">
-      <div className="flex items-center justify-between h-14 px-3 sm:px-4">
+      <div className="flex items-center justify-between h-14 px-2 sm:px-4">
         {/* Left: Menu + Logo */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
           {!isMobile && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onMenuToggle}
-              className="text-muted-foreground hover:text-foreground h-9 w-9"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0"
             >
               <Menu className="h-5 w-5" />
             </Button>
           )}
           
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold text-sm">QA</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0">
+              <span className="text-primary-foreground font-bold text-xs sm:text-sm">QA</span>
             </div>
             <div className="hidden sm:block">
               <h1 className="font-semibold text-foreground text-sm">QA Testing</h1>
@@ -74,31 +74,33 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
           <div className="hidden sm:block w-px h-6 bg-border mx-1" />
           
           {/* Project Selector */}
-          <ProjectSelector />
+          <div className="min-w-0 flex-shrink">
+            <ProjectSelector />
+          </div>
           
           {/* Health Map Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate("/qa/health-map")}
-            className="text-xs h-8 gap-1.5"
+            className="text-xs h-7 sm:h-8 gap-1 px-2 sm:px-3 shrink-0"
           >
             <Map className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Health Map</span>
+            <span className="hidden md:inline">Health Map</span>
           </Button>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Notifications */}
           <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2 px-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
+              <Button variant="ghost" className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2">
+                <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+                  <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs sm:text-sm">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -107,7 +109,7 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
                     <p className="text-sm font-medium">{userName}</p>
                   </div>
                 )}
-                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 font-semibold ${roleConfig[role || "user"]?.className || ""}`}>
+                <Badge variant="outline" className={`text-[10px] px-1 sm:px-1.5 py-0 h-5 font-semibold hidden sm:inline-flex ${roleConfig[role || "user"]?.className || ""}`}>
                   {roleConfig[role || "user"]?.label || role}
                 </Badge>
               </Button>
