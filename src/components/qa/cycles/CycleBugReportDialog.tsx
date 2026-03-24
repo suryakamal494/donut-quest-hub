@@ -1,66 +1,35 @@
 import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
 import type { CycleScenario } from "@/types/cycle";
 import type { Database } from "@/integrations/supabase/types";
+import { BugReportForm } from "./BugReportForm";
 
-// Legacy support — keep old props working for execution view
 import type { CycleResultWithScenario } from "@/hooks/useCycleExecution";
 
 type BugSeverity = Database["public"]["Enums"]["bug_severity"];
 type BugType = Database["public"]["Enums"]["bug_type"];
 type LoginType = Database["public"]["Enums"]["login_type"];
 
-interface Feature {
-  id: string;
-  name: string;
-  login_type: LoginType;
-}
+interface Feature { id: string; name: string; login_type: LoginType; }
+interface ExistingBug { id: string; bug_code: string; title: string; status: string; severity: string; }
 
-interface ExistingBug {
-  id: string;
-  bug_code: string;
-  title: string;
-  status: string;
-  severity: string;
-}
-
-// New workspace-mode props
 interface WorkspaceProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  scenario: CycleScenario;
-  cycleName: string;
-  cycleCode: string;
-  onBugCreated: () => void;
-  // Legacy fields not needed
-  result?: never;
-  runCode?: never;
+  open: boolean; onOpenChange: (open: boolean) => void;
+  scenario: CycleScenario; cycleName: string; cycleCode: string;
+  onBugCreated: () => void; result?: never; runCode?: never;
 }
 
-// Legacy execution-mode props
 interface LegacyProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  result: CycleResultWithScenario | null;
-  cycleName: string;
-  runCode: string;
+  open: boolean; onOpenChange: (open: boolean) => void;
+  result: CycleResultWithScenario | null; cycleName: string; runCode: string;
   onBugCreated: (resultId: string, bugId: string) => void;
-  // Workspace fields not needed
-  scenario?: never;
-  cycleCode?: never;
+  scenario?: never; cycleCode?: never;
 }
 
 type CycleBugReportDialogProps = WorkspaceProps | LegacyProps;
@@ -73,9 +42,7 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
   const [saving, setSaving] = useState(false);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [existingBugs, setExistingBugs] = useState<ExistingBug[]>([]);
-  const [loadingBugs, setLoadingBugs] = useState(false);
 
-  // Determine mode
   const isWorkspaceMode = "scenario" in props && !!props.scenario;
   const scenarioId = isWorkspaceMode ? props.scenario?.id : props.result?.scenario?.id;
   const scenarioCode = isWorkspaceMode ? props.scenario?.scenario_code : props.result?.scenario?.scenario_code;
@@ -83,7 +50,6 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
   const scenarioDescription = isWorkspaceMode ? props.scenario?.description : props.result?.scenario?.description;
   const contextLabel = isWorkspaceMode ? props.cycleCode : props.runCode;
 
-  // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [actualBehavior, setActualBehavior] = useState("");
@@ -92,96 +58,49 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
   const [featureId, setFeatureId] = useState<string>("");
   const [loginType, setLoginType] = useState<LoginType>("general");
 
-  // Load features
   useEffect(() => {
     if (!currentProject || !open) return;
-    supabase
-      .from("features")
-      .select("id, name, login_type")
-      .eq("project_id", currentProject.id)
-      .order("order_index")
+    supabase.from("features").select("id, name, login_type")
+      .eq("project_id", currentProject.id).order("order_index")
       .then(({ data }) => setFeatures((data as Feature[]) || []));
   }, [currentProject, open]);
 
-  // Load existing bugs for this scenario
   useEffect(() => {
     if (!scenarioId || !open) return;
-    setLoadingBugs(true);
-    supabase
-      .from("bugs")
-      .select("id, bug_code, title, status, severity")
-      .eq("cycle_scenario_id", scenarioId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setExistingBugs((data as ExistingBug[]) || []);
-        setLoadingBugs(false);
-      });
+    supabase.from("bugs").select("id, bug_code, title, status, severity")
+      .eq("cycle_scenario_id", scenarioId).order("created_at", { ascending: false })
+      .then(({ data }) => setExistingBugs((data as ExistingBug[]) || []));
   }, [scenarioId, open]);
 
-  // Pre-fill from scenario
   useEffect(() => {
     if (!open || !scenarioCode) return;
     setTitle(`[${scenarioCode}] ${scenarioTitle || ""}`);
-    setDescription(
-      `**Cycle:** ${cycleName} (${contextLabel})\n**Scenario:** ${scenarioCode} — ${scenarioTitle}\n\n${scenarioDescription || ""}`
-    );
-    if (!isWorkspaceMode && props.result?.comment) {
-      setActualBehavior(props.result.comment);
-    } else {
-      setActualBehavior("");
-    }
-    setSeverity("minor");
-    setBugType("functional");
-    setFeatureId("");
-    setLoginType("general");
+    setDescription(`**Cycle:** ${cycleName} (${contextLabel})\n**Scenario:** ${scenarioCode} — ${scenarioTitle}\n\n${scenarioDescription || ""}`);
+    setActualBehavior(!isWorkspaceMode && props.result?.comment ? props.result.comment : "");
+    setSeverity("minor"); setBugType("functional"); setFeatureId(""); setLoginType("general");
   }, [open, scenarioCode, scenarioTitle, scenarioDescription, cycleName, contextLabel]);
 
   const handleSubmit = async () => {
     if (!user || !scenarioId) return;
-    if (!title.trim()) {
-      toast({ title: "Title is required", variant: "destructive" });
-      return;
-    }
-
+    if (!title.trim()) { toast({ title: "Title is required", variant: "destructive" }); return; }
     try {
       setSaving(true);
-
-      const { data: bug, error } = await supabase
-        .from("bugs")
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          actual_behavior: actualBehavior.trim() || null,
-          severity,
-          bug_type: bugType,
-          login_type: loginType,
-          feature_id: featureId || null,
-          project_id: currentProject?.id || null,
-          reported_by: user.id,
-          source: "cycle",
-          cycle_scenario_id: scenarioId,
-          bug_code: "TEMP",
-        })
-        .select("id, bug_code")
-        .single();
-
+      const { data: bug, error } = await supabase.from("bugs").insert({
+        title: title.trim(), description: description.trim() || null,
+        actual_behavior: actualBehavior.trim() || null, severity, bug_type: bugType,
+        login_type: loginType, feature_id: featureId || null,
+        project_id: currentProject?.id || null, reported_by: user.id,
+        source: "cycle", cycle_scenario_id: scenarioId, bug_code: "TEMP",
+      }).select("id, bug_code").single();
       if (error) throw error;
 
-      // Legacy mode: link to cycle_result
       if (!isWorkspaceMode && props.result) {
-        await supabase
-          .from("cycle_results")
-          .update({ bug_id: bug.id })
-          .eq("id", props.result.id);
+        await supabase.from("cycle_results").update({ bug_id: bug.id }).eq("id", props.result.id);
         props.onBugCreated(props.result.id, bug.id);
       } else {
         (props as WorkspaceProps).onBugCreated();
       }
-
-      toast({
-        title: `Bug ${bug.bug_code} created`,
-        description: `Linked to scenario ${scenarioCode}`,
-      });
+      toast({ title: `Bug ${bug.bug_code} created`, description: `Linked to scenario ${scenarioCode}` });
       onOpenChange(false);
     } catch (error: any) {
       toast({ title: "Error creating bug", description: error.message, variant: "destructive" });
@@ -195,123 +114,26 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base">Report Bug</DialogTitle>
-          <DialogDescription className="text-xs">
-            from {scenarioCode} — {scenarioTitle}
-          </DialogDescription>
+          <DialogDescription className="text-xs">from {scenarioCode} — {scenarioTitle}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 pt-1">
-          {/* Existing bugs warning */}
-          {existingBugs.length > 0 && (
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
-                  {existingBugs.length} existing bug{existingBugs.length !== 1 ? "s" : ""} for this scenario
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {existingBugs.map((b) => (
-                  <div key={b.id} className="flex items-center gap-2 text-xs">
-                    <span className="font-mono text-muted-foreground">{b.bug_code}</span>
-                    <Badge variant="outline" className="text-[10px]">{b.status.replace("_", " ")}</Badge>
-                    <span className="truncate flex-1">{b.title}</span>
-                    <Button variant="ghost" size="icon" className="h-5 w-5" asChild>
-                      <Link to={`/bugs/${b.id}`}><ExternalLink className="h-3 w-3" /></Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                Check if your issue is already reported. You can reopen existing bugs from the Bugs tab.
-              </p>
-            </div>
-          )}
+        <BugReportForm
+          title={title} setTitle={setTitle}
+          description={description} setDescription={setDescription}
+          actualBehavior={actualBehavior} setActualBehavior={setActualBehavior}
+          severity={severity} setSeverity={setSeverity}
+          bugType={bugType} setBugType={setBugType}
+          featureId={featureId} setFeatureId={setFeatureId}
+          loginType={loginType} setLoginType={setLoginType}
+          features={features} existingBugs={existingBugs}
+        />
 
-          {/* Title */}
-          <div>
-            <Label className="text-xs">Title *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-sm mt-1" placeholder="Bug title" />
-          </div>
-
-          {/* Severity + Type */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Severity</Label>
-              <Select value={severity} onValueChange={(v) => setSeverity(v as BugSeverity)}>
-                <SelectTrigger className="text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="major">Major</SelectItem>
-                  <SelectItem value="minor">Minor</SelectItem>
-                  <SelectItem value="trivial">Trivial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Type</Label>
-              <Select value={bugType} onValueChange={(v) => setBugType(v as BugType)}>
-                <SelectTrigger className="text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ui">UI</SelectItem>
-                  <SelectItem value="functional">Functional</SelectItem>
-                  <SelectItem value="performance">Performance</SelectItem>
-                  <SelectItem value="data">Data</SelectItem>
-                  <SelectItem value="security">Security</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Login Type + Feature */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Login Type *</Label>
-              <Select value={loginType} onValueChange={(v) => setLoginType(v as LoginType)}>
-                <SelectTrigger className="text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                  <SelectItem value="institute">Institute</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Feature</Label>
-              <Select value={featureId} onValueChange={setFeatureId}>
-                <SelectTrigger className="text-sm mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  {features.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label className="text-xs">Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="text-xs mt-1" />
-          </div>
-
-          {/* Actual Behavior */}
-          <div>
-            <Label className="text-xs">Actual Behavior</Label>
-            <Textarea value={actualBehavior} onChange={(e) => setActualBehavior(e.target.value)} rows={2} className="text-xs mt-1" placeholder="What happened?" />
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={saving}>
-              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-              Create Bug
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={saving}>
+            {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+            Create Bug
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
