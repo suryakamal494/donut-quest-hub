@@ -102,7 +102,7 @@ export function BugFilters({
         )}
         {fixStatusFilter && onFixStatusChange && (
           <Select value={fixStatusFilter} onValueChange={onFixStatusChange}>
-            <SelectTrigger className="w-[140px] h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-[140px] h-8 text-sm">
               <SelectValue placeholder="Fix Status" />
             </SelectTrigger>
             <SelectContent>

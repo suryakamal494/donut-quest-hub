@@ -91,16 +91,16 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Notifications */}
           <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2 px-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
+              <Button variant="ghost" className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2">
+                <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+                  <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs sm:text-sm">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -109,7 +109,7 @@ export function QAHeader({ onMenuToggle, userName }: QAHeaderProps) {
                     <p className="text-sm font-medium">{userName}</p>
                   </div>
                 )}
-                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 font-semibold ${roleConfig[role || "user"]?.className || ""}`}>
+                <Badge variant="outline" className={`text-[10px] px-1 sm:px-1.5 py-0 h-5 font-semibold hidden sm:inline-flex ${roleConfig[role || "user"]?.className || ""}`}>
                   {roleConfig[role || "user"]?.label || role}
                 </Badge>
               </Button>

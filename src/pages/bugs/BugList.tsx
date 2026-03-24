@@ -332,7 +332,7 @@ export default function BugList() {
                 setPage(1);
               }}
               className={cn(
-                "px-3.5 py-1.5 text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1.5",
+                "px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-xs sm:text-sm rounded-full border-2 font-medium transition-all flex items-center gap-1 sm:gap-1.5 whitespace-nowrap",
                 isActive
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "bg-card text-foreground border-border hover:border-primary/50"
