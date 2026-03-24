@@ -23,6 +23,7 @@ interface ScenarioVerdictThreadProps {
   scenarioId: string;
   onVerdictCountChange?: (count: number) => void;
   onLatestVerdictChange?: (status: "pass" | "fail" | null) => void;
+  onSubmitted?: () => void;
 }
 
 export function ScenarioVerdictThread({
@@ -30,6 +31,7 @@ export function ScenarioVerdictThread({
   scenarioId,
   onVerdictCountChange,
   onLatestVerdictChange,
+  onSubmitted,
 }: ScenarioVerdictThreadProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -44,6 +46,8 @@ export function ScenarioVerdictThread({
   onVerdictCountChangeRef.current = onVerdictCountChange;
   const onLatestVerdictChangeRef = useRef(onLatestVerdictChange);
   onLatestVerdictChangeRef.current = onLatestVerdictChange;
+  const onSubmittedRef = useRef(onSubmitted);
+  onSubmittedRef.current = onSubmitted;
 
   const loadVerdicts = useCallback(async () => {
     setLoading(true);
@@ -103,6 +107,7 @@ export function ScenarioVerdictThread({
       setComment("");
       setPendingStatus(null);
       await loadVerdicts();
+      onSubmittedRef.current?.();
       toast({ title: `Scenario marked as ${pendingStatus}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
