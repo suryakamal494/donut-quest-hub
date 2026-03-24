@@ -1,21 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, Send, Loader2, Trash2, Paperclip, X, Pencil, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Send, Loader2, Trash2, Paperclip, X, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { formatDistanceToNow } from "date-fns";
+import { useCommentThread } from "@/hooks/useCommentThread";
 import { useToast } from "@/hooks/use-toast";
-
-interface Comment {
-  id: string;
-  user_id: string;
-  comment: string;
-  attachments: string[];
-  created_at: string;
-  profile?: { full_name: string; email: string };
-}
+import { formatDistanceToNow } from "date-fns";
 
 interface ScenarioCommentThreadProps {
   cycleId: string;
@@ -24,87 +14,16 @@ interface ScenarioCommentThreadProps {
 }
 
 export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChange }: ScenarioCommentThreadProps) {
-  const { user, role } = useAuth();
   const { toast } = useToast();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    comments, loading, posting, editingId, editText, setEditText, saving,
+    canEditComment, canDeleteComment, loadComments, startEdit, cancelEdit,
+    saveEdit, postComment, deleteComment, uploadFiles,
+  } = useCommentThread(cycleId, scenarioId, onCommentCountChange);
+
   const [newComment, setNewComment] = useState("");
-  const [posting, setPosting] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const canEditComment = (c: Comment) =>
-    user?.id === c.user_id || role === "admin";
-
-  const startEdit = (c: Comment) => {
-    setEditingId(c.id);
-    setEditText(c.comment);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditText("");
-  };
-
-  const saveEdit = async () => {
-    if (!editingId || !editText.trim()) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from("cycle_scenario_comments")
-        .update({ comment: editText.trim() })
-        .eq("id", editingId);
-      if (error) throw error;
-      toast({ title: "Comment updated" });
-      setEditingId(null);
-      setEditText("");
-      await loadComments();
-    } catch (err: any) {
-      toast({ title: "Error updating comment", description: err.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const loadComments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("cycle_scenario_comments")
-      .select("*")
-      .eq("cycle_id", cycleId)
-      .eq("scenario_id", scenarioId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Error loading comments:", error);
-      return;
-    }
-
-    // Enrich with profiles
-    const userIds = [...new Set((data || []).map((c: any) => c.user_id))];
-    let profileMap: Record<string, { full_name: string; email: string }> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email")
-        .in("user_id", userIds);
-      (profiles || []).forEach((p: any) => {
-        profileMap[p.user_id] = { full_name: p.full_name, email: p.email };
-      });
-    }
-
-    const enriched = (data || []).map((c: any) => ({
-      ...c,
-      attachments: c.attachments || [],
-      profile: profileMap[c.user_id] || { full_name: "Unknown", email: "" },
-    }));
-
-    setComments(enriched);
-    onCommentCountChange?.(enriched.length);
-    setLoading(false);
-  }, [cycleId, scenarioId, onCommentCountChange]);
 
   useEffect(() => {
     loadComments();
@@ -120,58 +39,13 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
     e.target.value = "";
   };
 
-  const uploadFiles = async (): Promise<string[]> => {
-    if (pendingFiles.length === 0) return [];
-    setUploading(true);
-    const urls: string[] = [];
-    for (const file of pendingFiles) {
-      const path = `cycle-comments/${cycleId}/${scenarioId}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from("bug-attachments").upload(path, file, { cacheControl: "3600" });
-      if (!error) {
-        const { data: urlData } = supabase.storage.from("bug-attachments").getPublicUrl(path);
-        urls.push(urlData.publicUrl);
-      }
-    }
-    setUploading(false);
-    return urls;
-  };
-
   const handlePost = async () => {
-    if (!user) {
-      toast({ title: "Please log in to comment", variant: "destructive" });
-      return;
-    }
-    if (!newComment.trim() && pendingFiles.length === 0) return;
-    try {
-      setPosting(true);
-      const attachmentUrls = await uploadFiles();
-      const commentText = newComment.trim() || "(attachment)";
-
-      const { error } = await supabase.from("cycle_scenario_comments").insert({
-        cycle_id: cycleId,
-        scenario_id: scenarioId,
-        user_id: user.id,
-        comment: commentText,
-        attachments: attachmentUrls,
-      });
-      if (error) {
-        console.error("Comment insert error:", error);
-        throw error;
-      }
-      setNewComment("");
-      setPendingFiles([]);
-      await loadComments();
-      toast({ title: "Comment added" });
-    } catch (err: any) {
-      toast({ title: "Error posting comment", description: err.message, variant: "destructive" });
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const handleDelete = async (commentId: string) => {
-    const { error } = await supabase.from("cycle_scenario_comments").delete().eq("id", commentId);
-    if (!error) loadComments();
+    setUploading(true);
+    const urls = await uploadFiles(pendingFiles);
+    setUploading(false);
+    await postComment(newComment, urls);
+    setNewComment("");
+    setPendingFiles([]);
   };
 
   const getInitials = (name: string) =>
@@ -187,7 +61,6 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
 
   return (
     <div className="space-y-3">
-      {/* Comments list */}
       {comments.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">
           No comments yet. Be the first to add an observation.
@@ -208,22 +81,12 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                     {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </span>
                   {canEditComment(c) && editingId !== c.id && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => startEdit(c)}
-                    >
+                    <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEdit(c)}>
                       <Pencil className="h-3 w-3 text-muted-foreground" />
                     </Button>
                   )}
-                  {(user?.id === c.user_id || role === "admin") && editingId !== c.id && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleDelete(c.id)}
-                    >
+                  {canDeleteComment(c) && editingId !== c.id && (
+                    <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteComment(c.id)}>
                       <Trash2 className="h-3 w-3 text-destructive" />
                     </Button>
                   )}
@@ -315,7 +178,6 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
   );
 }
 
-/** Small helper that manages Object URL lifecycle to prevent memory leaks */
 function PendingFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
   const [url, setUrl] = useState<string>("");
   useEffect(() => {

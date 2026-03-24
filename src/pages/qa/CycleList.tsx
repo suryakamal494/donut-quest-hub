@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCycleList } from "@/hooks/useCycleDetail";
+import { useCycleList } from "@/hooks/useCycleList";
 import { CycleCard } from "@/components/qa/cycles/CycleCard";
 import { useProject } from "@/contexts/ProjectContext";
 
