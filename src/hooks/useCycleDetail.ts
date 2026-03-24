@@ -93,8 +93,8 @@ export function useCycleList() {
       });
 
       const commentCountByCycle: Record<string, number> = {};
-      (commentsRes.data || []).forEach((c: any) => {
-        commentCountByCycle[c.cycle_id] = (commentCountByCycle[c.cycle_id] || 0) + 1;
+      (commentCounts as Array<{ cycleId: string; count: number }>).forEach((c) => {
+        commentCountByCycle[c.cycleId] = c.count;
       });
 
       // Compute verdict aggregates per cycle (latest verdict per scenario)
