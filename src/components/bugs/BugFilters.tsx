@@ -64,7 +64,7 @@ export function BugFilters({
           <Search className="h-4 w-4" />
         </Button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
         <Select value={severityFilter} onValueChange={onSeverityChange}>
           <SelectTrigger className="w-[130px] h-8 text-sm">
             <SelectValue placeholder="Severity" />
