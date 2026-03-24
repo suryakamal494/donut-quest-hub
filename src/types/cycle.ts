@@ -63,6 +63,20 @@ export interface CycleStep {
   expected_outcome: string;
 }
 
+// --- Verdicts ---
+
+export interface CycleVerdict {
+  id: string;
+  cycle_id: string;
+  scenario_id: string;
+  user_id: string;
+  status: 'pass' | 'fail';
+  comment: string;
+  created_at: string;
+  // Joined
+  user_name?: string;
+}
+
 // --- Execution ---
 
 export interface CycleRun {
