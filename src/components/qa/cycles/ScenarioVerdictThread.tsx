@@ -92,8 +92,37 @@ export function ScenarioVerdictThread({
     loadVerdicts();
   }, [loadVerdicts]);
 
+  const MIN_COMMENT_LENGTH = 70;
+
   const handleSubmit = async () => {
-    if (!pendingStatus || !comment.trim() || !user) return;
+    if (!pendingStatus || !user) return;
+
+    const trimmed = comment.trim();
+    if (!trimmed || trimmed.length < MIN_COMMENT_LENGTH) {
+      toast({
+        title: "Comment too short",
+        description: `Please write at least ${MIN_COMMENT_LENGTH} characters. Currently: ${trimmed.length}/${MIN_COMMENT_LENGTH}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For fail verdicts, check that at least one bug is linked to this scenario
+    if (pendingStatus === "fail") {
+      const { count, error: bugErr } = await supabase
+        .from("bugs")
+        .select("id", { count: "exact", head: true })
+        .eq("cycle_scenario_id", scenarioId);
+      if (!bugErr && (count ?? 0) === 0) {
+        toast({
+          title: "Bug report required",
+          description: "Please report a bug for this scenario before submitting a Fail verdict. Use the 'Report Bug' button.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setPosting(true);
     try {
       const { error } = await supabase.from("cycle_scenario_verdicts").insert({
