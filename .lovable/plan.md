@@ -1,82 +1,70 @@
 
 
-# Cycle Testing Analytics & Reports — Reasoning and Proposal
+# Action-Based QA Activity Tracking — Implementation Plan
 
-## Current State
+## What We Are Building
 
-The platform currently tracks:
-- **Bug-centric insights** (Insights page): backlog trends, resolution speed, aging, dev/QA scorecards — all focused on bugs, not cycles.
-- **Daily Activity**: per-person bugs reported, test runs, retests — no cycle-level breakdown.
-- **Cycle Run Report**: a single-run snapshot (pass/fail by group, linked bugs) — no cross-run or cross-person trends.
-- **Admin QA Dashboard**: team performance tables — again scoped to bugs and test runs, not cycle verdicts.
+A new **"Activity"** tab in the existing Cycle Insights page that estimates each QA tester's active work time by clustering their existing actions (verdicts, comments, bugs) into sessions. No new database tables, no heartbeat pings, no background processes.
 
-**The gap**: There is zero analytics around *cycle testing activity* — who tested what scenarios, how cycles are progressing over time, which cycles are healthy vs stale, and individual QA contribution within cycles.
+## How It Works
 
----
+1. Fetch all timestamped actions per user from `cycle_scenario_verdicts`, `cycle_scenario_comments`, and `bugs` (where `cycle_scenario_id IS NOT NULL`) within the selected date range
+2. Sort actions chronologically per user, then cluster them into "sessions" using a **30-minute gap threshold** — if 2 consecutive actions are < 30 min apart, they belong to the same session
+3. Each session's duration = last action timestamp - first action timestamp (minimum 5 minutes per session to account for single-action sessions)
+4. Sum session durations per user per day to get estimated active time
 
-## What Reports Are Needed
+## Changes
 
-### For Admin
+### 1. Extend `useCycleInsights.ts`
 
-1. **Cycle Health Scorecard** — At-a-glance health of every cycle: total scenarios, % passed, % failed, % untested, days since last activity, number of linked bugs. Color-coded tiles (green/yellow/red) similar to the Feature Health Map but for cycles. Helps admin spot stale or struggling cycles instantly.
+Add a new `ActivityData` interface and state:
 
-2. **Person-wise Cycle Contribution** — Table showing each QA tester with: scenarios verdicted (pass/fail count), comments posted, bugs reported from cycles, last active date. Sortable and filterable by cycle and date range. Answers "who is doing the work?"
+```text
+interface UserActivity {
+  user_id: string
+  full_name: string
+  total_actions: number          // verdicts + comments + bugs
+  estimated_hours: number        // sum of session durations
+  session_count: number          // number of work sessions
+  first_action: string | null    // earliest timestamp in range
+  last_action: string | null     // latest timestamp in range
+  verdict_count: number
+  comment_count: number
+  bug_count: number
+  daily_breakdown: { date: string, hours: number, actions: number }[]
+}
+```
 
-3. **Cycle Progress Over Time** — Line/area chart showing cumulative verdicts (pass + fail) per day across a cycle's lifetime. Shows whether a cycle is being actively tested or has stalled. Admin can compare velocity across cycles.
+Compute this inside the existing `loadData` function using the already-fetched verdicts, comments, and bugs data. No additional database queries needed — we reuse `verdictsInRange`, `commentsInRange`, and `bugsInRange`.
 
-4. **Cross-Cycle Comparison** — Side-by-side bar chart of all cycles: pass rate, bug density (bugs per scenario), average time-to-verdict. Helps admin prioritize which cycles need attention.
+The session clustering algorithm:
+- Merge all actions into a single sorted array per user
+- Walk through, start a new session when gap > 30 minutes
+- Session duration = max(lastAction - firstAction, 5 minutes)
 
-5. **Verdict Quality Report** — Tracks reopen rate of bugs filed from cycle verdicts, average comment length, and flags "thin" verdicts (just meeting the 70-char minimum). Helps admin assess thoroughness.
+Return `activityData: UserActivity[]` from the hook.
 
-### For QA Tester
+### 2. Add "Activity" tab to `CycleInsights.tsx`
 
-1. **My Cycle Activity** — Personal dashboard card: scenarios I verdicted today/this week, my pass/fail ratio, bugs I reported from cycles, my comment count. Gamified progress tracking.
+Add a 5th tab called **"Activity"** showing:
 
-2. **My Pending Scenarios** — Across all active cycles, which scenarios have I NOT yet verdicted? Prioritized by cycle priority. Helps QA plan their day.
+- **Summary cards**: Total team hours, Average per person, Most active tester
+- **Per-person table**: Name, Total Actions, Est. Hours, Sessions, Verdicts/Comments/Bugs breakdown, First/Last Action, daily sparkline
+- **Daily activity heatmap**: Simple bar chart showing team-wide hours per day (reuses existing Recharts setup)
 
-3. **My Verdict History** — Timeline of all verdicts I've submitted with links to the cycle/scenario. Searchable and filterable. Serves as a personal audit trail.
+The tab reuses the same date range and cycle filters already on the page.
 
----
+### 3. Files Modified
 
-## Recommended Implementation Approach
-
-### Phase 1: Cycle Analytics Page (new route `/qa/cycle-insights`)
-
-A dedicated page with tabs:
-
-| Tab | Content | Data Source |
-|-----|---------|-------------|
-| Overview | KPI cards (total cycles, active, avg pass rate, total verdicts this week) + cycle health tiles | `test_cycles`, `cycle_scenario_verdicts` |
-| Person-wise | Contribution table with date range selector | `cycle_scenario_verdicts`, `cycle_scenario_comments`, `bugs` (where `cycle_scenario_id` is set) |
-| Trends | Verdict velocity chart per cycle | `cycle_scenario_verdicts` grouped by date |
-| Comparison | Cross-cycle bar chart | Aggregated from verdicts + bugs |
-
-### Phase 2: Personal Widgets
-
-- Add "My Cycle Stats" card to QA Dashboard (similar to `MyTodayStats`)
-- Add "Pending Scenarios" widget showing untested scenarios across active cycles
-
-### Data Sources (all exist, no schema changes needed)
-
-- `cycle_scenario_verdicts` — who verdicted what, when, pass/fail
-- `cycle_scenario_comments` — comment activity per person
-- `bugs` (where `cycle_scenario_id IS NOT NULL`) — bugs from cycles
-- `test_cycles` — cycle metadata
-- `cycle_scenarios` / `cycle_groups` — scenario counts
-- `profiles` — user names
+| File | Change |
+|------|--------|
+| `src/hooks/useCycleInsights.ts` | Add `UserActivity` interface, `activityData` state, session clustering logic inside `loadData`, return new state |
+| `src/pages/qa/CycleInsights.tsx` | Add "Activity" tab with summary cards, per-person table, and daily hours chart |
 
 ### Technical Notes
 
-- All queries will be project-scoped via `test_cycles.project_id`
-- Date range filtering reuses the existing `QUICK_RANGES` pattern from `DailyActivityStats`
-- Charts use the existing Recharts setup (already in the project)
-- No new database tables or migrations required — all data already exists in `cycle_scenario_verdicts`, `cycle_scenario_comments`, and `bugs`
-
----
-
-## Summary
-
-The biggest missing piece is **cycle-level analytics**. The platform captures rich verdict/comment/bug data from cycle testing but never aggregates it. The proposed Cycle Insights page would give admins full visibility into cycle health and team contribution, while personal widgets would help QA testers track their own progress. All data sources already exist — this is purely a frontend analytics build.
-
-Should I proceed with implementation?
+- Zero new database queries — all computation uses data already fetched by the hook
+- Zero new tables or migrations
+- 30-minute gap threshold and 5-minute minimum session are constants, easy to tune later
+- Respects existing `selectedCycleId` and `dateRange` filters
 
