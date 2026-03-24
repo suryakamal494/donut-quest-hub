@@ -33,6 +33,9 @@ export interface TestCycle {
   bug_count?: number;
   open_bug_count?: number;
   comment_count?: number;
+  verdict_passed?: number;
+  verdict_failed?: number;
+  verdict_untested?: number;
 }
 
 export interface CycleGroup {
