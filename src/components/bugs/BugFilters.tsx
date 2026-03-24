@@ -66,7 +66,7 @@ export function BugFilters({
       </div>
       <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
         <Select value={severityFilter} onValueChange={onSeverityChange}>
-          <SelectTrigger className="w-[130px] h-8 text-sm">
+           <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
             <SelectValue placeholder="Severity" />
           </SelectTrigger>
           <SelectContent>
