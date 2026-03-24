@@ -49,6 +49,7 @@ const CycleDetail = lazy(() => import("./pages/qa/CycleDetail"));
 const EditCycle = lazy(() => import("./pages/qa/EditCycle"));
 const ExecuteCycle = lazy(() => import("./pages/qa/ExecuteCycle"));
 const CycleRunReport = lazy(() => import("./pages/qa/CycleRunReport"));
+const CycleInsights = lazy(() => import("./pages/qa/CycleInsights"));
 const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
@@ -139,6 +140,7 @@ const App = () => (
                 <Route path="coverage" element={<Coverage />} />
                 <Route path="health-map" element={<HealthMap />} />
                 <Route path="insights" element={<Insights />} />
+                <Route path="cycle-insights" element={<CycleInsights />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
               </Route>
 
