@@ -193,32 +193,47 @@ export function ScenarioVerdictThread({
               onChange={(e) => setComment(e.target.value)}
               placeholder={
                 pendingStatus === "pass"
-                  ? "What did you test? What was passing?"
-                  : "What failed? Describe the issue..."
+                  ? "What did you test? What was passing? (min 70 characters)"
+                  : "What failed? Describe the issue... (min 70 characters)"
               }
               className="min-h-[70px] text-sm"
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSubmit();
               }}
             />
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => { setPendingStatus(null); setComment(""); }}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                disabled={!comment.trim() || posting}
-                className={cn(
-                  pendingStatus === "pass"
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-red-600 hover:bg-red-700"
-                )}
-              >
-                {posting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
-                Submit {pendingStatus === "pass" ? "Pass" : "Fail"}
-              </Button>
+            <div className="flex items-center justify-between">
+              <span className={cn(
+                "text-xs",
+                comment.trim().length >= MIN_COMMENT_LENGTH
+                  ? "text-green-600"
+                  : "text-muted-foreground"
+              )}>
+                {comment.trim().length}/{MIN_COMMENT_LENGTH} characters {comment.trim().length < MIN_COMMENT_LENGTH ? "(minimum)" : "✓"}
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { setPendingStatus(null); setComment(""); }}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSubmit}
+                  disabled={posting}
+                  className={cn(
+                    pendingStatus === "pass"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-red-600 hover:bg-red-700"
+                  )}
+                >
+                  {posting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                  Submit {pendingStatus === "pass" ? "Pass" : "Fail"}
+                </Button>
+              </div>
             </div>
+            {pendingStatus === "fail" && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                ⚠ A bug report is required before submitting a Fail verdict.
+              </p>
+            )}
           </div>
         )}
       </div>
