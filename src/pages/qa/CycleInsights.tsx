@@ -12,11 +12,11 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid,
 } from "recharts";
 import {
-  Activity, BarChart3, CalendarIcon, CheckCircle2, Clock, Loader2, RefreshCw, TrendingUp, Users, XCircle, Bug, MessageSquare, AlertTriangle
+  Activity, BarChart3, CalendarIcon, CheckCircle2, Clock, Loader2, RefreshCw, TrendingUp, Users, XCircle, Bug, MessageSquare, AlertTriangle, Timer
 } from "lucide-react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useCycleInsights, QUICK_RANGES, type CycleHealth } from "@/hooks/useCycleInsights";
+import { useCycleInsights, QUICK_RANGES, type CycleHealth, type UserActivity } from "@/hooks/useCycleInsights";
 
 function HealthTile({ cycle }: { cycle: CycleHealth }) {
   const healthColor = cycle.pass_rate >= 80 ? "border-l-green-500 bg-green-50/50" :
@@ -73,7 +73,7 @@ function HealthTile({ cycle }: { cycle: CycleHealth }) {
 
 export default function CycleInsights() {
   const {
-    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs,
+    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs, activityData,
     dateRange, setDateRange, selectedCycleId, setSelectedCycleId, refresh,
   } = useCycleInsights();
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -139,6 +139,7 @@ export default function CycleInsights() {
           <TabsTrigger value="person" className="flex-1 sm:flex-none text-xs sm:text-sm">Person-wise</TabsTrigger>
           <TabsTrigger value="trends" className="flex-1 sm:flex-none text-xs sm:text-sm">Trends</TabsTrigger>
           <TabsTrigger value="comparison" className="flex-1 sm:flex-none text-xs sm:text-sm">Comparison</TabsTrigger>
+          <TabsTrigger value="activity" className="flex-1 sm:flex-none text-xs sm:text-sm">Activity</TabsTrigger>
         </TabsList>
 
         {/* OVERVIEW TAB */}
@@ -391,6 +392,157 @@ export default function CycleInsights() {
                     </TableBody>
                   </Table>
                 </div>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+
+        {/* ACTIVITY TAB */}
+        <TabsContent value="activity" className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Select value={selectedCycleId} onValueChange={setSelectedCycleId}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Filter by cycle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cycles</SelectItem>
+                {cycleHealth.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.cycle_code} — {c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1 flex-wrap">
+              {QUICK_RANGES.map(r => (
+                <Button key={r.label} variant="outline" size="sm" className="text-xs"
+                  onClick={() => setDateRange(r.getDates())}>
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {activityData.length === 0 ? (
+            <Card><CardContent className="p-8 text-center text-muted-foreground">
+              No activity in selected range
+            </CardContent></Card>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              {(() => {
+                const totalHours = activityData.reduce((s, a) => s + a.estimated_hours, 0);
+                const avgHours = activityData.length > 0 ? Math.round((totalHours / activityData.length) * 100) / 100 : 0;
+                const mostActive = activityData[0];
+                const totalSessions = activityData.reduce((s, a) => s + a.session_count, 0);
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Card><CardContent className="p-3 text-center">
+                      <Timer className="h-5 w-5 mx-auto text-primary mb-1" />
+                      <p className="text-2xl font-bold">{Math.round(totalHours * 10) / 10}h</p>
+                      <p className="text-[11px] text-muted-foreground">Team Est. Hours</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="p-3 text-center">
+                      <Users className="h-5 w-5 mx-auto text-blue-600 mb-1" />
+                      <p className="text-2xl font-bold">{avgHours}h</p>
+                      <p className="text-[11px] text-muted-foreground">Avg per Person</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="p-3 text-center">
+                      <Activity className="h-5 w-5 mx-auto text-green-600 mb-1" />
+                      <p className="text-2xl font-bold">{totalSessions}</p>
+                      <p className="text-[11px] text-muted-foreground">Work Sessions</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="p-3 text-center">
+                      <TrendingUp className="h-5 w-5 mx-auto text-purple-600 mb-1" />
+                      <p className="text-lg font-bold truncate">{mostActive?.full_name || "—"}</p>
+                      <p className="text-[11px] text-muted-foreground">Most Active</p>
+                    </CardContent></Card>
+                  </div>
+                );
+              })()}
+
+              {/* Per-person table */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Per-Person Activity</CardTitle>
+                </CardHeader>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tester</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
+                        <TableHead className="text-center">Est. Hours</TableHead>
+                        <TableHead className="text-center">Sessions</TableHead>
+                        <TableHead className="text-center hidden sm:table-cell">Verdicts</TableHead>
+                        <TableHead className="text-center hidden sm:table-cell">Comments</TableHead>
+                        <TableHead className="text-center hidden sm:table-cell">Bugs</TableHead>
+                        <TableHead className="hidden md:table-cell">First Action</TableHead>
+                        <TableHead className="hidden md:table-cell">Last Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityData.map(a => (
+                        <TableRow key={a.user_id}>
+                          <TableCell className="font-medium">{a.full_name}</TableCell>
+                          <TableCell className="text-center font-semibold">{a.total_actions}</TableCell>
+                          <TableCell className="text-center font-bold text-primary">{a.estimated_hours}h</TableCell>
+                          <TableCell className="text-center">{a.session_count}</TableCell>
+                          <TableCell className="text-center hidden sm:table-cell">{a.verdict_count}</TableCell>
+                          <TableCell className="text-center hidden sm:table-cell">{a.comment_count}</TableCell>
+                          <TableCell className="text-center hidden sm:table-cell">{a.bug_count}</TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {a.first_action ? format(new Date(a.first_action), "MMM dd, HH:mm") : "—"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {a.last_action ? format(new Date(a.last_action), "MMM dd, HH:mm") : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+
+              {/* Daily team hours chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Daily Team Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const dailyTeam: Record<string, { hours: number; actions: number }> = {};
+                    activityData.forEach(a => {
+                      a.daily_breakdown.forEach(d => {
+                        if (!dailyTeam[d.date]) dailyTeam[d.date] = { hours: 0, actions: 0 };
+                        dailyTeam[d.date].hours += d.hours;
+                        dailyTeam[d.date].actions += d.actions;
+                      });
+                    });
+                    const chartData = Object.entries(dailyTeam)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([date, d]) => ({
+                        label: format(new Date(date), "MMM dd"),
+                        hours: Math.round(d.hours * 100) / 100,
+                        actions: d.actions,
+                      }));
+
+                    return (
+                      <div className="h-48 sm:h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                            <Tooltip formatter={(val: number, name: string) => name === "hours" ? `${val}h` : val} />
+                            <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="hours" name="Est. Hours" fill="hsl(var(--primary))" radius={[2,2,0,0]} />
+                            <Bar dataKey="actions" name="Actions" fill="hsl(var(--muted-foreground))" radius={[2,2,0,0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
               </Card>
             </>
           )}
