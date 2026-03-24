@@ -62,6 +62,45 @@ export interface OverviewKPIs {
   totalBugsFromCycles: number;
 }
 
+export interface UserActivity {
+  user_id: string;
+  full_name: string;
+  total_actions: number;
+  estimated_hours: number;
+  session_count: number;
+  first_action: string | null;
+  last_action: string | null;
+  verdict_count: number;
+  comment_count: number;
+  bug_count: number;
+  daily_breakdown: { date: string; hours: number; actions: number }[];
+}
+
+const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
+const MIN_SESSION_MS = 5 * 60 * 1000;  // 5 minutes minimum
+
+function clusterIntoSessions(timestamps: number[]): { count: number; totalMs: number } {
+  if (timestamps.length === 0) return { count: 0, totalMs: 0 };
+  const sorted = [...timestamps].sort((a, b) => a - b);
+  let sessionCount = 1;
+  let totalMs = 0;
+  let sessionStart = sorted[0];
+  let sessionEnd = sorted[0];
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sessionEnd > SESSION_GAP_MS) {
+      totalMs += Math.max(sessionEnd - sessionStart, MIN_SESSION_MS);
+      sessionStart = sorted[i];
+      sessionEnd = sorted[i];
+      sessionCount++;
+    } else {
+      sessionEnd = sorted[i];
+    }
+  }
+  totalMs += Math.max(sessionEnd - sessionStart, MIN_SESSION_MS);
+  return { count: sessionCount, totalMs };
+}
+
 export const QUICK_RANGES = [
   { label: "Last 7 days", getDates: () => ({ from: subDays(new Date(), 6), to: new Date() }) },
   { label: "Last 14 days", getDates: () => ({ from: subDays(new Date(), 13), to: new Date() }) },
