@@ -14,7 +14,7 @@ import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
 import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
-import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
+import { WeeklyBugTrendsChart, CoverageSummaryWidget, MyCycleStats, MyPendingScenarios } from "@/components/qa/widgets";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 import { AdminQADashboard } from "@/components/dashboard/AdminQADashboard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,6 +118,9 @@ export default function QADashboard() {
       {/* My Today Stats */}
       <MyTodayStats />
 
+      {/* My Cycle Activity */}
+      <MyCycleStats />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass">
@@ -208,6 +211,9 @@ export default function QADashboard() {
 
       {/* Today's Testing Activity */}
       <TodayActivityPanel />
+
+      {/* My Pending Scenarios */}
+      <MyPendingScenarios />
 
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
