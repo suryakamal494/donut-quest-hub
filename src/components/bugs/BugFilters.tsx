@@ -90,7 +90,7 @@ export function BugFilters({
         </Select>
         {showAssignedFilter && onAssignedChange && (
           <Select value={assignedFilter} onValueChange={onAssignedChange}>
-            <SelectTrigger className="w-[130px] h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
               <SelectValue placeholder="Assigned" />
             </SelectTrigger>
             <SelectContent>
