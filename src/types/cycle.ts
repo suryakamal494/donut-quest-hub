@@ -33,6 +33,9 @@ export interface TestCycle {
   bug_count?: number;
   open_bug_count?: number;
   comment_count?: number;
+  verdict_passed?: number;
+  verdict_failed?: number;
+  verdict_untested?: number;
 }
 
 export interface CycleGroup {
@@ -61,6 +64,20 @@ export interface CycleScenario {
 export interface CycleStep {
   action: string;
   expected_outcome: string;
+}
+
+// --- Verdicts ---
+
+export interface CycleVerdict {
+  id: string;
+  cycle_id: string;
+  scenario_id: string;
+  user_id: string;
+  status: 'pass' | 'fail';
+  comment: string;
+  created_at: string;
+  // Joined
+  user_name?: string;
 }
 
 // --- Execution ---

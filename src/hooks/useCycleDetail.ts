@@ -40,43 +40,33 @@ export function useCycleList() {
       const cycleIds = cycleList.map((c: any) => c.id);
       const creatorIds = [...new Set(cycleList.map((c: any) => c.created_by).filter(Boolean))];
 
-      // Batch: all groups for all cycles, all runs (latest per cycle), all creator profiles
       const [groupsRes, runsRes, profilesRes] = await Promise.all([
-        supabase
-          .from("cycle_groups")
-          .select("id, cycle_id")
-          .in("cycle_id", cycleIds),
-        supabase
-          .from("cycle_runs")
-          .select("*")
-          .in("cycle_id", cycleIds)
-          .order("started_at", { ascending: false }),
+        supabase.from("cycle_groups").select("id, cycle_id").in("cycle_id", cycleIds),
+        supabase.from("cycle_runs").select("*").in("cycle_id", cycleIds).order("started_at", { ascending: false }),
         creatorIds.length > 0
           ? supabase.from("profiles").select("user_id, full_name").in("user_id", creatorIds)
           : Promise.resolve({ data: [] }),
       ]);
 
       const groupIds = (groupsRes.data || []).map((g: any) => g.id);
-      // Group IDs per cycle
       const groupsByCycle: Record<string, string[]> = {};
       (groupsRes.data || []).forEach((g: any) => {
         (groupsByCycle[g.cycle_id] ||= []).push(g.id);
       });
 
-      // Batch: scenario counts per group + bug counts + comment counts
       let scenarioCountByGroup: Record<string, number> = {};
       let scenarioIdsByCycle: Record<string, string[]> = {};
 
-      const [scenariosRes2, commentsRes] = await Promise.all([
+      const [scenariosRes2, commentsRes, verdictsRes] = await Promise.all([
         groupIds.length > 0
           ? supabase.from("cycle_scenarios").select("id, group_id").in("group_id", groupIds)
           : Promise.resolve({ data: [] }),
         supabase.from("cycle_scenario_comments").select("cycle_id").in("cycle_id", cycleIds),
+        supabase.from("cycle_scenario_verdicts").select("cycle_id, scenario_id, status, created_at").in("cycle_id", cycleIds).order("created_at", { ascending: false }),
       ]);
 
       (scenariosRes2.data || []).forEach((s: any) => {
         scenarioCountByGroup[s.group_id] = (scenarioCountByGroup[s.group_id] || 0) + 1;
-        // Map scenario IDs back to their cycle
         for (const [cId, gIds2] of Object.entries(groupsByCycle)) {
           if ((gIds2 as string[]).includes(s.group_id)) {
             (scenarioIdsByCycle[cId] ||= []).push(s.id);
@@ -85,13 +75,30 @@ export function useCycleList() {
         }
       });
 
-      // Comment counts per cycle
       const commentCountByCycle: Record<string, number> = {};
       (commentsRes.data || []).forEach((c: any) => {
         commentCountByCycle[c.cycle_id] = (commentCountByCycle[c.cycle_id] || 0) + 1;
       });
 
-      // Bug counts: fetch bugs linked to any cycle_scenario_id in our set
+      // Compute verdict aggregates per cycle (latest verdict per scenario)
+      const verdictByCycle: Record<string, { passed: number; failed: number }> = {};
+      const latestVerdictPerScenario: Record<string, string> = {}; // scenario_id -> status (first = latest due to order)
+      (verdictsRes.data || []).forEach((v: any) => {
+        if (!latestVerdictPerScenario[v.scenario_id]) {
+          latestVerdictPerScenario[v.scenario_id] = v.status;
+        }
+      });
+      // Map scenario verdicts back to cycles
+      for (const [cId, sIds] of Object.entries(scenarioIdsByCycle)) {
+        let passed = 0, failed = 0;
+        for (const sId of sIds) {
+          const s = latestVerdictPerScenario[sId];
+          if (s === 'pass') passed++;
+          else if (s === 'fail') failed++;
+        }
+        verdictByCycle[cId] = { passed, failed };
+      }
+
       const allScenarioIds = Object.values(scenarioIdsByCycle).flat();
       let bugCountByCycle: Record<string, number> = {};
       let openBugCountByCycle: Record<string, number> = {};
@@ -100,13 +107,12 @@ export function useCycleList() {
           .from("bugs")
           .select("cycle_scenario_id, status")
           .in("cycle_scenario_id", allScenarioIds);
-        
-        // Reverse map: scenario_id → cycle_id
+
         const scenarioToCycle: Record<string, string> = {};
         for (const [cId, sIds] of Object.entries(scenarioIdsByCycle)) {
           for (const sId of sIds) scenarioToCycle[sId] = cId;
         }
-        
+
         (bugsData || []).forEach((b: any) => {
           const cId = scenarioToCycle[b.cycle_scenario_id];
           if (cId) {
@@ -118,13 +124,11 @@ export function useCycleList() {
         });
       }
 
-      // Latest run per cycle
       const latestRunByCycle: Record<string, any> = {};
       (runsRes.data || []).forEach((r: any) => {
         if (!latestRunByCycle[r.cycle_id]) latestRunByCycle[r.cycle_id] = r;
       });
 
-      // Profile map
       const profileMap: Record<string, string> = {};
       (profilesRes.data || []).forEach((p: any) => {
         profileMap[p.user_id] = p.full_name;
@@ -133,6 +137,7 @@ export function useCycleList() {
       const enriched: TestCycle[] = cycleList.map((cycle: any) => {
         const gIds = groupsByCycle[cycle.id] || [];
         const totalScenarios = gIds.reduce((sum, gId) => sum + (scenarioCountByGroup[gId] || 0), 0);
+        const vd = verdictByCycle[cycle.id] || { passed: 0, failed: 0 };
         return {
           ...cycle,
           total_scenarios: totalScenarios,
@@ -141,6 +146,9 @@ export function useCycleList() {
           bug_count: bugCountByCycle[cycle.id] || 0,
           open_bug_count: openBugCountByCycle[cycle.id] || 0,
           comment_count: commentCountByCycle[cycle.id] || 0,
+          verdict_passed: vd.passed,
+          verdict_failed: vd.failed,
+          verdict_untested: totalScenarios - vd.passed - vd.failed,
         } as TestCycle;
       });
 
@@ -163,13 +171,13 @@ export function useCycleDetail(cycleId: string | undefined) {
   const [cycle, setCycle] = useState<TestCycle | null>(null);
   const [groups, setGroups] = useState<CycleGroup[]>([]);
   const [runs, setRuns] = useState<CycleRun[]>([]);
+  const [verdictMap, setVerdictMap] = useState<Record<string, 'pass' | 'fail'>>({});
   const [loading, setLoading] = useState(true);
 
   const loadCycle = useCallback(async () => {
     if (!cycleId) return;
     setLoading(true);
     try {
-      // Load cycle + groups + runs in parallel
       const [cycleRes, groupsRes, runsRes] = await Promise.all([
         supabase.from("test_cycles").select("*").eq("id", cycleId).single(),
         supabase.from("cycle_groups").select("*").eq("cycle_id", cycleId).order("order_index"),
@@ -179,30 +187,52 @@ export function useCycleDetail(cycleId: string | undefined) {
       if (cycleRes.error) throw cycleRes.error;
       const cycleData = cycleRes.data;
 
-      // Collect all user IDs for batch profile lookup
       const allUserIds = new Set<string>();
       allUserIds.add(cycleData.created_by);
       (runsRes.data || []).forEach((r: any) => allUserIds.add(r.executed_by));
 
-      // Load scenarios for all groups + profiles in parallel
       const groupIds = (groupsRes.data || []).map((g: any) => g.id);
-      const [scenariosRes, profilesRes] = await Promise.all([
+      const [scenariosRes, profilesRes, verdictsRes] = await Promise.all([
         groupIds.length > 0
           ? supabase.from("cycle_scenarios").select("*").in("group_id", groupIds).order("order_index")
           : Promise.resolve({ data: [] }),
         allUserIds.size > 0
           ? supabase.from("profiles").select("user_id, full_name").in("user_id", [...allUserIds])
           : Promise.resolve({ data: [] }),
+        supabase.from("cycle_scenario_verdicts").select("scenario_id, status, created_at").eq("cycle_id", cycleId).order("created_at", { ascending: false }),
       ]);
 
       const profileMap: Record<string, string> = {};
       (profilesRes.data || []).forEach((p: any) => { profileMap[p.user_id] = p.full_name; });
 
-      setCycle({ ...cycleData, creator_name: profileMap[cycleData.created_by] || "Unknown" } as TestCycle);
+      // Build latest verdict per scenario
+      const latestVerdict: Record<string, 'pass' | 'fail'> = {};
+      (verdictsRes.data || []).forEach((v: any) => {
+        if (!latestVerdict[v.scenario_id]) {
+          latestVerdict[v.scenario_id] = v.status;
+        }
+      });
+      setVerdictMap(latestVerdict);
 
-      // Group scenarios by group_id
+      // Compute aggregates
+      const allScenarios = scenariosRes.data || [];
+      let passed = 0, failed = 0;
+      allScenarios.forEach((s: any) => {
+        const v = latestVerdict[s.id];
+        if (v === 'pass') passed++;
+        else if (v === 'fail') failed++;
+      });
+
+      setCycle({
+        ...cycleData,
+        creator_name: profileMap[cycleData.created_by] || "Unknown",
+        verdict_passed: passed,
+        verdict_failed: failed,
+        verdict_untested: allScenarios.length - passed - failed,
+      } as TestCycle);
+
       const scenariosByGroup: Record<string, CycleScenario[]> = {};
-      (scenariosRes.data || []).forEach((s: any) => {
+      allScenarios.forEach((s: any) => {
         (scenariosByGroup[s.group_id] ||= []).push(s as CycleScenario);
       });
 
@@ -230,5 +260,5 @@ export function useCycleDetail(cycleId: string | undefined) {
     loadCycle();
   }, [loadCycle]);
 
-  return { cycle, groups, runs, loading, refresh: loadCycle };
+  return { cycle, groups, runs, verdictMap, loading, refresh: loadCycle };
 }

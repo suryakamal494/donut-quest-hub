@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ScenarioCommentThread } from "./ScenarioCommentThread";
 import { ScenarioLinkedBugs } from "./ScenarioLinkedBugs";
+import { ScenarioVerdictThread } from "./ScenarioVerdictThread";
 import type { CycleScenario, CycleStep } from "@/types/cycle";
 
 interface ScenarioWorkspaceCardProps {
@@ -16,6 +17,8 @@ interface ScenarioWorkspaceCardProps {
   groupLabel: string;
   lastActivity?: { userName: string; time: string } | null;
   onReportBug: (scenario: CycleScenario) => void;
+  latestVerdict?: 'pass' | 'fail' | null;
+  onVerdictChange?: () => void;
 }
 
 export function ScenarioWorkspaceCard({
@@ -24,11 +27,15 @@ export function ScenarioWorkspaceCard({
   groupLabel,
   lastActivity,
   onReportBug,
+  latestVerdict: initialVerdict,
+  onVerdictChange,
 }: ScenarioWorkspaceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [bugCount, setBugCount] = useState(0);
-  const [activeTab, setActiveTab] = useState("comments");
+  const [verdictCount, setVerdictCount] = useState(0);
+  const [latestVerdict, setLatestVerdict] = useState<'pass' | 'fail' | null>(initialVerdict ?? null);
+  const [activeTab, setActiveTab] = useState("verdicts");
   const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
 
   const toggleStep = (idx: number) => {
@@ -40,6 +47,7 @@ export function ScenarioWorkspaceCard({
   };
 
   const steps = (scenario.steps || []) as CycleStep[];
+  const tabCount = 3 + (scenario.has_steps ? 1 : 0);
 
   return (
     <Card className={cn("transition-shadow", expanded && "shadow-md ring-1 ring-primary/10")}>
@@ -48,6 +56,17 @@ export function ScenarioWorkspaceCard({
         className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer select-none"
         onClick={() => setExpanded(!expanded)}
       >
+        {/* Latest verdict indicator */}
+        <div className="flex-shrink-0 mt-0.5">
+          {latestVerdict === 'pass' ? (
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          ) : latestVerdict === 'fail' ? (
+            <XCircle className="h-5 w-5 text-red-600" />
+          ) : (
+            <Minus className="h-5 w-5 text-muted-foreground/40" />
+          )}
+        </div>
+
         <Badge variant="secondary" className="font-mono text-xs mt-0.5 flex-shrink-0">
           {scenario.scenario_code}
         </Badge>
@@ -66,6 +85,14 @@ export function ScenarioWorkspaceCard({
 
           {/* Summary indicators */}
           <div className="flex flex-wrap items-center gap-3 mt-2">
+            {verdictCount > 0 && (
+              <span className={cn(
+                "flex items-center gap-1 text-xs font-medium",
+                latestVerdict === 'pass' ? "text-green-600" : latestVerdict === 'fail' ? "text-red-600" : "text-muted-foreground"
+              )}>
+                <Scale className="h-3.5 w-3.5" /> {verdictCount} verdict{verdictCount !== 1 ? "s" : ""}
+              </span>
+            )}
             {bugCount > 0 && (
               <span className="flex items-center gap-1 text-xs text-destructive">
                 <Bug className="h-3.5 w-3.5" /> {bugCount} bug{bugCount !== 1 ? "s" : ""}
@@ -110,7 +137,14 @@ export function ScenarioWorkspaceCard({
       {expanded && (
         <CardContent className="pt-0 pb-4 px-3 sm:px-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full grid grid-cols-3 h-9 bg-muted/60 p-0.5 rounded-lg">
+            <TabsList className={cn("w-full h-9 bg-muted/60 p-0.5 rounded-lg grid", `grid-cols-${tabCount}`)}>
+              <TabsTrigger
+                value="verdicts"
+                className="text-xs data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-violet-950/30 dark:data-[state=active]:text-violet-400 rounded-md"
+              >
+                <Scale className="h-3.5 w-3.5 mr-1" />
+                Verdicts {verdictCount > 0 && `(${verdictCount})`}
+              </TabsTrigger>
               <TabsTrigger
                 value="comments"
                 className="text-xs data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-400 rounded-md"
@@ -135,6 +169,18 @@ export function ScenarioWorkspaceCard({
                 </TabsTrigger>
               )}
             </TabsList>
+
+            <TabsContent value="verdicts" className="mt-3">
+              <ScenarioVerdictThread
+                cycleId={cycleId}
+                scenarioId={scenario.id}
+                onVerdictCountChange={setVerdictCount}
+                onLatestVerdictChange={(s) => {
+                  setLatestVerdict(s);
+                  onVerdictChange?.();
+                }}
+              />
+            </TabsContent>
 
             <TabsContent value="comments" className="mt-3">
               <ScenarioCommentThread
