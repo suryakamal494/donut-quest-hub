@@ -73,7 +73,7 @@ function HealthTile({ cycle }: { cycle: CycleHealth }) {
 
 export default function CycleInsights() {
   const {
-    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs,
+    loading, cycleHealth, personContributions, trendData, cycleComparisons, overviewKPIs, activityData,
     dateRange, setDateRange, selectedCycleId, setSelectedCycleId, refresh,
   } = useCycleInsights();
   const [calendarOpen, setCalendarOpen] = useState(false);
