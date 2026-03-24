@@ -139,6 +139,7 @@ export default function CycleInsights() {
           <TabsTrigger value="person" className="flex-1 sm:flex-none text-xs sm:text-sm">Person-wise</TabsTrigger>
           <TabsTrigger value="trends" className="flex-1 sm:flex-none text-xs sm:text-sm">Trends</TabsTrigger>
           <TabsTrigger value="comparison" className="flex-1 sm:flex-none text-xs sm:text-sm">Comparison</TabsTrigger>
+          <TabsTrigger value="activity" className="flex-1 sm:flex-none text-xs sm:text-sm">Activity</TabsTrigger>
         </TabsList>
 
         {/* OVERVIEW TAB */}
