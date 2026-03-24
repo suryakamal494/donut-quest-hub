@@ -140,6 +140,7 @@ const App = () => (
                 <Route path="coverage" element={<Coverage />} />
                 <Route path="health-map" element={<HealthMap />} />
                 <Route path="insights" element={<Insights />} />
+                <Route path="cycle-insights" element={<CycleInsights />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
               </Route>
 

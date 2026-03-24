@@ -90,6 +90,11 @@ const navItems = [
     href: "/qa/insights",
     icon: LineChart,
   },
+  {
+    title: "Cycle Insights",
+    href: "/qa/cycle-insights",
+    icon: BarChart3,
+  },
 ];
 
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {

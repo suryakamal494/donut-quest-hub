@@ -118,6 +118,12 @@ const moreNavItems = [
     icon: LineChart,
     description: "Bug resolution analytics & team effectiveness",
   },
+  {
+    title: "Cycle Insights",
+    href: "/qa/cycle-insights",
+    icon: BarChart3,
+    description: "Cycle health, person-wise reports & trends",
+  },
 ];
 
 export function QABottomNav() {
