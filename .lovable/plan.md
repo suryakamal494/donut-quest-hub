@@ -1,70 +1,63 @@
 
 
-# Action-Based QA Activity Tracking — Implementation Plan
+# Remove Direct Comments + Show Verdict Tags in Comments Tab
 
-## What We Are Building
+## What Changes
 
-A new **"Activity"** tab in the existing Cycle Insights page that estimates each QA tester's active work time by clustering their existing actions (verdicts, comments, bugs) into sessions. No new database tables, no heartbeat pings, no background processes.
+1. **Remove the direct comment input** from the Comments tab — no more "Add your observation" textarea, attach, and post button. The Comments tab becomes read-only, showing only comments that originate from verdict submissions.
 
-## How It Works
+2. **When a verdict is submitted (pass/fail), automatically copy that comment into `cycle_scenario_comments`** with a new `verdict_status` indicator so the Comments tab can display it with a Pass/Fail tag.
 
-1. Fetch all timestamped actions per user from `cycle_scenario_verdicts`, `cycle_scenario_comments`, and `bugs` (where `cycle_scenario_id IS NOT NULL`) within the selected date range
-2. Sort actions chronologically per user, then cluster them into "sessions" using a **30-minute gap threshold** — if 2 consecutive actions are < 30 min apart, they belong to the same session
-3. Each session's duration = last action timestamp - first action timestamp (minimum 5 minutes per session to account for single-action sessions)
-4. Sum session durations per user per day to get estimated active time
+3. **Show Pass/Fail badge on each comment** in the Comments tab for comments that came from verdicts.
 
-## Changes
+## Technical Details
 
-### 1. Extend `useCycleInsights.ts`
+### Migration: Add `verdict_status` column to `cycle_scenario_comments`
 
-Add a new `ActivityData` interface and state:
-
-```text
-interface UserActivity {
-  user_id: string
-  full_name: string
-  total_actions: number          // verdicts + comments + bugs
-  estimated_hours: number        // sum of session durations
-  session_count: number          // number of work sessions
-  first_action: string | null    // earliest timestamp in range
-  last_action: string | null     // latest timestamp in range
-  verdict_count: number
-  comment_count: number
-  bug_count: number
-  daily_breakdown: { date: string, hours: number, actions: number }[]
-}
+```sql
+ALTER TABLE public.cycle_scenario_comments
+ADD COLUMN verdict_status text DEFAULT NULL;
 ```
 
-Compute this inside the existing `loadData` function using the already-fetched verdicts, comments, and bugs data. No additional database queries needed — we reuse `verdictsInRange`, `commentsInRange`, and `bugsInRange`.
+This nullable column stores `'pass'` or `'fail'` for comments auto-created from verdicts, and remains `NULL` for any legacy direct comments.
 
-The session clustering algorithm:
-- Merge all actions into a single sorted array per user
-- Walk through, start a new session when gap > 30 minutes
-- Session duration = max(lastAction - firstAction, 5 minutes)
+### File: `src/components/qa/cycles/ScenarioVerdictThread.tsx`
 
-Return `activityData: UserActivity[]` from the hook.
+After successfully inserting a verdict (line 128-135), also insert a mirrored row into `cycle_scenario_comments`:
 
-### 2. Add "Activity" tab to `CycleInsights.tsx`
+```ts
+await supabase.from("cycle_scenario_comments").insert({
+  cycle_id: cycleId,
+  scenario_id: scenarioId,
+  user_id: user.id,
+  comment: comment.trim(),
+  verdict_status: pendingStatus, // 'pass' or 'fail'
+});
+```
 
-Add a 5th tab called **"Activity"** showing:
+### File: `src/components/qa/cycles/ScenarioCommentThread.tsx`
 
-- **Summary cards**: Total team hours, Average per person, Most active tester
-- **Per-person table**: Name, Total Actions, Est. Hours, Sessions, Verdicts/Comments/Bugs breakdown, First/Last Action, daily sparkline
-- **Daily activity heatmap**: Simple bar chart showing team-wide hours per day (reuses existing Recharts setup)
+- **Remove** the entire "New comment input" section (lines 137-176) — the textarea, attach button, post button, and pending file previews.
+- **Remove** the `PendingFilePreview` component (no longer needed).
+- **Remove** edit/delete controls on comments (since they are verdict-sourced and should not be modified independently).
+- **Add a Pass/Fail badge** next to each comment's author name, reading the `verdict_status` field. Green badge for "pass", red badge for "fail".
+- Update empty state text to: "No verdicts recorded yet. Submit a verdict to add comments."
 
-The tab reuses the same date range and cycle filters already on the page.
+### File: `src/hooks/useCommentThread.ts`
 
-### 3. Files Modified
+- Update `CommentData` interface to include `verdict_status?: string | null`.
+- The `postComment` and `uploadFiles` functions can remain (used elsewhere potentially) but won't be called from the Comments tab anymore.
+
+### File: `src/components/qa/cycles/ScenarioWorkspaceCard.tsx`
+
+No structural changes needed — the Comments tab still renders `ScenarioCommentThread`, which will now be read-only.
+
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/hooks/useCycleInsights.ts` | Add `UserActivity` interface, `activityData` state, session clustering logic inside `loadData`, return new state |
-| `src/pages/qa/CycleInsights.tsx` | Add "Activity" tab with summary cards, per-person table, and daily hours chart |
-
-### Technical Notes
-
-- Zero new database queries — all computation uses data already fetched by the hook
-- Zero new tables or migrations
-- 30-minute gap threshold and 5-minute minimum session are constants, easy to tune later
-- Respects existing `selectedCycleId` and `dateRange` filters
+| Migration | Add `verdict_status` column to `cycle_scenario_comments` |
+| `ScenarioVerdictThread.tsx` | Insert mirrored comment into `cycle_scenario_comments` on verdict submit |
+| `ScenarioCommentThread.tsx` | Remove direct input UI, add Pass/Fail badge on each comment, make read-only |
+| `useCommentThread.ts` | Add `verdict_status` to `CommentData` interface |
 
