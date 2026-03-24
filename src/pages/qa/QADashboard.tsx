@@ -118,6 +118,9 @@ export default function QADashboard() {
       {/* My Today Stats */}
       <MyTodayStats />
 
+      {/* My Cycle Activity */}
+      <MyCycleStats />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass">
