@@ -313,7 +313,7 @@ export default function BugList() {
       <BugStatsBar severityStats={severityStats} totalCount={loginCounts.all || totalCount} reopenedCount={reopenedCount} />
 
       {/* Login Type Tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {[
           { value: "all", label: "All" },
           { value: "super_admin", label: "Super Admin" },
