@@ -77,6 +77,7 @@ export default function CycleInsights() {
     dateRange, setDateRange, selectedCycleId, setSelectedCycleId, refresh,
   } = useCycleInsights();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [activityCalOpen, setActivityCalOpen] = useState(false);
 
   if (loading) {
     return (
@@ -412,13 +413,44 @@ export default function CycleInsights() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap items-center">
+              <Button
+                variant={format(dateRange.from, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") && format(dateRange.to, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") ? "default" : "outline"}
+                size="sm" className="text-xs"
+                onClick={() => setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) })}
+              >
+                Today
+              </Button>
               {QUICK_RANGES.map(r => (
                 <Button key={r.label} variant="outline" size="sm" className="text-xs"
                   onClick={() => setDateRange(r.getDates())}>
                   {r.label}
                 </Button>
               ))}
+              <Popover open={activityCalOpen} onOpenChange={setActivityCalOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs">
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {format(dateRange.from, "MMM dd")} – {format(dateRange.to, "MMM dd")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={{ from: dateRange.from, to: dateRange.to }}
+                    onSelect={(range) => {
+                      if (range?.from && range?.to) {
+                        setDateRange({ from: startOfDay(range.from), to: endOfDay(range.to) });
+                        setActivityCalOpen(false);
+                      } else if (range?.from) {
+                        setDateRange(prev => ({ ...prev, from: startOfDay(range.from!) }));
+                      }
+                    }}
+                    className={cn("p-3 pointer-events-auto")}
+                    disabled={(date) => date > new Date()}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
