@@ -84,9 +84,9 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
     }));
 
     setBugs(enriched);
-    onBugCountChange?.(enriched.length);
+    onBugCountChangeRef.current?.(enriched.length);
     setLoading(false);
-  }, [scenarioId, onBugCountChange]);
+  }, [scenarioId]);
 
   useEffect(() => {
     loadBugs();

@@ -63,9 +63,9 @@ export function useCommentThread(
     }));
 
     setComments(enriched);
-    onCommentCountChange?.(enriched.length);
+    onCommentCountChangeRef.current?.(enriched.length);
     setLoading(false);
-  }, [cycleId, scenarioId, onCommentCountChange]);
+  }, [cycleId, scenarioId]);
 
   const startEdit = (c: CommentData) => {
     setEditingId(c.id);

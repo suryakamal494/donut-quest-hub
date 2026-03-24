@@ -39,6 +39,12 @@ export function ScenarioVerdictThread({
   const [pendingStatus, setPendingStatus] = useState<"pass" | "fail" | null>(null);
   const [comment, setComment] = useState("");
 
+  // Use refs to avoid infinite re-render loops from unstable callback props
+  const onVerdictCountChangeRef = useRef(onVerdictCountChange);
+  onVerdictCountChangeRef.current = onVerdictCountChange;
+  const onLatestVerdictChangeRef = useRef(onLatestVerdictChange);
+  onLatestVerdictChangeRef.current = onLatestVerdictChange;
+
   const loadVerdicts = useCallback(async () => {
     setLoading(true);
     try {
@@ -69,14 +75,14 @@ export function ScenarioVerdictThread({
       }));
 
       setVerdicts(enriched);
-      onVerdictCountChange?.(enriched.length);
-      onLatestVerdictChange?.(enriched.length > 0 ? enriched[0].status : null);
+      onVerdictCountChangeRef.current?.(enriched.length);
+      onLatestVerdictChangeRef.current?.(enriched.length > 0 ? enriched[0].status : null);
     } catch (err) {
       console.error("Error loading verdicts:", err);
     } finally {
       setLoading(false);
     }
-  }, [cycleId, scenarioId, onVerdictCountChange, onLatestVerdictChange]);
+  }, [cycleId, scenarioId]);
 
   useEffect(() => {
     loadVerdicts();
