@@ -78,7 +78,7 @@ export function BugFilters({
           </SelectContent>
         </Select>
         <Select value={bugTypeFilter} onValueChange={onBugTypeChange}>
-          <SelectTrigger className="w-[130px] h-8 text-sm">
+           <SelectTrigger className="w-full sm:w-[130px] h-8 text-sm">
             <SelectValue placeholder="Bug Type" />
           </SelectTrigger>
           <SelectContent>
