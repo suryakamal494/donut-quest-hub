@@ -9,6 +9,7 @@ export interface CommentData {
   comment: string;
   attachments: string[];
   created_at: string;
+  verdict_status?: string | null;
   profile?: { full_name: string; email: string };
 }
 

@@ -133,6 +133,15 @@ export function ScenarioVerdictThread({
         comment: comment.trim(),
       });
       if (error) throw error;
+
+      // Mirror the verdict comment into cycle_scenario_comments with verdict_status tag
+      await supabase.from("cycle_scenario_comments").insert({
+        cycle_id: cycleId,
+        scenario_id: scenarioId,
+        user_id: user.id,
+        comment: comment.trim(),
+        verdict_status: pendingStatus,
+      } as any);
       setComment("");
       setPendingStatus(null);
       await loadVerdicts();

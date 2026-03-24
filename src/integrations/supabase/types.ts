@@ -665,6 +665,7 @@ export type Database = {
           id: string
           scenario_id: string
           user_id: string
+          verdict_status: string | null
         }
         Insert: {
           attachments?: string[] | null
@@ -674,6 +675,7 @@ export type Database = {
           id?: string
           scenario_id: string
           user_id: string
+          verdict_status?: string | null
         }
         Update: {
           attachments?: string[] | null
@@ -683,6 +685,7 @@ export type Database = {
           id?: string
           scenario_id?: string
           user_id?: string
+          verdict_status?: string | null
         }
         Relationships: [
           {

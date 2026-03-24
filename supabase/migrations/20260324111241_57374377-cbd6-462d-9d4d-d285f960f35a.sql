@@ -1,0 +1,1 @@
+ALTER TABLE public.cycle_scenario_comments ADD COLUMN verdict_status text DEFAULT NULL;
