@@ -212,6 +212,9 @@ export default function QADashboard() {
       {/* Today's Testing Activity */}
       <TodayActivityPanel />
 
+      {/* My Pending Scenarios */}
+      <MyPendingScenarios />
+
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Scenarios */}
