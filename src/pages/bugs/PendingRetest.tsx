@@ -270,7 +270,7 @@ export default function PendingRetest() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Pending Retest</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pending Retest</h1>
         <p className="text-sm text-muted-foreground">
           {totalCount} bug{totalCount !== 1 ? "s" : ""} awaiting QA verification
           {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
