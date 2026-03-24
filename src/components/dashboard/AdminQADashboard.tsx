@@ -548,6 +548,9 @@ export function AdminQADashboard() {
         </CardContent>
       </Card>
 
+      {/* Work Window */}
+      <WorkWindowWidget projectId={currentProject.id} teamMembers={teamMembers} />
+
       {/* Daily Activity */}
       <DailyActivityStats projectId={currentProject.id} teamMembers={teamMembers} />
     </div>
