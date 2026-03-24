@@ -18,7 +18,7 @@ export function useCycleList() {
         .from("test_cycles")
         .select("*")
         .eq("project_id", currentProject.id)
-        .order("updated_at", { ascending: false });
+        .order("cycle_code", { ascending: true });
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter as any);
