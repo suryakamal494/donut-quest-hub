@@ -14,7 +14,7 @@ import { ScenarioTypeBadge } from "@/components/qa/badges";
 import { FailedTestsReminder } from "@/components/qa/FailedTestsReminder";
 import { TodayActivityPanel, StaleFailuresAlert } from "@/components/qa";
 import { MyTodayStats } from "@/components/dashboard/MyTodayStats";
-import { WeeklyBugTrendsChart, CoverageSummaryWidget } from "@/components/qa/widgets";
+import { WeeklyBugTrendsChart, CoverageSummaryWidget, MyCycleStats, MyPendingScenarios } from "@/components/qa/widgets";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 import { AdminQADashboard } from "@/components/dashboard/AdminQADashboard";
 import { Skeleton } from "@/components/ui/skeleton";
