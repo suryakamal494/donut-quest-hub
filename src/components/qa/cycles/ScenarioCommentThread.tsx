@@ -314,3 +314,26 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
     </div>
   );
 }
+
+/** Small helper that manages Object URL lifecycle to prevent memory leaks */
+function PendingFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [url, setUrl] = useState<string>("");
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return null;
+  return (
+    <div className="relative">
+      <img src={url} alt="" className="h-12 w-12 object-cover rounded border" />
+      <button
+        onClick={onRemove}
+        className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+      >
+        <X className="h-2.5 w-2.5" />
+      </button>
+    </div>
+  );
+}

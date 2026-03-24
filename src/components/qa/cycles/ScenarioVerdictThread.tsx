@@ -189,7 +189,7 @@ export function ScenarioVerdictThread({
           No verdicts yet. Use the buttons above to record pass/fail.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
           {verdicts.map((v) => (
             <div
               key={v.id}

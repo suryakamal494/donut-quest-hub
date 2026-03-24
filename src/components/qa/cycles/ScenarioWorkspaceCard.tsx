@@ -137,7 +137,7 @@ export function ScenarioWorkspaceCard({
       {expanded && (
         <CardContent className="pt-0 pb-4 px-3 sm:px-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className={cn("w-full h-9 bg-muted/60 p-0.5 rounded-lg grid", `grid-cols-${tabCount}`)}>
+            <TabsList className={cn("w-full h-9 bg-muted/60 p-0.5 rounded-lg grid", scenario.has_steps ? "grid-cols-4" : "grid-cols-3")}>
               <TabsTrigger
                 value="verdicts"
                 className="text-xs data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-violet-950/30 dark:data-[state=active]:text-violet-400 rounded-md"
