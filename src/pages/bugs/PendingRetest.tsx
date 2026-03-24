@@ -302,7 +302,7 @@ export default function PendingRetest() {
             size="sm"
             variant={loginTypeFilter === f.value ? "default" : "outline"}
             className={cn(
-              "rounded-full text-xs h-8 px-3",
+              "rounded-full text-xs h-7 sm:h-8 px-2.5 sm:px-3 whitespace-nowrap",
               loginTypeFilter === f.value && "shadow-sm"
             )}
             onClick={() => { setLoginTypeFilter(f.value); setPage(1); }}

@@ -289,7 +289,7 @@ export default function BugList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Bug Tracker</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Bug Tracker</h1>
           <p className="text-sm text-muted-foreground">
             {totalCount} active bug{totalCount !== 1 ? "s" : ""}
             {totalPages > 1 && ` • Page ${page} of ${totalPages}`}
