@@ -1,31 +1,26 @@
 
 
-# Generate Bug Audit CSV + Summary
+# Delete 14 Super Admin Bugs (PYP, Content Library, Dashboard)
 
-## What Will Be Delivered
+## What Will Be Done
 
-Two files in `/mnt/documents/`:
+Permanently delete 14 bugs and all their related data from the database:
 
-1. **bug_audit_report.csv** — All 163 active bugs with audit columns:
-   - `bug_code`, `title`, `login_type`, `severity`, `status`, `bug_type`, `feature`, `sub_module`
-   - `is_duplicate` (yes/no)
-   - `duplicate_cluster` (cluster name, e.g. "PDF Upload Failures")
-   - `primary_bug` (the bug_code to keep if duplicate)
-   - `recommendation` (keep / close as duplicate / merge)
+**PYP bugs (5):** BUG-002, BUG-017, BUG-019, BUG-021, BUG-340, BUG-341
+**Content Library bugs (6):** BUG-026, BUG-109, BUG-110, BUG-111, BUG-112, BUG-271
+**Dashboard bugs (3):** BUG-072, BUG-218
 
-2. **bug_audit_summary.csv** — Per-login-type summary with unique vs repetitive counts and cluster names
+### Deletion Order (respecting dependencies)
+1. Delete from `bug_comments` where `bug_id` matches
+2. Delete from `bug_history` where `bug_id` matches
+3. Delete from `notifications` where `link` contains any of these bug IDs
+4. Delete from `bugs` the 14 rows
 
-## How
+### Method
+A single database migration with 4 DELETE statements using the 14 known UUIDs.
 
-- Query all 163 active bugs with feature names joined
-- Apply the duplicate cluster mappings identified in the audit (19 clusters, 50 overlapping bugs)
-- Tag each bug row with its cluster assignment and recommendation
-- Write both CSVs to `/mnt/documents/`
-
-## Files Generated
-
-| File | Description |
-|------|-------------|
-| `/mnt/documents/bug_audit_report.csv` | Full 163-bug audit with duplicate tags |
-| `/mnt/documents/bug_audit_summary.csv` | Per-login-type breakdown |
+### Files Changed
+| File | Change |
+|------|--------|
+| New migration | DELETE cascade for bug_comments, bug_history, notifications, and bugs |
 
