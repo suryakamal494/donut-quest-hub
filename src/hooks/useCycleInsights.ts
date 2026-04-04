@@ -304,7 +304,7 @@ export function useCycleInsights() {
         const p = personMap[v.user_id];
         p.total_verdicts++;
         if (v.status === "pass") p.pass_count++;
-        else p.fail_count++;
+        else if (v.status === "fail") p.fail_count++;
         if (!p.last_active || v.created_at > p.last_active) p.last_active = v.created_at;
       });
 
