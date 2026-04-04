@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Clock, User, PlayCircle, Bug, MessageSquare, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Clock, User, PlayCircle, Bug, MessageSquare, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { TestCycle } from "@/types/cycle";
 
@@ -8,6 +8,7 @@ export function CycleCard({ cycle }: { cycle: TestCycle }) {
   const total = cycle.total_scenarios || 0;
   const passed = cycle.verdict_passed ?? 0;
   const failed = cycle.verdict_failed ?? 0;
+  const review = cycle.verdict_review ?? 0;
 
   return (
     <Link to={`/qa/cycles/${cycle.id}`} className="block group">
@@ -44,6 +45,12 @@ export function CycleCard({ cycle }: { cycle: TestCycle }) {
                   </span>
                 )}
               </>
+            )}
+            {review > 0 && (
+              <span className="flex items-center gap-1 text-amber-600 font-medium">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {review} review
+              </span>
             )}
             {(cycle.bug_count ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-destructive font-medium">

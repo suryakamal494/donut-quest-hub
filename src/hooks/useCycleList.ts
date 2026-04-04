@@ -95,7 +95,7 @@ export function useCycleList() {
         commentCountByCycle[c.cycleId] = c.count;
       });
 
-      const verdictByCycle: Record<string, { passed: number; failed: number }> = {};
+      const verdictByCycle: Record<string, { passed: number; failed: number; review: number }> = {};
       const latestVerdictPerScenario: Record<string, string> = {};
       (verdictsRes.data || []).forEach((v: any) => {
         if (!latestVerdictPerScenario[v.scenario_id]) {
@@ -103,13 +103,14 @@ export function useCycleList() {
         }
       });
       for (const [cId, sIds] of Object.entries(scenarioIdsByCycle)) {
-        let passed = 0, failed = 0;
+        let passed = 0, failed = 0, review = 0;
         for (const sId of sIds) {
           const s = latestVerdictPerScenario[sId];
           if (s === 'pass') passed++;
           else if (s === 'fail') failed++;
+          else if (s === 'review') review++;
         }
-        verdictByCycle[cId] = { passed, failed };
+        verdictByCycle[cId] = { passed, failed, review };
       }
 
       const allScenarioIds = Object.values(scenarioIdsByCycle).flat();
@@ -150,7 +151,7 @@ export function useCycleList() {
       const enriched: TestCycle[] = cycleList.map((cycle: any) => {
         const gIds = groupsByCycle[cycle.id] || [];
         const totalScenarios = gIds.reduce((sum, gId) => sum + (scenarioCountByGroup[gId] || 0), 0);
-        const vd = verdictByCycle[cycle.id] || { passed: 0, failed: 0 };
+        const vd = verdictByCycle[cycle.id] || { passed: 0, failed: 0, review: 0 };
         return {
           ...cycle,
           total_scenarios: totalScenarios,
@@ -161,7 +162,8 @@ export function useCycleList() {
           comment_count: commentCountByCycle[cycle.id] || 0,
           verdict_passed: vd.passed,
           verdict_failed: vd.failed,
-          verdict_untested: totalScenarios - vd.passed - vd.failed,
+          verdict_review: vd.review,
+          verdict_untested: totalScenarios - vd.passed - vd.failed - vd.review,
         } as TestCycle;
       });
 

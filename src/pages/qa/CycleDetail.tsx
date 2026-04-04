@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, Loader2, FileText, Clock, User, CheckCircle2, XCircle, Minus } from "lucide-react";
+import { ArrowLeft, Edit, Loader2, FileText, Clock, User, CheckCircle2, XCircle, Minus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ export default function CycleDetail() {
   const totalScenarios = groups.reduce((sum, g) => sum + (g.scenarios?.length || 0), 0);
   const passed = cycle.verdict_passed ?? 0;
   const failed = cycle.verdict_failed ?? 0;
+  const review = cycle.verdict_review ?? 0;
   const untested = cycle.verdict_untested ?? totalScenarios;
 
   return (
@@ -101,6 +102,11 @@ export default function CycleDetail() {
           <span className="flex items-center gap-1.5 text-red-600 font-medium">
             <XCircle className="h-4 w-4" /> {failed} failed
           </span>
+          {review > 0 && (
+            <span className="flex items-center gap-1.5 text-amber-500 font-medium">
+              <AlertTriangle className="h-4 w-4" /> {review} review
+            </span>
+          )}
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <Minus className="h-4 w-4" /> {untested} untested
           </span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 import { ScenarioCommentThread } from "./ScenarioCommentThread";
 import { ScenarioLinkedBugs } from "./ScenarioLinkedBugs";
 import { ScenarioVerdictThread } from "./ScenarioVerdictThread";
-import type { CycleScenario, CycleStep } from "@/types/cycle";
+import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+import type { CycleScenario, CycleStep, VerdictStatus } from "@/types/cycle";
 
 interface ScenarioWorkspaceCardProps {
   scenario: CycleScenario;
@@ -17,7 +18,7 @@ interface ScenarioWorkspaceCardProps {
   groupLabel: string;
   lastActivity?: { userName: string; time: string } | null;
   onReportBug: (scenario: CycleScenario) => void;
-  latestVerdict?: 'pass' | 'fail' | null;
+  latestVerdict?: VerdictStatus | null;
   onVerdictChange?: () => void;
 }
 
@@ -34,7 +35,7 @@ export function ScenarioWorkspaceCard({
   const [commentCount, setCommentCount] = useState(0);
   const [bugCount, setBugCount] = useState(0);
   const [verdictCount, setVerdictCount] = useState(0);
-  const [latestVerdict, setLatestVerdict] = useState<'pass' | 'fail' | null>(initialVerdict ?? null);
+  const [latestVerdict, setLatestVerdict] = useState<VerdictStatus | null>(initialVerdict ?? null);
   const [activeTab, setActiveTab] = useState("verdicts");
   const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
 
@@ -51,10 +52,21 @@ export function ScenarioWorkspaceCard({
   };
 
   const steps = (scenario.steps || []) as CycleStep[];
-  const tabCount = 3 + (scenario.has_steps ? 1 : 0);
+
+  const borderColor = latestVerdict === 'pass'
+    ? 'border-l-green-500'
+    : latestVerdict === 'fail'
+    ? 'border-l-red-500'
+    : latestVerdict === 'review'
+    ? 'border-l-amber-500'
+    : 'border-l-transparent';
 
   return (
-    <Card className={cn("transition-shadow", expanded && "shadow-md ring-1 ring-primary/10")}>
+    <Card className={cn(
+      "transition-shadow border-l-4",
+      borderColor,
+      expanded && "shadow-md ring-1 ring-primary/10"
+    )}>
       {/* Collapsed header */}
       <div
         className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer select-none"
@@ -66,6 +78,8 @@ export function ScenarioWorkspaceCard({
             <CheckCircle2 className="h-5 w-5 text-green-600" />
           ) : latestVerdict === 'fail' ? (
             <XCircle className="h-5 w-5 text-red-600" />
+          ) : latestVerdict === 'review' ? (
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
           ) : (
             <Minus className="h-5 w-5 text-muted-foreground/40" />
           )}
@@ -79,12 +93,15 @@ export function ScenarioWorkspaceCard({
             {scenario.title}
           </p>
           {scenario.description && (
-            <p className={cn(
-              "text-xs sm:text-sm text-muted-foreground mt-0.5 whitespace-pre-line",
+            <div className={cn(
+              "mt-0.5",
               !expanded && "line-clamp-2"
             )}>
-              {scenario.description}
-            </p>
+              <MarkdownRenderer
+                content={scenario.description}
+                className="text-xs sm:text-sm text-muted-foreground [&_p]:my-0 [&_strong]:text-foreground/80"
+              />
+            </div>
           )}
 
           {/* Summary indicators */}
@@ -92,15 +109,15 @@ export function ScenarioWorkspaceCard({
             {verdictCount > 0 && (
               <span className={cn(
                 "flex items-center gap-1 text-xs font-medium",
-                latestVerdict === 'pass' ? "text-green-600" : latestVerdict === 'fail' ? "text-red-600" : "text-muted-foreground"
+                latestVerdict === 'pass' ? "text-green-600" : latestVerdict === 'fail' ? "text-red-600" : latestVerdict === 'review' ? "text-amber-600" : "text-muted-foreground"
               )}>
                 <Scale className="h-3.5 w-3.5" /> {verdictCount} verdict{verdictCount !== 1 ? "s" : ""}
               </span>
             )}
             {bugCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-destructive">
-                <Bug className="h-3.5 w-3.5" /> {bugCount} bug{bugCount !== 1 ? "s" : ""}
-              </span>
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5 font-medium">
+                <Bug className="h-3 w-3 mr-0.5" /> {bugCount} bug{bugCount !== 1 ? "s" : ""}
+              </Badge>
             )}
             {commentCount > 0 && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">

@@ -4,6 +4,8 @@ import type { PriorityLevel, TestStatus, RunStatus, LoginType } from './qa';
 // Cycle Testing Types
 // ============================================
 
+export type VerdictStatus = 'pass' | 'fail' | 'review';
+
 export type CycleStatus = 'draft' | 'active' | 'archived';
 
 export const CYCLE_STATUS_LABELS: Record<CycleStatus, string> = {
@@ -35,6 +37,7 @@ export interface TestCycle {
   comment_count?: number;
   verdict_passed?: number;
   verdict_failed?: number;
+  verdict_review?: number;
   verdict_untested?: number;
 }
 
@@ -73,7 +76,7 @@ export interface CycleVerdict {
   cycle_id: string;
   scenario_id: string;
   user_id: string;
-  status: 'pass' | 'fail';
+  status: VerdictStatus;
   comment: string;
   created_at: string;
   // Joined

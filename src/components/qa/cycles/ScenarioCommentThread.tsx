@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useCommentThread } from "@/hooks/useCommentThread";
@@ -55,6 +55,11 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                   {c.verdict_status === "fail" && (
                     <Badge className="bg-red-600 text-white text-[10px] px-1.5 py-0 h-4">
                       <XCircle className="h-3 w-3 mr-0.5" /> FAIL
+                    </Badge>
+                  )}
+                  {c.verdict_status === "review" && (
+                    <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0 h-4">
+                      <AlertTriangle className="h-3 w-3 mr-0.5" /> REVIEW
                     </Badge>
                   )}
                   <span className="text-[10px] text-muted-foreground">
