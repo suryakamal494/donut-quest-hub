@@ -4,6 +4,8 @@ import type { PriorityLevel, TestStatus, RunStatus, LoginType } from './qa';
 // Cycle Testing Types
 // ============================================
 
+export type VerdictStatus = 'pass' | 'fail' | 'review';
+
 export type CycleStatus = 'draft' | 'active' | 'archived';
 
 export const CYCLE_STATUS_LABELS: Record<CycleStatus, string> = {
