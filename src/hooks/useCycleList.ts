@@ -95,7 +95,7 @@ export function useCycleList() {
         commentCountByCycle[c.cycleId] = c.count;
       });
 
-      const verdictByCycle: Record<string, { passed: number; failed: number }> = {};
+      const verdictByCycle: Record<string, { passed: number; failed: number; review: number }> = {};
       const latestVerdictPerScenario: Record<string, string> = {};
       (verdictsRes.data || []).forEach((v: any) => {
         if (!latestVerdictPerScenario[v.scenario_id]) {
@@ -103,13 +103,14 @@ export function useCycleList() {
         }
       });
       for (const [cId, sIds] of Object.entries(scenarioIdsByCycle)) {
-        let passed = 0, failed = 0;
+        let passed = 0, failed = 0, review = 0;
         for (const sId of sIds) {
           const s = latestVerdictPerScenario[sId];
           if (s === 'pass') passed++;
           else if (s === 'fail') failed++;
+          else if (s === 'review') review++;
         }
-        verdictByCycle[cId] = { passed, failed };
+        verdictByCycle[cId] = { passed, failed, review };
       }
 
       const allScenarioIds = Object.values(scenarioIdsByCycle).flat();
