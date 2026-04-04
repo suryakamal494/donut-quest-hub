@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CheckCircle2, XCircle, Loader2, Send } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -8,11 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import type { VerdictStatus } from "@/types/cycle";
 
 interface Verdict {
   id: string;
   user_id: string;
-  status: "pass" | "fail";
+  status: VerdictStatus;
   comment: string;
   created_at: string;
   user_name?: string;
@@ -22,7 +23,7 @@ interface ScenarioVerdictThreadProps {
   cycleId: string;
   scenarioId: string;
   onVerdictCountChange?: (count: number) => void;
-  onLatestVerdictChange?: (status: "pass" | "fail" | null) => void;
+  onLatestVerdictChange?: (status: VerdictStatus | null) => void;
   onSubmitted?: () => void;
 }
 
@@ -38,10 +39,9 @@ export function ScenarioVerdictThread({
   const [verdicts, setVerdicts] = useState<Verdict[]>([]);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<"pass" | "fail" | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<VerdictStatus | null>(null);
   const [comment, setComment] = useState("");
 
-  // Use refs to avoid infinite re-render loops from unstable callback props
   const onVerdictCountChangeRef = useRef(onVerdictCountChange);
   onVerdictCountChangeRef.current = onVerdictCountChange;
   const onLatestVerdictChangeRef = useRef(onLatestVerdictChange);
@@ -107,7 +107,7 @@ export function ScenarioVerdictThread({
       return;
     }
 
-    // For fail verdicts, check that at least one bug is linked to this scenario
+    // For fail verdicts, check that at least one bug is linked
     if (pendingStatus === "fail") {
       const { count, error: bugErr } = await supabase
         .from("bugs")
@@ -134,7 +134,7 @@ export function ScenarioVerdictThread({
       });
       if (error) throw error;
 
-      // Mirror the verdict comment into cycle_scenario_comments with verdict_status tag
+      // Mirror the verdict comment into cycle_scenario_comments
       await supabase.from("cycle_scenario_comments").insert({
         cycle_id: cycleId,
         scenario_id: scenarioId,
@@ -146,12 +146,31 @@ export function ScenarioVerdictThread({
       setPendingStatus(null);
       await loadVerdicts();
       onSubmittedRef.current?.();
-      toast({ title: `Scenario marked as ${pendingStatus}` });
+      const label = pendingStatus === 'review' ? 'review' : pendingStatus;
+      toast({ title: `Scenario marked as ${label}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setPosting(false);
     }
+  };
+
+  const getPlaceholder = () => {
+    if (pendingStatus === "pass") return "What did you test? What was passing? (min 70 characters)";
+    if (pendingStatus === "fail") return "What failed? Describe the issue... (min 70 characters)";
+    return "What needs review? Describe your doubts... (min 70 characters)";
+  };
+
+  const getSubmitColor = () => {
+    if (pendingStatus === "pass") return "bg-green-600 hover:bg-green-700";
+    if (pendingStatus === "fail") return "bg-red-600 hover:bg-red-700";
+    return "bg-amber-500 hover:bg-amber-600";
+  };
+
+  const getSubmitLabel = () => {
+    if (pendingStatus === "pass") return "Submit Pass";
+    if (pendingStatus === "fail") return "Submit Fail";
+    return "Submit Review";
   };
 
   if (loading) {
@@ -164,7 +183,7 @@ export function ScenarioVerdictThread({
 
   return (
     <div className="space-y-4">
-      {/* Pass/Fail action buttons */}
+      {/* Pass/Fail/Review action buttons */}
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <Button
@@ -193,6 +212,19 @@ export function ScenarioVerdictThread({
           >
             <XCircle className="h-4 w-4 mr-1.5" /> Fail
           </Button>
+          <Button
+            size="sm"
+            variant={pendingStatus === "review" ? "default" : "outline"}
+            className={cn(
+              "flex-1 h-9",
+              pendingStatus === "review"
+                ? "bg-amber-500 hover:bg-amber-600 text-white"
+                : "border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
+            )}
+            onClick={() => setPendingStatus(pendingStatus === "review" ? null : "review")}
+          >
+            <AlertTriangle className="h-4 w-4 mr-1.5" /> Review
+          </Button>
         </div>
 
         {pendingStatus && (
@@ -200,11 +232,7 @@ export function ScenarioVerdictThread({
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder={
-                pendingStatus === "pass"
-                  ? "What did you test? What was passing? (min 70 characters)"
-                  : "What failed? Describe the issue... (min 70 characters)"
-              }
+              placeholder={getPlaceholder()}
               className="min-h-[70px] text-sm"
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSubmit();
@@ -227,20 +255,21 @@ export function ScenarioVerdictThread({
                   size="sm"
                   onClick={handleSubmit}
                   disabled={posting}
-                  className={cn(
-                    pendingStatus === "pass"
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "bg-red-600 hover:bg-red-700"
-                  )}
+                  className={getSubmitColor()}
                 >
                   {posting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
-                  Submit {pendingStatus === "pass" ? "Pass" : "Fail"}
+                  {getSubmitLabel()}
                 </Button>
               </div>
             </div>
             {pendingStatus === "fail" && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 ⚠ A bug report is required before submitting a Fail verdict.
+              </p>
+            )}
+            {pendingStatus === "review" && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                ⚠ Mark for Review when the test passed but you have doubts — it will be flagged for re-testing.
               </p>
             )}
           </div>
@@ -250,7 +279,7 @@ export function ScenarioVerdictThread({
       {/* Verdict history */}
       {verdicts.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">
-          No verdicts yet. Use the buttons above to record pass/fail.
+          No verdicts yet. Use the buttons above to record pass/fail/review.
         </p>
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
@@ -261,7 +290,9 @@ export function ScenarioVerdictThread({
                 "rounded-lg border p-3 text-sm",
                 v.status === "pass"
                   ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
-                  : "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                  : v.status === "fail"
+                  ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                  : "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
               )}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -269,9 +300,13 @@ export function ScenarioVerdictThread({
                   <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">
                     <CheckCircle2 className="h-3 w-3 mr-0.5" /> PASS
                   </Badge>
-                ) : (
+                ) : v.status === "fail" ? (
                   <Badge className="bg-red-600 text-white text-[10px] px-1.5 py-0">
                     <XCircle className="h-3 w-3 mr-0.5" /> FAIL
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">
+                    <AlertTriangle className="h-3 w-3 mr-0.5" /> REVIEW
                   </Badge>
                 )}
                 <span className="text-xs font-medium text-foreground">{v.user_name}</span>

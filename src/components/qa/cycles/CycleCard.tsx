@@ -46,6 +46,12 @@ export function CycleCard({ cycle }: { cycle: TestCycle }) {
                 )}
               </>
             )}
+            {review > 0 && (
+              <span className="flex items-center gap-1 text-amber-600 font-medium">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {review} review
+              </span>
+            )}
             {(cycle.bug_count ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-destructive font-medium">
                 <Bug className="h-3.5 w-3.5" />

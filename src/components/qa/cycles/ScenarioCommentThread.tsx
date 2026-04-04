@@ -57,6 +57,11 @@ export function ScenarioCommentThread({ cycleId, scenarioId, onCommentCountChang
                       <XCircle className="h-3 w-3 mr-0.5" /> FAIL
                     </Badge>
                   )}
+                  {c.verdict_status === "review" && (
+                    <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0 h-4">
+                      <AlertTriangle className="h-3 w-3 mr-0.5" /> REVIEW
+                    </Badge>
+                  )}
                   <span className="text-[10px] text-muted-foreground">
                     {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </span>
