@@ -40,7 +40,7 @@ export function useCycleDetail(cycleId: string | undefined) {
       const profileMap: Record<string, string> = {};
       (profilesRes.data || []).forEach((p: any) => { profileMap[p.user_id] = p.full_name; });
 
-      const latestVerdict: Record<string, 'pass' | 'fail'> = {};
+      const latestVerdict: Record<string, VerdictStatus> = {};
       (verdictsRes.data || []).forEach((v: any) => {
         if (!latestVerdict[v.scenario_id]) {
           latestVerdict[v.scenario_id] = v.status;
@@ -49,11 +49,12 @@ export function useCycleDetail(cycleId: string | undefined) {
       setVerdictMap(latestVerdict);
 
       const allScenarios = scenariosRes.data || [];
-      let passed = 0, failed = 0;
+      let passed = 0, failed = 0, review = 0;
       allScenarios.forEach((s: any) => {
         const v = latestVerdict[s.id];
         if (v === 'pass') passed++;
         else if (v === 'fail') failed++;
+        else if (v === 'review') review++;
       });
 
       setCycle({
