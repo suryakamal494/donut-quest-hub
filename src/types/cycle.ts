@@ -76,7 +76,7 @@ export interface CycleVerdict {
   cycle_id: string;
   scenario_id: string;
   user_id: string;
-  status: 'pass' | 'fail';
+  status: VerdictStatus;
   comment: string;
   created_at: string;
   // Joined
