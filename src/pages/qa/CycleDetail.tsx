@@ -64,6 +64,7 @@ export default function CycleDetail() {
   const totalScenarios = groups.reduce((sum, g) => sum + (g.scenarios?.length || 0), 0);
   const passed = cycle.verdict_passed ?? 0;
   const failed = cycle.verdict_failed ?? 0;
+  const review = cycle.verdict_review ?? 0;
   const untested = cycle.verdict_untested ?? totalScenarios;
 
   return (
