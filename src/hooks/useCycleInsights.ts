@@ -246,9 +246,9 @@ export function useCycleInsights() {
       const healthData: CycleHealth[] = cycles.map(c => {
         const totalScenarios = scenariosPerCycle[c.id]?.size || 0;
         const verdictMap = latestVerdicts[c.id] || {};
-        let passed = 0, failed = 0;
-        Object.values(verdictMap).forEach(s => { if (s === "pass") passed++; else if (s === "fail") failed++; });
-        const untested = totalScenarios - passed - failed;
+        let passed = 0, failed = 0, review = 0;
+        Object.values(verdictMap).forEach(s => { if (s === "pass") passed++; else if (s === "fail") failed++; else if (s === "review") review++; });
+        const untested = totalScenarios - passed - failed - review;
         const passRate = totalScenarios > 0 ? Math.round((passed / totalScenarios) * 100) : 0;
         const lastAct = latestActivity[c.id] || null;
         const daysSince = lastAct ? differenceInDays(new Date(), parseISO(lastAct)) : null;
