@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Clock, User, PlayCircle, Bug, MessageSquare, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Clock, User, PlayCircle, Bug, MessageSquare, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { TestCycle } from "@/types/cycle";
 
