@@ -37,6 +37,7 @@ export interface TestCycle {
   comment_count?: number;
   verdict_passed?: number;
   verdict_failed?: number;
+  verdict_review?: number;
   verdict_untested?: number;
 }
 
