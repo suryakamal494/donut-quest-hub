@@ -6,7 +6,7 @@ export function useCycleDetail(cycleId: string | undefined) {
   const [cycle, setCycle] = useState<TestCycle | null>(null);
   const [groups, setGroups] = useState<CycleGroup[]>([]);
   const [runs, setRuns] = useState<CycleRun[]>([]);
-  const [verdictMap, setVerdictMap] = useState<Record<string, 'pass' | 'fail'>>({});
+  const [verdictMap, setVerdictMap] = useState<Record<string, VerdictStatus>>({});
   const [loading, setLoading] = useState(true);
 
   const loadCycle = useCallback(async () => {
