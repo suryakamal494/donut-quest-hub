@@ -1,80 +1,109 @@
 
-# Three Enhancements for Test Cycle Scenario Cards
 
-## What I Understood
+# Implementation Plan: Visual Indicators, Rich Text, and "Review" Verdict
 
-**Requirement 1 — Visual status indicators on scenario cards:** Currently, collapsed scenario cards show a generic dash/check/X icon, but it's not prominent enough. You want clear, unmistakable visual signals: green for passed, red for failed, and bug count badges — so scanning a cycle page instantly reveals testing progress.
+## What I Understood (Your 3 Requirements)
 
-**Requirement 2 — Rich text rendering for descriptions:** Scenario descriptions are stored with markdown formatting (`**Setup:**`, `**What to verify:**`, etc.) but currently render as raw text with `**` markers visible. These should render as proper formatted text with bold headings, lists, and readable structure.
+**1. Visual status indicators on scenario cards:** When scanning a test cycle's scenarios, you need instant visual feedback — green for passed, red for failed, bug count visible on the card — so you know at a glance which scenarios are tested, which failed, and which have bugs.
 
-**Requirement 3 — "Mark for Review" verdict status:** Add a third verdict option alongside Pass/Fail. "Review" means the scenario technically passed but has doubts that warrant re-testing later. Review verdicts require a comment (same 70-char minimum). Review status should be visible as an amber/yellow indicator on the scenario card and aggregated on the cycle list card.
+**2. Rich text rendering for descriptions:** The descriptions stored with markdown (`**Setup:**`, `**What to verify:**`, etc.) currently show raw `**` markers. They should render as properly formatted text with bold headings, lists, and readable structure.
 
-## Implementation Plan
+**3. "Mark for Review" verdict:** A third verdict option (Pass / Fail / Review). "Review" means it technically passed but has doubts — needs re-testing later. Review requires a comment (70+ chars), shows as an amber/yellow indicator on the scenario card, and aggregates up to the cycle list card.
 
-### Phase 1: Rich Text Description Rendering
-**Files:** `src/components/qa/cycles/ScenarioWorkspaceCard.tsx`
+---
 
-- Replace the raw `<p>{scenario.description}</p>` with the existing `MarkdownRenderer` component
-- When collapsed: keep `line-clamp-2` truncation on the rendered HTML
-- When expanded: show full rendered description with proper bold, lists, and structure
+## Database Change (Migration Required)
 
-### Phase 2: Add "Review" Verdict Status
+There is a trigger function `validate_verdict_status()` that currently only allows `'pass'` and `'fail'`. This must be updated to also allow `'review'`:
 
-**Database migration:**
-- No schema change needed — the `status` column in `cycle_scenario_verdicts` is an untyped `string`, so `'review'` can be inserted directly
-
-**Files changed:**
-
-| File | Change |
-|------|--------|
-| `src/types/cycle.ts` | Extend verdict status type to `'pass' \| 'fail' \| 'review'` throughout; add `verdict_review` to `TestCycle` interface |
-| `src/components/qa/cycles/ScenarioVerdictThread.tsx` | Add amber "Review" button alongside Pass/Fail; no bug-report requirement for Review; mirror to comments with `verdict_status: 'review'` |
-| `src/components/qa/cycles/ScenarioWorkspaceCard.tsx` | Handle `latestVerdict === 'review'` with an amber `Eye` or `AlertTriangle` icon; track review count indicator |
-| `src/hooks/useCycleDetail.ts` | Count `'review'` verdicts alongside pass/fail; include in `verdictMap` type |
-| `src/hooks/useCycleList.ts` | Count review verdicts per cycle; attach `verdict_review` to enriched cycle data |
-| `src/components/qa/cycles/CycleCard.tsx` | Display amber review count metric (e.g., "3 review") alongside pass/fail counts |
-| `src/pages/qa/CycleDetail.tsx` | Add review count to the verdict stats bar (amber icon + count) |
-
-### Phase 3: Enhanced Visual Indicators on Scenario Cards
-**Files:** `src/components/qa/cycles/ScenarioWorkspaceCard.tsx`
-
-- Make the left-side verdict icon larger and more prominent with a colored background ring
-- Add a colored left border to the entire card: green for pass, red for fail, amber for review, neutral for untested
-- Show bug count as a persistent red badge chip (e.g., "2 bugs") on the collapsed card header, visible without expanding
-- These indicators already partially exist but will be made bolder and more scannable
-
-### Visual Summary
-
-```text
-┌─── green border ──────────────────────────────┐
-│ ● A1  PYP Shared with Two Institutes          │
-│   **Setup:** Log in as SuperAdmin...          │  ← rendered rich text
-│   ✓ 2 verdicts  🐛 1 bug                     │
-└───────────────────────────────────────────────┘
-
-┌─── red border ────────────────────────────────┐
-│ ✗ A5  PYP Metadata Mismatch                  │
-│   **Setup:** Create a PYP and share...        │
-│   ✗ 1 verdict  🐛 2 bugs                     │
-└───────────────────────────────────────────────┘
-
-┌─── amber border ──────────────────────────────┐
-│ ⚠ B3  GT with Overlapping Dates              │
-│   **Setup:** Create two Grand Tests...        │
-│   ⚠ 1 verdict (review)                       │
-└───────────────────────────────────────────────┘
+```sql
+CREATE OR REPLACE FUNCTION public.validate_verdict_status()
+  RETURNS trigger LANGUAGE plpgsql
+  SET search_path TO 'public'
+AS $$
+BEGIN
+  IF NEW.status NOT IN ('pass', 'fail', 'review') THEN
+    RAISE EXCEPTION 'Invalid verdict status: %. Must be pass, fail, or review.', NEW.status;
+  END IF;
+  RETURN NEW;
+END;
+$$;
 ```
 
-On the Cycle List card:
+No new columns or tables needed — the `status` column is already plain `text`.
+
+---
+
+## Code Changes (7 Files)
+
+### 1. `src/types/cycle.ts`
+- Add `export type VerdictStatus = 'pass' | 'fail' | 'review';`
+- Add `verdict_review?: number` to `TestCycle` interface
+- Update `CycleVerdict.status` type to use `VerdictStatus`
+
+### 2. `src/components/qa/cycles/ScenarioVerdictThread.tsx`
+- Add amber "Review" button alongside Pass/Fail (using `AlertTriangle` icon)
+- No bug-report requirement for Review verdicts (unlike Fail)
+- Mirror review comment to `cycle_scenario_comments` with `verdict_status: 'review'`
+- Show review verdicts in history with amber styling
+- Update all type references from `'pass' | 'fail'` to `VerdictStatus`
+
+### 3. `src/components/qa/cycles/ScenarioWorkspaceCard.tsx`
+- **Rich text:** Replace raw `<p>{scenario.description}</p>` with the existing `MarkdownRenderer` component; keep `line-clamp-2` when collapsed, full render when expanded
+- **Review icon:** Handle `latestVerdict === 'review'` with amber `AlertTriangle` icon
+- **Colored left border:** Add `border-l-4` — green for pass, red for fail, amber for review, transparent for untested
+- **Bug count badge:** Always show bug count prominently on collapsed header
+- Update `latestVerdict` type to include `'review'`
+
+### 4. `src/components/qa/cycles/ScenarioCommentThread.tsx`
+- Add amber "REVIEW" badge for `verdict_status === 'review'` comments (alongside existing PASS/FAIL badges)
+
+### 5. `src/hooks/useCycleDetail.ts`
+- Update `verdictMap` type from `Record<string, 'pass' | 'fail'>` to `Record<string, VerdictStatus>`
+- Count `'review'` verdicts alongside pass/fail
+- Set `verdict_review` on the cycle object
+
+### 6. `src/hooks/useCycleList.ts`
+- Count review verdicts per cycle in `verdictByCycle`
+- Attach `verdict_review` to enriched cycle data
+- Update untested calculation: `total - passed - failed - review`
+
+### 7. `src/components/qa/cycles/CycleCard.tsx`
+- Display amber review count metric (e.g., "2 review") alongside pass/fail counts on the cycle list card
+
+### 8. `src/pages/qa/CycleDetail.tsx`
+- Add review count to the verdict stats bar with amber `AlertTriangle` icon
+
+---
+
+## Visual Result
+
+**Scenario card (collapsed):**
+```text
+┌─ green border ────────────────────────────────────┐
+│ ✓  A1   PYP Shared with Two Institutes            │
+│        Setup: Log in as SuperAdmin. Create a...   │  ← rich text
+│        ✓ 2 verdicts  🐛 1 bug                     │
+│                                   [Report Bug] ▾  │
+└───────────────────────────────────────────────────┘
+
+┌─ amber border ────────────────────────────────────┐
+│ ⚠  B3   GT with Overlapping Dates                 │
+│        Setup: Create two Grand Tests...           │
+│        ⚠ 1 verdict (review)                       │
+│                                   [Report Bug] ▾  │
+└───────────────────────────────────────────────────┘
+```
+
+**Cycle list card:**
 ```text
 CYC-006
 Exam Distribution & Reporting QA
 📄 70 scenarios  ✓ 12/70  ✗ 3  ⚠ 2 review  🐛 5 bugs
 ```
 
-### Execution Order
-1. Phase 1 first (quick win, immediate readability improvement)
-2. Phase 2 next (new feature, touches more files)
-3. Phase 3 last (visual polish, builds on Phase 2's review status)
+**Verdict buttons (expanded card):**
+```text
+[ ✓ Pass ]  [ ✗ Fail ]  [ ⚠ Review ]
+```
 
-Total: ~7 files modified, 0 database migrations needed.
