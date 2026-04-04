@@ -151,7 +151,7 @@ export function useCycleList() {
       const enriched: TestCycle[] = cycleList.map((cycle: any) => {
         const gIds = groupsByCycle[cycle.id] || [];
         const totalScenarios = gIds.reduce((sum, gId) => sum + (scenarioCountByGroup[gId] || 0), 0);
-        const vd = verdictByCycle[cycle.id] || { passed: 0, failed: 0 };
+        const vd = verdictByCycle[cycle.id] || { passed: 0, failed: 0, review: 0 };
         return {
           ...cycle,
           total_scenarios: totalScenarios,
@@ -162,7 +162,8 @@ export function useCycleList() {
           comment_count: commentCountByCycle[cycle.id] || 0,
           verdict_passed: vd.passed,
           verdict_failed: vd.failed,
-          verdict_untested: totalScenarios - vd.passed - vd.failed,
+          verdict_review: vd.review,
+          verdict_untested: totalScenarios - vd.passed - vd.failed - vd.review,
         } as TestCycle;
       });
 

@@ -62,7 +62,8 @@ export function useCycleDetail(cycleId: string | undefined) {
         creator_name: profileMap[cycleData.created_by] || "Unknown",
         verdict_passed: passed,
         verdict_failed: failed,
-        verdict_untested: allScenarios.length - passed - failed,
+        verdict_review: review,
+        verdict_untested: allScenarios.length - passed - failed - review,
       } as TestCycle);
 
       const scenariosByGroup: Record<string, CycleScenario[]> = {};
