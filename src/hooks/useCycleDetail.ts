@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { TestCycle, CycleGroup, CycleScenario, CycleRun } from "@/types/cycle";
+import type { TestCycle, CycleGroup, CycleScenario, CycleRun, VerdictStatus } from "@/types/cycle";
 
 export function useCycleDetail(cycleId: string | undefined) {
   const [cycle, setCycle] = useState<TestCycle | null>(null);
