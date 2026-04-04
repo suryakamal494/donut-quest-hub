@@ -8,6 +8,7 @@ export function CycleCard({ cycle }: { cycle: TestCycle }) {
   const total = cycle.total_scenarios || 0;
   const passed = cycle.verdict_passed ?? 0;
   const failed = cycle.verdict_failed ?? 0;
+  const review = cycle.verdict_review ?? 0;
 
   return (
     <Link to={`/qa/cycles/${cycle.id}`} className="block group">
