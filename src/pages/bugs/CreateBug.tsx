@@ -57,6 +57,7 @@ export default function CreateBug() {
     expected_behavior: "",
     actual_behavior: "",
     environment: "",
+    video_url: "",
   });
 
   useEffect(() => {
@@ -162,6 +163,7 @@ export default function CreateBug() {
         expected_behavior: formData.expected_behavior || null,
         actual_behavior: formData.actual_behavior || null,
         environment: formData.environment || null,
+        video_url: formData.video_url || null,
         attachments: attachments.length > 0 ? attachments : null,
         reported_by: user.id,
         status: "open",
@@ -417,6 +419,18 @@ export default function CreateBug() {
                 onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value }))}
                 placeholder="e.g., Chrome 120, Windows 11, Production"
               />
+            </div>
+
+            {/* Video URL */}
+            <div>
+              <Label htmlFor="video_url">🎬 Video / Screen Recording URL</Label>
+              <Input
+                id="video_url"
+                value={formData.video_url}
+                onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
+                placeholder="Paste Google Drive or video link here"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Share a screen recording link for better context</p>
             </div>
 
             {/* Attachments */}
