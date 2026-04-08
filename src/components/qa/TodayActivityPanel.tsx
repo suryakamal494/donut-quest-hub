@@ -120,7 +120,7 @@ export function TodayActivityPanel() {
         const current = groupedByUser.get(a.user_id) || [];
         current.push({
           ...a,
-          user_name: userMap.get(a.user_id) || "Unknown",
+          user_name: userMap.get(a.user_id) || "Team Member",
           scenario_name: scenarioMap.get(a.scenario_id)?.name,
           scenario_code: scenarioMap.get(a.scenario_id)?.code,
         } as TestActivity);
@@ -140,7 +140,7 @@ export function TodayActivityPanel() {
 
         testerGroups.push({
           user_id: userId,
-          user_name: userMap.get(userId) || "Unknown",
+          user_name: userMap.get(userId) || "Team Member",
           active_scenario: activeActivity ? {
             id: activeActivity.scenario_id,
             name: activeActivity.scenario_name || "Unknown",
