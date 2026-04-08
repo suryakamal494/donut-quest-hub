@@ -44,6 +44,7 @@ export interface Bug {
   external_reporter_email: string | null;
   external_page_url: string | null;
   external_browser_info: string | null;
+  video_url: string | null;
   // Joined data
   feature?: { id: string; name: string };
   scenario?: { id: string; scenario_code: string; name: string };

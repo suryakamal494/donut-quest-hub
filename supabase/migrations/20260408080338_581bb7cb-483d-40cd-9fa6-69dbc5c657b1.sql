@@ -1,0 +1,1 @@
+ALTER TABLE public.bugs ADD COLUMN video_url TEXT;
