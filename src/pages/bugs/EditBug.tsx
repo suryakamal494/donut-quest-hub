@@ -98,7 +98,7 @@ export default function EditBug() {
         expected_behavior: bugData.expected_behavior || "",
         actual_behavior: bugData.actual_behavior || "",
         environment: bugData.environment || "",
-        video_url: (bugData as any).video_url || "",
+        video_url: bugData.video_url || "",
       };
       setFormData(fd);
       setOriginalData(fd);
