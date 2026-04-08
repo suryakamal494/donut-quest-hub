@@ -399,6 +399,7 @@ export type Database = {
           updated_at: string
           verified_at: string | null
           verified_by: string | null
+          video_url: string | null
         }
         Insert: {
           actual_behavior?: string | null
@@ -439,6 +440,7 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by?: string | null
+          video_url?: string | null
         }
         Update: {
           actual_behavior?: string | null
@@ -479,6 +481,7 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {
