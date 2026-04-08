@@ -60,6 +60,7 @@ export default function EditBug() {
     expected_behavior: "",
     actual_behavior: "",
     environment: "",
+    video_url: "",
   });
 
   useEffect(() => {
@@ -97,6 +98,7 @@ export default function EditBug() {
         expected_behavior: bugData.expected_behavior || "",
         actual_behavior: bugData.actual_behavior || "",
         environment: bugData.environment || "",
+        video_url: (bugData as any).video_url || "",
       };
       setFormData(fd);
       setOriginalData(fd);
@@ -172,6 +174,7 @@ export default function EditBug() {
         actual_behavior: formData.actual_behavior || null,
         environment: formData.environment || null,
         attachments: attachments.length > 0 ? attachments : null,
+        video_url: formData.video_url || null,
       };
 
       const { error } = await supabase.from("bugs").update(updatePayload).eq("id", id);
@@ -341,13 +344,18 @@ export default function EditBug() {
               <Input id="environment" value={formData.environment} onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value }))} placeholder="e.g., Chrome 120, Windows 11, Production" />
             </div>
             <div>
+              <Label htmlFor="video_url">🎬 Video / Screen Recording URL</Label>
+              <Input id="video_url" value={formData.video_url} onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))} placeholder="Paste Google Drive or video link here" />
+              <p className="text-xs text-muted-foreground mt-1">Share a screen recording link for better context</p>
+            </div>
+            <div>
               <Label>Screenshots & Attachments</Label>
               {user && (
                 <BugAttachmentUploader
                   bugId={id!}
                   userId={user.id}
                   existingAttachments={attachments}
-                  onUploadComplete={(urls) => setAttachments(prev => [...prev, ...urls])}
+                  onUploadComplete={setAttachments}
                 />
               )}
             </div>
