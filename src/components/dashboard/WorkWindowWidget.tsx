@@ -229,7 +229,7 @@ export function WorkWindowWidget({ projectId, teamMembers }: WorkWindowWidgetPro
 
         return {
           user_id: userId,
-          full_name: profileMap[userId] || "Unknown",
+          full_name: profileMap[userId] || "Team Member",
           date,
           first_action: new Date(sorted[0]).toISOString(),
           last_action: new Date(sorted[sorted.length - 1]).toISOString(),

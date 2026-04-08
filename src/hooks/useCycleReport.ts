@@ -67,7 +67,7 @@ export function useCycleReport(cycleId: string | undefined, runId: string | unde
       const run = runRes.data as unknown as CycleRun;
 
       // Fetch executor name
-      let executorName = "Unknown";
+      let executorName = "Team Member";
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
