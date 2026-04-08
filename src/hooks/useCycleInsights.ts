@@ -296,7 +296,7 @@ export function useCycleInsights() {
         if (!personMap[v.user_id]) {
           personMap[v.user_id] = {
             user_id: v.user_id,
-            full_name: profileMap[v.user_id] || "Unknown",
+            full_name: profileMap[v.user_id] || "Team Member",
             pass_count: 0, fail_count: 0, total_verdicts: 0,
             comments_posted: 0, bugs_reported: 0, last_active: null,
           };
@@ -312,7 +312,7 @@ export function useCycleInsights() {
         if (!personMap[c.user_id]) {
           personMap[c.user_id] = {
             user_id: c.user_id,
-            full_name: profileMap[c.user_id] || "Unknown",
+            full_name: profileMap[c.user_id] || "Team Member",
             pass_count: 0, fail_count: 0, total_verdicts: 0,
             comments_posted: 0, bugs_reported: 0, last_active: null,
           };
@@ -329,7 +329,7 @@ export function useCycleInsights() {
         if (!personMap[uid]) {
           personMap[uid] = {
             user_id: uid,
-            full_name: profileMap[uid] || "Unknown",
+            full_name: profileMap[uid] || "Team Member",
             pass_count: 0, fail_count: 0, total_verdicts: 0,
             comments_posted: 0, bugs_reported: 0, last_active: null,
           };
@@ -414,7 +414,7 @@ export function useCycleInsights() {
 
         return {
           user_id: uid,
-          full_name: profileMap[uid] || "Unknown",
+          full_name: profileMap[uid] || "Team Member",
           total_actions: data.verdicts + data.comments + data.bugs,
           estimated_hours: Math.round((totalMs / 3600000) * 100) / 100,
           session_count: count,

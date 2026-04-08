@@ -75,7 +75,7 @@ export function ScenarioVerdictThread({
 
       const enriched: Verdict[] = (data || []).map((v: any) => ({
         ...v,
-        user_name: profileMap[v.user_id] || "Unknown",
+        user_name: profileMap[v.user_id] || "Team Member",
       }));
 
       setVerdicts(enriched);
