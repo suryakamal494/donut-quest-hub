@@ -63,7 +63,7 @@ export function useCommentThread(
     const enriched = (data || []).map((c: any) => ({
       ...c,
       attachments: c.attachments || [],
-      profile: profileMap[c.user_id] || { full_name: "Unknown", email: "" },
+      profile: profileMap[c.user_id] || { full_name: "Team Member", email: "" },
     }));
 
     setComments(enriched);

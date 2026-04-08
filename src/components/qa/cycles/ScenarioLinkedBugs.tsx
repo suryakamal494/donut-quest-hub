@@ -80,7 +80,7 @@ export function ScenarioLinkedBugs({ scenarioId, onBugCountChange, onReportBug }
 
     const enriched = (data || []).map((b: any) => ({
       ...b,
-      reporter_name: profileMap[b.reported_by] || "Unknown",
+      reporter_name: profileMap[b.reported_by] || "Team Member",
     }));
 
     setBugs(enriched);

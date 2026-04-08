@@ -218,7 +218,7 @@ export function BugComments({ bugId }: BugCommentsProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-medium text-foreground">
-                        {comment.profile?.full_name || "Unknown"}
+                        {comment.profile?.full_name || "Team Member"}
                       </span>
                       <span className="text-xs text-muted-foreground" title={format(new Date(comment.created_at), "dd MMM yyyy, h:mm a")}>
                         {format(new Date(comment.created_at), "dd MMM yyyy, h:mm a")}

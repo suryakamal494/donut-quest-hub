@@ -142,7 +142,7 @@ export function BugHistoryTimeline({ bugId }: BugHistoryTimelineProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground">
-                    <span className="font-medium">{entry.profile?.full_name || "Unknown"}</span>
+                    <span className="font-medium">{entry.profile?.full_name || "Team Member"}</span>
                     {" changed "}
                     <span className="font-medium">{label}</span>
                     {" from "}

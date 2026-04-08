@@ -59,7 +59,7 @@ export function useCycleDetail(cycleId: string | undefined) {
 
       setCycle({
         ...cycleData,
-        creator_name: profileMap[cycleData.created_by] || "Unknown",
+        creator_name: profileMap[cycleData.created_by] || "Team Member",
         verdict_passed: passed,
         verdict_failed: failed,
         verdict_review: review,
@@ -81,7 +81,7 @@ export function useCycleDetail(cycleId: string | undefined) {
       setRuns(
         (runsRes.data || []).map((run: any) => ({
           ...run,
-          executor_name: profileMap[run.executed_by] || "Unknown",
+          executor_name: profileMap[run.executed_by] || "Team Member",
         }) as CycleRun)
       );
     } catch (err) {

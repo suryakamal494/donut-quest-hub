@@ -1612,6 +1612,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      shares_project_with: {
+        Args: { _target_user_id: string; _viewer_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "developer"
