@@ -83,7 +83,7 @@ export default function BugDetail() {
             bugData?.reported_by,
             bugData?.assigned_to,
             bugData?.verified_by,
-            (bugData as any)?.reopened_by,
+            bugData?.reopened_by,
           ].filter(Boolean) as string[];
           if (userIds.length === 0) return Promise.resolve({ data: [] });
           return supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
@@ -348,19 +348,19 @@ export default function BugDetail() {
           )}
 
           {/* Video URL */}
-          {(bug as any).video_url && (
+          {bug.video_url && (
             <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800">
               <h4 className="text-xs font-medium text-violet-700 dark:text-violet-400 mb-1.5 flex items-center gap-1.5">
                 🎬 Screen Recording
               </h4>
               <a
-                href={(bug as any).video_url}
+                href={bug.video_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 break-all flex items-center gap-1"
               >
                 <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                {(bug as any).video_url}
+                {bug.video_url}
               </a>
             </div>
           )}
