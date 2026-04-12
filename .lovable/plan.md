@@ -1,116 +1,77 @@
 
-What I understood
 
-You want a full audit of why names are still showing as “Unknown” for QA/developers in bug comments, bug history, reopen/fix actions, and related QA collaboration areas. You also want the fix to apply to old data already in the database, not just future records.
+# Product Suggestions Feature
 
-Audit findings
+## What You Described
+QA testers discover product improvements while testing (UX changes, new features, workflow ideas). Instead of writing in Word docs, they raise these suggestions in the platform. All QA testers can see all suggestions. Admin reviews and approves/rejects. Only approved suggestions become visible to developers, who can then update status (Planned, In Progress, Done, Won't Do).
 
-1. The database does have names for the historical records
-- I checked the collaboration tables behind this UI:
-  - bug_comments
-  - bug_history
-  - cycle_scenario_comments
-  - cycle_scenario_verdicts
-- All of those rows already point to valid profile records.
-- So this is not a “bad old data” problem.
-- Good news: old data should show names automatically once access + UI fallback handling are fixed. No bulk data rewrite should be needed.
+## Data Model
 
-2. The current profile visibility policy is present, but it is effectively blocked
-- There is already a policy intended to allow viewing teammate profiles.
-- But that policy depends on `user_project_access`.
-- `user_project_access` itself only allows a user to read their own access rows.
-- Because of that, the teammate-check inside the profiles policy cannot reliably “see” other users’ project-access rows for non-admin users.
-- Result: for normal QA/dev users, profile lookups still collapse back to “only my own profile is visible,” which is exactly why other people appear as Unknown.
+New `product_suggestions` table:
 
-3. The frontend still hardcodes “Unknown” in multiple collaboration views
-The literal fallback still exists in key places, including:
-- `src/components/bugs/BugComments.tsx`
-- `src/components/bugs/BugHistoryTimeline.tsx`
-- `src/hooks/useCommentThread.ts`
-- `src/components/qa/cycles/ScenarioVerdictThread.tsx`
-- `src/components/qa/cycles/ScenarioLinkedBugs.tsx`
-- `src/hooks/useCycleDetail.ts`
-- and related summary/analytics views
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK |
+| suggestion_code | text | Auto-generated (PS-001, PS-002...) |
+| title | text | Required |
+| description | text | Rich text body |
+| category | enum | `ux`, `feature`, `performance`, `workflow`, `other` |
+| priority | enum | `critical`, `high`, `medium`, `low` |
+| status | enum | `pending`, `approved`, `rejected` |
+| dev_status | enum | `planned`, `in_progress`, `done`, `wont_do` (nullable, set by devs) |
+| attachments | text[] | Screenshots/files |
+| created_by | uuid | QA tester who raised it |
+| project_id | uuid | Project scoping |
+| admin_notes | text | Admin's approval/rejection reason |
+| reviewed_by | uuid | Admin who reviewed |
+| reviewed_at | timestamptz | When reviewed |
+| dev_notes | text | Developer response |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
 
-So even when profile fetches come back partial or filtered, the UI silently renders “Unknown” instead of surfacing a real name or a better fallback.
+## RLS Policies (Security)
 
-4. Why it still looks broken today
-The issue is a combination of:
-- backend access logic still not truly allowing teammate profile resolution for non-admin users
-- frontend components silently accepting partial profile results and rendering “Unknown”
+- **SELECT**: QA testers (role `user`) can see ALL suggestions for their project. Developers (role `developer`) can ONLY see `status = 'approved'` suggestions. Admins see everything.
+- **INSERT**: Any authenticated user with project access can create.
+- **UPDATE**: Creator can edit while `pending`. Admin can update status/notes. Developers can update `dev_status` and `dev_notes` on approved items.
+- **DELETE**: Creator (while pending) or admin.
 
-Implementation plan
+## Pages & Components
 
-Phase 1 — Fix profile visibility at the backend properly
-- Replace the current teammate-visibility approach with a `SECURITY DEFINER` helper function, for example:
-  - `can_view_profile(_viewer_id uuid, _target_user_id uuid)`
-  - or `share_project_with_user(_viewer_id uuid, _target_user_id uuid)`
-- That function should check shared project membership using `user_project_access` while bypassing the table’s RLS safely.
-- Update the `profiles` SELECT policy to call that helper instead of directly joining `user_project_access`.
-- Keep existing own-profile and admin access intact.
+1. **Suggestion List** (`/qa/suggestions`) — Filterable list with tabs: All / Pending / Approved / Rejected. Developers only see the Approved tab.
+2. **Create Suggestion** (`/qa/suggestions/create`) — Form with title, description (rich text), category, priority, attachments.
+3. **Suggestion Detail** (`/qa/suggestions/:id`) — Full view with admin approval controls and developer status updates.
 
-Why this is the correct fix:
-- It preserves project isolation
-- It avoids weakening `user_project_access` visibility
-- It works for all existing and future records automatically
+## Navigation
+- New sidebar item "Product Suggestions" with a lightbulb icon, placed between "Test Cycles" and "Test Scenarios"
+- Added to mobile bottom nav "More" sheet
+- Badge showing pending count for admins
 
-Phase 2 — Remove “Unknown” handling from the collaborative UI paths
-Update all places where person names are shown from profile lookups, especially:
-- bug comments
-- bug history timeline
-- bug detail metadata
-- cycle comments
-- cycle verdicts
-- linked bugs
-- cycle creator / executor labels
-- QA analytics/person summaries where applicable
+## Role-Based Behavior
 
-Implementation approach:
-- Centralize name resolution into a small shared helper
-- Stop rendering the literal string `"Unknown"` in collaboration views
-- Use resolved full name when available
-- If a profile is unexpectedly missing, use a non-Unknown emergency fallback plus logging, so the issue is diagnosable without confusing users
+| Action | QA Tester | Developer | Admin |
+|--------|-----------|-----------|-------|
+| See all suggestions | Yes | Only approved | Yes |
+| Create suggestion | Yes | No | Yes |
+| Edit own (while pending) | Yes | No | Yes |
+| Approve/Reject | No | No | Yes |
+| Set dev status | No | Yes | Yes |
+| Delete | Own only | No | Yes |
 
-Phase 3 — Verify old data coverage
-After the backend fix, verify with existing records that:
-- old bug comments show commenter names
-- old bug history shows who changed status / reopened / fixed / assigned
-- old cycle comments show commenter names
-- old verdicts show who passed / failed / reviewed
-- bug detail reporter / assignee / verifier / reopener names resolve correctly
+## Notifications
+- When a suggestion is approved → notify the creator
+- When dev_status changes → notify the creator + admin
 
-Based on the audit, this should work without backfilling historical rows because the user IDs and profiles already exist.
+## File Changes
 
-Phase 4 — Harden against silent failures
-- Add explicit error handling around profile fetches in these components/hooks
-- If a profile query returns fewer rows than requested, log that mismatch
-- Avoid silently masking permission issues with “Unknown”
+| File | Change |
+|------|--------|
+| **Database** | New migration: `product_suggestions` table, enum types, auto-code trigger, RLS policies |
+| `src/pages/qa/SuggestionList.tsx` | New — list page with role-based filtering |
+| `src/pages/qa/CreateSuggestion.tsx` | New — creation form |
+| `src/pages/qa/SuggestionDetail.tsx` | New — detail view with approval/dev controls |
+| `src/hooks/useSuggestions.ts` | New — data fetching hook |
+| `src/App.tsx` | Add 3 new routes under `/qa` |
+| `src/components/qa/layout/QASidebar.tsx` | Add "Product Suggestions" nav item |
+| `src/components/qa/layout/QABottomNav.tsx` | Add to "More" sheet |
 
-Technical details
-
-Root cause in simple terms:
-```text
-profiles policy
-  -> checks shared project via user_project_access
-  -> but user_project_access RLS hides teammate rows
-  -> so non-admin users still cannot resolve teammate profiles
-  -> UI receives partial profile data
-  -> UI renders "Unknown"
-```
-
-Recommended backend direction:
-```text
-profiles SELECT policy
-  own profile OR admin OR can_view_profile(auth.uid(), profiles.user_id)
-
-can_view_profile(...)
-  SECURITY DEFINER
-  checks shared project membership via user_project_access
-```
-
-Expected outcome after implementation
-
-- Any QA/dev/admin who can access a project can see real names for teammates in bug comments/history and QA collaboration views
-- Existing old comments/history/verdicts will also show names
-- The word “Unknown” will disappear from these person-name surfaces
-- The fix will be structural, not a one-off patch
