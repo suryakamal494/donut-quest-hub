@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
-import { BugAttachmentUploader } from "@/components/bugs/BugAttachmentUploader";
+
 import { ArrowLeft, Lightbulb } from "lucide-react";
 
 export default function CreateSuggestion() {
@@ -90,14 +90,6 @@ export default function CreateSuggestion() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Attachments</Label>
-              <BugAttachmentUploader
-                attachments={attachments}
-                onAttachmentsChange={setAttachments}
-              />
             </div>
 
             <div className="flex gap-2 justify-end">

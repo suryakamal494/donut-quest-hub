@@ -58,6 +58,11 @@ const navItems = [
     icon: RefreshCw,
   },
   {
+    title: "Suggestions",
+    href: "/qa/suggestions",
+    icon: Lightbulb,
+  },
+  {
     title: "Test Scenarios",
     href: "/qa/scenarios",
     icon: FileText,
