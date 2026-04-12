@@ -28,7 +28,6 @@ export default function CreateSuggestion() {
       description,
       category,
       priority,
-      attachments,
     });
     navigate("/qa/suggestions");
   };
