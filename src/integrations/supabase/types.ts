@@ -962,6 +962,74 @@ export type Database = {
         }
         Relationships: []
       }
+      product_suggestions: {
+        Row: {
+          admin_notes: string | null
+          attachments: string[] | null
+          category: Database["public"]["Enums"]["suggestion_category"]
+          created_at: string
+          created_by: string
+          description: string | null
+          dev_notes: string | null
+          dev_status: Database["public"]["Enums"]["dev_status"] | null
+          id: string
+          priority: Database["public"]["Enums"]["priority_level"]
+          project_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["suggestion_status"]
+          suggestion_code: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          attachments?: string[] | null
+          category?: Database["public"]["Enums"]["suggestion_category"]
+          created_at?: string
+          created_by: string
+          description?: string | null
+          dev_notes?: string | null
+          dev_status?: Database["public"]["Enums"]["dev_status"] | null
+          id?: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["suggestion_status"]
+          suggestion_code?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          attachments?: string[] | null
+          category?: Database["public"]["Enums"]["suggestion_category"]
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          dev_notes?: string | null
+          dev_status?: Database["public"]["Enums"]["dev_status"] | null
+          id?: string
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["suggestion_status"]
+          suggestion_code?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_suggestions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
@@ -1630,6 +1698,7 @@ export type Database = {
         | "security"
         | "other"
       cycle_status: "draft" | "active" | "archived"
+      dev_status: "planned" | "in_progress" | "done" | "wont_do"
       login_type:
         | "super_admin"
         | "institute"
@@ -1639,6 +1708,13 @@ export type Database = {
       priority_level: "critical" | "high" | "medium" | "low"
       run_status: "in_progress" | "completed" | "aborted"
       scenario_type: "smoke" | "intra_login" | "inter_login"
+      suggestion_category:
+        | "ux"
+        | "feature"
+        | "performance"
+        | "workflow"
+        | "other"
+      suggestion_status: "pending" | "approved" | "rejected"
       test_frequency: "one_time" | "regression" | "release"
       test_status: "pass" | "fail" | "blocked" | "skipped" | "pending"
     }
@@ -1781,10 +1857,19 @@ export const Constants = {
         "other",
       ],
       cycle_status: ["draft", "active", "archived"],
+      dev_status: ["planned", "in_progress", "done", "wont_do"],
       login_type: ["super_admin", "institute", "teacher", "student", "general"],
       priority_level: ["critical", "high", "medium", "low"],
       run_status: ["in_progress", "completed", "aborted"],
       scenario_type: ["smoke", "intra_login", "inter_login"],
+      suggestion_category: [
+        "ux",
+        "feature",
+        "performance",
+        "workflow",
+        "other",
+      ],
+      suggestion_status: ["pending", "approved", "rejected"],
       test_frequency: ["one_time", "regression", "release"],
       test_status: ["pass", "fail", "blocked", "skipped", "pending"],
     },
