@@ -18,7 +18,7 @@ export default function CreateSuggestion() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("feature");
   const [priority, setPriority] = useState("medium");
-  const [attachments, setAttachments] = useState<string[]>([]);
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
