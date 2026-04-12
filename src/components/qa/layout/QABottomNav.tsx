@@ -15,7 +15,8 @@ import {
   PlayCircle,
   ClipboardList,
   XCircle,
-  Plus
+  Plus,
+  Lightbulb
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +53,12 @@ const mainNavItems = [
 ];
 
 const moreNavItems = [
+  {
+    title: "Suggestions",
+    href: "/qa/suggestions",
+    icon: Lightbulb,
+    description: "Product improvement requests",
+  },
   {
     title: "Test Scenarios",
     href: "/qa/scenarios",
