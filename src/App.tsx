@@ -51,6 +51,9 @@ const ExecuteCycle = lazy(() => import("./pages/qa/ExecuteCycle"));
 const CycleRunReport = lazy(() => import("./pages/qa/CycleRunReport"));
 const CycleInsights = lazy(() => import("./pages/qa/CycleInsights"));
 const DeveloperDocs = lazy(() => import("./pages/docs/DeveloperDocs"));
+const SuggestionList = lazy(() => import("./pages/qa/SuggestionList"));
+const CreateSuggestion = lazy(() => import("./pages/qa/CreateSuggestion"));
+const SuggestionDetail = lazy(() => import("./pages/qa/SuggestionDetail"));
 const BugList = lazy(() => import("./pages/bugs/BugList"));
 const CreateBug = lazy(() => import("./pages/bugs/CreateBug"));
 const BugDetail = lazy(() => import("./pages/bugs/BugDetail"));
@@ -141,6 +144,9 @@ const App = () => (
                 <Route path="health-map" element={<HealthMap />} />
                 <Route path="insights" element={<Insights />} />
                 <Route path="cycle-insights" element={<CycleInsights />} />
+                <Route path="suggestions" element={<SuggestionList />} />
+                <Route path="suggestions/create" element={<CreateSuggestion />} />
+                <Route path="suggestions/:id" element={<SuggestionDetail />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
               </Route>
 

@@ -19,7 +19,8 @@ import {
   Zap,
   BookOpen,
   LineChart,
-  RefreshCw
+  RefreshCw,
+  Lightbulb
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,11 @@ const navItems = [
     title: "Test Cycles",
     href: "/qa/cycles",
     icon: RefreshCw,
+  },
+  {
+    title: "Suggestions",
+    href: "/qa/suggestions",
+    icon: Lightbulb,
   },
   {
     title: "Test Scenarios",
