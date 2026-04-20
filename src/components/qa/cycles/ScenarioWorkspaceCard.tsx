@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus, AlertTriangle, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { ScenarioCommentThread } from "./ScenarioCommentThread";
 import { ScenarioLinkedBugs } from "./ScenarioLinkedBugs";
 import { ScenarioVerdictThread } from "./ScenarioVerdictThread";
+import { EditCycleScenarioDialog } from "./EditCycleScenarioDialog";
 import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import type { CycleScenario, CycleStep, VerdictStatus } from "@/types/cycle";
 
 interface ScenarioWorkspaceCardProps {
@@ -20,6 +33,8 @@ interface ScenarioWorkspaceCardProps {
   onReportBug: (scenario: CycleScenario) => void;
   latestVerdict?: VerdictStatus | null;
   onVerdictChange?: () => void;
+  canManage?: boolean;
+  onScenarioChanged?: () => void;
 }
 
 export function ScenarioWorkspaceCard({
@@ -30,7 +45,36 @@ export function ScenarioWorkspaceCard({
   onReportBug,
   latestVerdict: initialVerdict,
   onVerdictChange,
+  canManage = false,
+  onScenarioChanged,
 }: ScenarioWorkspaceCardProps) {
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      // 1. Unlink bugs (preserve history)
+      await supabase.from("bugs").update({ cycle_scenario_id: null }).eq("cycle_scenario_id", scenario.id);
+      // 2-4. Delete dependent rows
+      await supabase.from("cycle_scenario_verdicts").delete().eq("scenario_id", scenario.id);
+      await supabase.from("cycle_scenario_comments").delete().eq("scenario_id", scenario.id);
+      await supabase.from("cycle_results").delete().eq("scenario_id", scenario.id);
+      // 5. Delete the scenario
+      const { error } = await supabase.from("cycle_scenarios").delete().eq("id", scenario.id);
+      if (error) throw error;
+      toast({ title: "Scenario deleted" });
+      setDeleteOpen(false);
+      onScenarioChanged?.();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const [expanded, setExpanded] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [bugCount, setBugCount] = useState(0);
@@ -136,7 +180,7 @@ export function ScenarioWorkspaceCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 mt-0.5">
           <Button
             variant="outline"
             size="sm"
@@ -146,8 +190,36 @@ export function ScenarioWorkspaceCard({
               onReportBug(scenario);
             }}
           >
-            <Bug className="h-3.5 w-3.5 mr-1" /> Report Bug
+            <Bug className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">Report Bug</span>
           </Button>
+          {canManage && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Edit scenario"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditOpen(true);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                title="Delete scenario"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="h-7 w-7">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
@@ -249,6 +321,42 @@ export function ScenarioWorkspaceCard({
             )}
           </Tabs>
         </CardContent>
+      )}
+
+      {canManage && (
+        <>
+          <EditCycleScenarioDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            scenario={scenario}
+            onUpdated={() => onScenarioChanged?.()}
+          />
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this scenario?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete <span className="font-mono">{scenario.scenario_code}</span> along with all its verdicts, comments, and execution results.
+                  Any bugs raised from this scenario will be preserved in the Bug Tracker but unlinked from this cycle. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleDelete();
+                  }}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  Delete Scenario
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
       )}
     </Card>
   );
