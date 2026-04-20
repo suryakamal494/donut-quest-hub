@@ -1,74 +1,78 @@
 
 
-## What I understood
+User wants: On the Test Cycle Detail page, give admins (and the cycle creator) the ability to **edit** and **delete** individual scenarios directly from each scenario card — without going through the full "Edit Cycle" page.
 
-**Issue 1 — No image upload in the in-cycle "Report Bug" dialog**
-The `CycleBugReportDialog` (the slim popup that opens from the Test Cycles workspace) only renders the `BugReportForm` — no attachment uploader. So testers can't add screenshots while reporting a bug from a cycle. The full `/bugs/create` page already supports it, but this dialog doesn't.
+Let me check what exists.
+<lov-tool-use id="toolu_vrtx_01FPFSGsb9wwzo2YNV2j4PJb" name="code--view" integration-id="code" data="{\"file_path\": \"src/components/qa/cycles/ScenarioWorkspaceCard.tsx\"}">
+</lov-tool-use>
 
-**Issue 2 — Edit page loses uploaded screenshots and form content when switching browser tabs and coming back**
-On `/bugs/:id/edit`, when the user switches away to another browser tab and returns, attachments and form values appear blank. Root cause:
+<lov-tool-use id="toolu_vrtx_015VZAPdNTzAZ72UNsM8oxtX" name="code--view" integration-id="code" data="{\"file_path\": \"src/components/qa/cycles/ScenarioWorkspaceCard.tsx\"}">
+</lov-tool-use>
+<lov-plan>
 
-- `EditBug.tsx` re-runs `loadBugAndFeatures()` because of this effect:
-  ```ts
-  useEffect(() => {
-    if (id && currentProject) loadBugAndFeatures();
-  }, [id, currentProject]);
-  ```
-  When the tab regains focus, `AuthContext`/`ProjectContext` re-validate the session and **emit a new `currentProject` reference** (even though the project ID is the same). That triggers the effect, which **resets `formData` and `attachments` from the database** — blowing away unsaved edits and any newly uploaded images that haven't been saved yet.
-- Compounding it: `BugAttachmentUploader` initializes its internal state from `existingAttachments` only on mount (`useState(existingAttachments)`). If the parent passes a fresh empty/old array on re-mount, the uploader's local list also resets.
+## What you want
+For each scenario inside a Test Cycle, give Admins and the cycle's creator the ability to **edit** (title, description, steps) and **delete** that individual scenario directly from the cycle's workspace UI — without having to go through a separate page.
 
-Yes — I understood both the bug and the requirement correctly.
+## Current state
+- `cycle_scenarios` table already has correct RLS:
+  - **Update / Delete**: only allowed when `auth.uid() = test_cycles.created_by` OR user has `admin` role.
+- The scenario card (`ScenarioWorkspaceCard.tsx`) currently only shows "Report Bug" + expand toggle. No edit / delete controls exist on it.
+- Editing the whole cycle (`/qa/cycles/:id/edit`) wipes and re-inserts all groups & scenarios, which loses verdicts/comments/bugs linked to those scenarios — not what we want for a single in-place edit.
 
-## Implementation plan
+## Plan
 
-### Fix 1 — Add image attachments to the Cycle "Report Bug" dialog
+### 1. Permission gate
+- In `ScenarioWorkspaceCard.tsx` (or `CycleDetail.tsx`, propagated as a prop) compute `canManageScenario = role === 'admin' || cycle.created_by === user.id`.
+- Pass `canManageScenario` down to each `ScenarioWorkspaceCard`.
 
-**File: `src/components/qa/cycles/BugReportForm.tsx`**
-- Add an "Screenshots & Attachments" section at the bottom using the existing `BugAttachmentUploader` component (same one used on Create/Edit Bug pages, same `bug-attachments` bucket, same 8-image / 10MB limits).
-- Add `attachments: string[]` and `setAttachments: (urls: string[]) => void` to `BugReportFormProps`.
-- Need a `userId` (passed down from the dialog) and a temporary `bugId` for storage path. Since the bug doesn't exist yet, use `cycle-${scenarioId}-${Date.now()}` as the upload folder key (the uploader only uses it for the storage path, not for any DB join).
+### 2. UI — actions on the scenario card header
+- Show two icon buttons (next to the existing "Report Bug" / chevron) **only when `canManageScenario` is true**:
+  - ✏️ Edit (pencil icon)
+  - 🗑️ Delete (trash icon, destructive style)
+- Use `e.stopPropagation()` so the row's expand toggle doesn't fire.
 
-**File: `src/components/qa/cycles/CycleBugReportDialog.tsx`**
-- Add `const [attachments, setAttachments] = useState<string[]>([])`.
-- Reset attachments to `[]` inside the existing reset effect (the one keyed on `open`).
-- Pass `attachments`, `setAttachments`, and `user.id` into `BugReportForm`.
-- In `handleSubmit`, include `attachments: attachments.length > 0 ? attachments : null` in the `bugs` insert payload.
+### 3. Edit flow — inline dialog
+- New component: `src/components/qa/cycles/EditCycleScenarioDialog.tsx`
+- A `Dialog` containing:
+  - Title (Input, required)
+  - Description (RichTextEditor)
+  - "Has steps" Switch
+  - When enabled, the same step editor used in `CycleGroupEditor` (action + expected_outcome rows, add/remove)
+- On Save:
+  - `supabase.from('cycle_scenarios').update({ title, description, has_steps, steps }).eq('id', scenario.id)`
+  - On success: toast + call `onUpdated()` so `CycleDetail` refreshes via `refresh` from `useCycleDetail`.
 
-### Fix 2 — Stop wiping form data on tab focus / context refresh
+### 4. Delete flow — confirmation
+- Use `AlertDialog` with explicit warning:
+  > "Deleting this scenario will also remove all linked verdicts, comments, and bug links for it. This cannot be undone."
+- On confirm, run cleanup in this order (mirrors what was done manually for I2):
+  1. `bugs.update({ cycle_scenario_id: null })` where `cycle_scenario_id = scenario.id` (preserve historical bugs but unlink) — *or* hard-delete bugs raised from this scenario; recommend **unlink, not delete**, so historical bug records survive.
+  2. `delete cycle_scenario_verdicts where scenario_id = ...`
+  3. `delete cycle_scenario_comments where scenario_id = ...`
+  4. `delete cycle_results where scenario_id = ...`
+  5. `delete cycle_scenarios where id = ...`
+- Toast + refresh.
 
-**File: `src/pages/bugs/EditBug.tsx`**
-- Replace the broad dependency:
-  ```ts
-  useEffect(() => { if (id && currentProject) loadBugAndFeatures(); }, [id, currentProject]);
-  ```
-  with a stable one that only fires when the bug ID or the project **ID** actually changes, and only loads once per bug:
-  ```ts
-  const loadedBugIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!id || !currentProject?.id) return;
-    if (loadedBugIdRef.current === id) return;       // already loaded — don't reset
-    loadedBugIdRef.current = id;
-    loadBugAndFeatures();
-  }, [id, currentProject?.id]);
-  ```
-  This prevents the reload (and subsequent state reset) when `currentProject` re-emits a new reference on tab focus.
+### 5. Files to change
+| File | Change |
+|------|--------|
+| `src/components/qa/cycles/ScenarioWorkspaceCard.tsx` | Add `canManage` prop, edit/delete buttons, wire dialogs |
+| `src/components/qa/cycles/EditCycleScenarioDialog.tsx` | **New** — edit form for a single scenario |
+| `src/pages/qa/CycleDetail.tsx` | Compute `canManageScenario`, pass down, pass `onUpdated={refresh}` |
+| `src/components/qa/cycles/ScenarioWorkspaceCard.tsx` | Add AlertDialog for delete + cleanup logic |
 
-**File: `src/components/bugs/BugAttachmentUploader.tsx`**
-- The component currently seeds local state from `existingAttachments` on mount only. Make it stay in sync if the parent prop changes intentionally, but never lose user uploads:
-  - Use a ref to track whether the user has interacted; if they have, don't overwrite local state from props.
-  - Or, simpler and safer: lift the attachments source-of-truth fully to the parent. The parent (`EditBug`) already keeps `attachments` in state — change the uploader to be controlled (`value` + `onChange`) instead of internally stateful. This guarantees no drift on parent re-renders.
+### 6. Decision needed
+On scenario delete, should bugs that were raised from this scenario be:
+- **(A) Unlinked** (set `cycle_scenario_id = null`, bug record stays in Bug Tracker) — recommended, preserves history.
+- **(B) Hard-deleted** along with the scenario — matches the manual cleanup we did for I2 earlier.
 
-We'll go with the "controlled component" approach for the uploader since it's the cleanest and also helps `CycleBugReportDialog` (Fix 1).
+I'll go with **(A) Unlink** unless you say otherwise — it's safer and matches how we handle the bug lifecycle elsewhere on the platform.
 
-### Testing checklist after changes
-
-1. Open a Test Cycle → click "Report Bug" → confirm a screenshot upload area appears, upload 1-2 images, submit, and verify the created bug shows the attachments.
-2. On `/bugs/:id/edit`, upload a screenshot and edit some fields → switch to another browser tab for ~10 seconds → switch back → confirm screenshots and field values are still there.
-3. Save the edit and confirm attachments persist on the bug detail view.
-
-### Files to change
-- `src/components/qa/cycles/BugReportForm.tsx` — add attachment section + new props
-- `src/components/qa/cycles/CycleBugReportDialog.tsx` — manage attachments state + include in insert
-- `src/pages/bugs/EditBug.tsx` — guard the load effect against ref changes
-- `src/components/bugs/BugAttachmentUploader.tsx` — convert to controlled (value/onChange)
+### Test checklist after build
+1. Login as admin → open a cycle → confirm pencil + trash icons appear on every scenario.
+2. Login as the cycle's creator (non-admin) → confirm same icons appear.
+3. Login as a different QA user → confirm icons are hidden.
+4. Edit a scenario's title/description/steps → save → reopen → changes persist; verdicts/comments/bugs still attached.
+5. Delete a scenario → confirm it disappears from the cycle and that linked bugs are still visible in the Bug Tracker (just without the cycle link).
+6. Verify on mobile (≤640px) the icons remain reachable and don't break the row layout.
 
