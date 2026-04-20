@@ -322,6 +322,42 @@ export function ScenarioWorkspaceCard({
           </Tabs>
         </CardContent>
       )}
+
+      {canManage && (
+        <>
+          <EditCycleScenarioDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            scenario={scenario}
+            onUpdated={() => onScenarioChanged?.()}
+          />
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this scenario?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete <span className="font-mono">{scenario.scenario_code}</span> along with all its verdicts, comments, and execution results.
+                  Any bugs raised from this scenario will be preserved in the Bug Tracker but unlinked from this cycle. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleDelete();
+                  }}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  Delete Scenario
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
     </Card>
   );
 }

@@ -29,13 +29,15 @@ export default function CycleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { currentProject } = useProject();
   const { cycle, groups, runs, verdictMap, loading, refresh } = useCycleDetail(id);
 
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [bugScenario, setBugScenario] = useState<CycleScenario | null>(null);
   const [showRunHistory, setShowRunHistory] = useState(false);
+
+  const canManageScenario = role === "admin" || (!!user && cycle?.created_by === user.id);
 
   const handleReportBug = (scenario: CycleScenario) => {
     setBugScenario(scenario);
@@ -148,6 +150,8 @@ export default function CycleDetail() {
                   onReportBug={handleReportBug}
                   latestVerdict={verdictMap[scenario.id] || null}
                   onVerdictChange={refresh}
+                  canManage={canManageScenario}
+                  onScenarioChanged={refresh}
                 />
               ))}
             </div>
