@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Bug, Plus, X, ChevronDown, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,9 +63,14 @@ export default function EditBug() {
     video_url: "",
   });
 
+  const loadedBugIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (id && currentProject) loadBugAndFeatures();
-  }, [id, currentProject]);
+    if (!id || !currentProject?.id) return;
+    if (loadedBugIdRef.current === id) return; // already loaded — don't wipe unsaved state on tab refocus
+    loadedBugIdRef.current = id;
+    loadBugAndFeatures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, currentProject?.id]);
 
   const loadBugAndFeatures = async () => {
     try {
@@ -354,8 +359,8 @@ export default function EditBug() {
                 <BugAttachmentUploader
                   bugId={id!}
                   userId={user.id}
-                  existingAttachments={attachments}
-                  onUploadComplete={setAttachments}
+                  value={attachments}
+                  onChange={setAttachments}
                 />
               )}
             </div>
