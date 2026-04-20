@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, Bug, MessageSquare, Clock, CheckSquare, Scale, CheckCircle2, XCircle, Minus, AlertTriangle, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { ScenarioCommentThread } from "./ScenarioCommentThread";
 import { ScenarioLinkedBugs } from "./ScenarioLinkedBugs";
 import { ScenarioVerdictThread } from "./ScenarioVerdictThread";
+import { EditCycleScenarioDialog } from "./EditCycleScenarioDialog";
 import { MarkdownRenderer } from "@/components/bugs/MarkdownRenderer";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import type { CycleScenario, CycleStep, VerdictStatus } from "@/types/cycle";
 
 interface ScenarioWorkspaceCardProps {
@@ -20,6 +33,8 @@ interface ScenarioWorkspaceCardProps {
   onReportBug: (scenario: CycleScenario) => void;
   latestVerdict?: VerdictStatus | null;
   onVerdictChange?: () => void;
+  canManage?: boolean;
+  onScenarioChanged?: () => void;
 }
 
 export function ScenarioWorkspaceCard({
@@ -30,7 +45,36 @@ export function ScenarioWorkspaceCard({
   onReportBug,
   latestVerdict: initialVerdict,
   onVerdictChange,
+  canManage = false,
+  onScenarioChanged,
 }: ScenarioWorkspaceCardProps) {
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      // 1. Unlink bugs (preserve history)
+      await supabase.from("bugs").update({ cycle_scenario_id: null }).eq("cycle_scenario_id", scenario.id);
+      // 2-4. Delete dependent rows
+      await supabase.from("cycle_scenario_verdicts").delete().eq("scenario_id", scenario.id);
+      await supabase.from("cycle_scenario_comments").delete().eq("scenario_id", scenario.id);
+      await supabase.from("cycle_results").delete().eq("scenario_id", scenario.id);
+      // 5. Delete the scenario
+      const { error } = await supabase.from("cycle_scenarios").delete().eq("id", scenario.id);
+      if (error) throw error;
+      toast({ title: "Scenario deleted" });
+      setDeleteOpen(false);
+      onScenarioChanged?.();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const [expanded, setExpanded] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [bugCount, setBugCount] = useState(0);
