@@ -180,7 +180,7 @@ export function ScenarioWorkspaceCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 mt-0.5">
           <Button
             variant="outline"
             size="sm"
@@ -190,8 +190,36 @@ export function ScenarioWorkspaceCard({
               onReportBug(scenario);
             }}
           >
-            <Bug className="h-3.5 w-3.5 mr-1" /> Report Bug
+            <Bug className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">Report Bug</span>
           </Button>
+          {canManage && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Edit scenario"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditOpen(true);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                title="Delete scenario"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="h-7 w-7">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
