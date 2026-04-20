@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import type { Database } from "@/integrations/supabase/types";
+import { BugAttachmentUploader } from "@/components/bugs/BugAttachmentUploader";
 
 type BugSeverity = Database["public"]["Enums"]["bug_severity"];
 type BugType = Database["public"]["Enums"]["bug_type"];
@@ -43,6 +44,10 @@ interface BugReportFormProps {
   setLoginType: (v: LoginType) => void;
   features: Feature[];
   existingBugs: ExistingBug[];
+  attachments?: string[];
+  setAttachments?: (urls: string[]) => void;
+  userId?: string;
+  uploadKey?: string;
 }
 
 export function BugReportForm({
@@ -55,6 +60,10 @@ export function BugReportForm({
   loginType, setLoginType,
   features,
   existingBugs,
+  attachments,
+  setAttachments,
+  userId,
+  uploadKey,
 }: BugReportFormProps) {
   return (
     <div className="space-y-3 pt-1">
@@ -155,6 +164,20 @@ export function BugReportForm({
         <Label className="text-xs">Actual Behavior</Label>
         <Textarea value={actualBehavior} onChange={(e) => setActualBehavior(e.target.value)} rows={2} className="text-xs mt-1" placeholder="What happened?" />
       </div>
+
+      {userId && setAttachments && (
+        <div>
+          <Label className="text-xs">Screenshots & Attachments</Label>
+          <div className="mt-1">
+            <BugAttachmentUploader
+              bugId={uploadKey || `cycle-${Date.now()}`}
+              userId={userId}
+              value={attachments || []}
+              onChange={setAttachments}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

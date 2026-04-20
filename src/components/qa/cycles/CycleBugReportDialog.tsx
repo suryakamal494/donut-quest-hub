@@ -57,6 +57,7 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
   const [bugType, setBugType] = useState<BugType>("functional");
   const [featureId, setFeatureId] = useState<string>("");
   const [loginType, setLoginType] = useState<LoginType>("general");
+  const [attachments, setAttachments] = useState<string[]>([]);
 
   useEffect(() => {
     if (!currentProject || !open) return;
@@ -78,6 +79,7 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
     setDescription(`**Cycle:** ${cycleName} (${contextLabel})\n**Scenario:** ${scenarioCode} — ${scenarioTitle}\n\n${scenarioDescription || ""}`);
     setActualBehavior(!isWorkspaceMode && props.result?.comment ? props.result.comment : "");
     setSeverity("minor"); setBugType("functional"); setFeatureId(""); setLoginType("general");
+    setAttachments([]);
   }, [open, scenarioCode, scenarioTitle, scenarioDescription, cycleName, contextLabel]);
 
   const handleSubmit = async () => {
@@ -91,6 +93,7 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
         login_type: loginType, feature_id: featureId || null,
         project_id: currentProject?.id || null, reported_by: user.id,
         source: "cycle", cycle_scenario_id: scenarioId, bug_code: "TEMP",
+        attachments: attachments.length > 0 ? attachments : null,
       }).select("id, bug_code").single();
       if (error) throw error;
 
@@ -126,6 +129,8 @@ export function CycleBugReportDialog(props: CycleBugReportDialogProps) {
           featureId={featureId} setFeatureId={setFeatureId}
           loginType={loginType} setLoginType={setLoginType}
           features={features} existingBugs={existingBugs}
+          attachments={attachments} setAttachments={setAttachments}
+          userId={user?.id} uploadKey={scenarioId ? `cycle-${scenarioId}` : undefined}
         />
 
         <div className="flex justify-end gap-2 pt-2">

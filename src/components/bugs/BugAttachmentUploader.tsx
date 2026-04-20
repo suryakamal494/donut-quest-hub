@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Upload, X, Loader2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -7,6 +7,10 @@ import { cn } from "@/lib/utils";
 interface BugAttachmentUploaderProps {
   bugId: string;
   userId: string;
+  /** Controlled mode (preferred): parent owns the attachments list. */
+  value?: string[];
+  onChange?: (urls: string[]) => void;
+  /** Legacy/uncontrolled-seed support. Used only if `value` is not provided. */
   onUploadComplete?: (urls: string[]) => void;
   existingAttachments?: string[];
   maxFiles?: number;
@@ -16,14 +20,29 @@ interface BugAttachmentUploaderProps {
 export function BugAttachmentUploader({
   bugId,
   userId,
+  value,
+  onChange,
   onUploadComplete,
   existingAttachments = [],
   maxFiles = 8,
   className,
 }: BugAttachmentUploaderProps) {
   const [uploading, setUploading] = useState(false);
-  const [attachments, setAttachments] = useState<string[]>(existingAttachments);
+  const [internalAttachments, setInternalAttachments] = useState<string[]>(existingAttachments);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isControlled = value !== undefined;
+  const attachments = isControlled ? value! : internalAttachments;
+
+  const updateAttachments = useCallback((next: string[]) => {
+    if (isControlled) {
+      onChange?.(next);
+    } else {
+      setInternalAttachments(next);
+      onChange?.(next);
+      onUploadComplete?.(next);
+    }
+  }, [isControlled, onChange, onUploadComplete]);
 
   const handleFileSelect = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -54,7 +73,7 @@ export function BugAttachmentUploader({
     try {
       setUploading(true);
       const uploadedUrls: string[] = [];
-      
+
       for (const file of validFiles) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${userId}/${bugId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -76,9 +95,7 @@ export function BugAttachmentUploader({
       }
 
       if (uploadedUrls.length > 0) {
-        const newAttachments = [...attachments, ...uploadedUrls];
-        setAttachments(newAttachments);
-        onUploadComplete?.(newAttachments);
+        updateAttachments([...attachments, ...uploadedUrls]);
         toast.success(`${uploadedUrls.length} file(s) uploaded`);
       }
     } catch (error) {
@@ -87,7 +104,7 @@ export function BugAttachmentUploader({
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [attachments, maxFiles, onUploadComplete, bugId, userId]);
+  }, [attachments, maxFiles, bugId, userId, updateAttachments]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -103,10 +120,8 @@ export function BugAttachmentUploader({
         console.error('Error deleting file:', error);
       }
     }
-    const newAttachments = attachments.filter(url => url !== urlToRemove);
-    setAttachments(newAttachments);
-    onUploadComplete?.(newAttachments);
-  }, [attachments, onUploadComplete]);
+    updateAttachments(attachments.filter(url => url !== urlToRemove));
+  }, [attachments, updateAttachments]);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -139,7 +154,7 @@ export function BugAttachmentUploader({
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Upload className="h-6 w-6" />
             <span className="text-sm">
-              {attachments.length >= maxFiles 
+              {attachments.length >= maxFiles
                 ? `Maximum ${maxFiles} attachments reached`
                 : "Drop files here or click to upload"}
             </span>
@@ -169,6 +184,7 @@ export function BugAttachmentUploader({
                   />
                 )}
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); removeAttachment(url); }}
                   className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                 >
