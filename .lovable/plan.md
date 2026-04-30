@@ -1,97 +1,57 @@
+# Plan: Enrich CYC-008 (Timetable Workspace QA) Content
+
 ## Goal
+Replace the thin one-line descriptions on Test Cycle 008 in the **donut.ai** project with the rich, 3-block tester-friendly content from the uploaded `timetable-workspace-qa_1.md`. No structural changes — only title and description text is rewritten in place.
 
-Add 3 new foundational test cycles to the **donut.ai** project (`11111111-1111-1111-1111-111111111111`), following the exact same pattern as CYC-006 and CYC-007. Implementation is strictly phased — finish and verify Phase 1 before moving to Phase 2, and Phase 2 before Phase 3.
+## Verified Current State
+- Project: donut.ai (`11111111-1111-1111-1111-111111111111`)
+- Cycle: `CYC-008` — id `e1f2a3b4-c5d6-4e7f-8a90-111111111108`
+- Existing structure already matches the document exactly:
+  - 10 groups (A. Teacher Mode → J. Export & Print)
+  - 75 scenarios (TT-WORKSPACE-A1 … TT-WORKSPACE-J5)
+- So no inserts/deletes are needed — only `UPDATE` statements.
 
-Each cycle includes:
-- One row in `test_cycles` (fixed UUID, `cycle_code`, name, HTML/markdown testing guide in `description`, priority `high`, status `active`, `created_by` = donut.ai admin user, `project_id` = donut.ai)
-- One row per section in `cycle_groups` (ordered)
-- One row per scenario in `cycle_scenarios` (scenario_code = short form like `A1`, `B3`; full `TT-WORKSPACE-A1` reference included inside the description for traceability)
+## What Changes
 
-Scenario codes use the **short form (A1, A2, …)** to stay consistent with CYC-006/CYC-007. The long-form code (e.g. `TT-WORKSPACE-A1`) is preserved inside each scenario description.
+### 1. Cycle-level description (`test_cycles.description`)
+Replace with a markdown block built from the document's framing sections:
+- **Overview** (intro line about what testers validate)
+- **Before You Begin** (test institute prerequisites)
+- **How To Read These Scenarios** (the 3-block format explainer)
+- **The Timetable Golden Rule** (with the 9-rule code block)
+- **Critical Bugs QA Must Flag Immediately** (the 10-item list)
+- **Suggested Execution Order** (groups A → J)
 
----
+Cycle name (`Timetable Workspace QA`), `cycle_code`, `status`, and `priority` stay untouched.
 
-## Phase 1 — CYC-008: Timetable Workspace QA
+### 2. Scenario titles & descriptions (75 rows in `cycle_scenarios`)
+For every scenario, match by `scenario_code` (e.g. `TT-WORKSPACE-A1`) and update:
+- `title` → the bolded headline from the doc
+  - e.g. `"Teacher Mode Should Only Offer Batches That Teacher Is Officially Assigned To"`
+- `description` → the full 3-block markdown:
+  ```
+  **What this is:** …
 
-Source: `timetable-workspace-qa.md` (third doc).
+  **What to try:** …
 
-**Cycle:** `CYC-008` — "Timetable Workspace QA"
-**Description (testing guide):** Includes the "Before You Begin" intro, the **Timetable Golden Rule** (9-point validity checklist in a code block), Critical Bugs list (10 items), and Suggested Execution Order (9 items).
+  **Expected:** …
+  ```
 
-**Groups & scenario counts (10 groups, 70 scenarios total):**
+Fields untouched: `scenario_code`, `group_id`, `order_index`, `has_steps`, `steps`.
 
-```text
-A. Teacher Mode Scenarios          — 8  (A1–A8)
-B. Batch Mode Scenarios            — 8  (B1–B8)
-C. Conflict Detection Scenarios    — 9  (C1–C9)
-D. Edit, Move, Undo/Redo           — 9  (D1–D9)
-E. Copy Week Scenarios             — 10 (E1–E10)
-F. Save, Draft & Publish           — 6  (F1–F6)
-G. View Timetable — Weekly View    — 9  (G1–G9)
-H. View Timetable — Monthly View   — 6  (H1–H6)
-I. Past, Current & Future Week     — 5  (I1–I5)
-J. Export & Print                  — 5  (J1–J5)
-```
+### 3. Groups
+Group names already match (A. Teacher Mode, B. Batch Mode, …). No changes.
 
----
+## Execution Approach (once approved)
+1. Build a single SQL script (run via the insert tool) containing:
+   - 1 `UPDATE test_cycles … WHERE id = 'e1f2a3b4-…-08'`
+   - 75 `UPDATE cycle_scenarios … WHERE scenario_code = 'TT-WORKSPACE-XN'` scoped to CYC-008's groups (subquery on `group_id IN (SELECT id FROM cycle_groups WHERE cycle_id = …)` to be safe against any other cycle reusing the same code)
+2. Verify with a SELECT count + a spot-check on A1, C4, J5 to confirm new content is live.
 
-## Phase 2 — CYC-009: Timetable Upload View QA
+## Out of Scope
+- No schema/migration changes
+- No changes to other cycles (CYC-009, CYC-010, etc.)
+- No code/UI changes — the existing `EditCycle` and `CycleDetail` pages already render markdown descriptions
 
-Source: `timetable-upload-qa.md` (second doc).
-
-**Cycle:** `CYC-009` — "Timetable Upload View QA"
-**Description:** "Before You Begin" + **Upload Validation Principle** (Teacher ∩ Batch ∩ Subject ∩ Curriculum/Course rule) + Critical Bugs (7) + Execution Order (4).
-
-**Groups & scenarios (4 groups, 28 scenarios):**
-
-```text
-A. Upload Prerequisite Scenarios   — 6  (A1–A6)
-B. AI Parse & Manual Review        — 7  (B1–B7)
-C. Validation Scenarios            — 8  (C1–C8)
-D. Embed Conflict Scenarios        — 7  (D1–D7)
-```
-
----
-
-## Phase 3 — CYC-010: Timetable Substitution & Edge Cases QA
-
-Source: `timetable-substitution-edge-qa.md` (first doc).
-
-**Cycle:** `CYC-010` — "Timetable Substitution & Edge Cases QA"
-**Description:** "Before You Begin" + **Substitution Validation Principle** + Critical Bugs (9) + Execution Order (5).
-
-**Groups & scenarios (5 groups, 43 scenarios):**
-
-```text
-A. Absence Scenarios               — 7  (A1–A7)
-B. Coverage Needed Scenarios       — 6  (B1–B6)
-C. Substitute Selection Scenarios  — 8  (C1–C8)
-D. Cross-Impact Scenarios          — 6  (D1–D6)
-E. Edge Cases & Regression Risks   — 12 (E1–E12)
-```
-
----
-
-## Technical Implementation
-
-For each phase, in order:
-
-1. **Look up the donut.ai admin user_id** for `created_by` (via `supabase--read_query` on `profiles` filtered by the donut.ai project + admin role) — the same value already used for CYC-006/CYC-007 will be reused.
-2. **Insert via `supabase--insert`** — one bulk SQL block per phase containing:
-   - `INSERT INTO test_cycles (...)` with a fixed UUID and the rich-text testing guide.
-   - `INSERT INTO cycle_groups (...)` for all sections (ordered via `order_index`).
-   - `INSERT INTO cycle_scenarios (...)` for every scenario, mapping markdown description (including `**TT-WORKSPACE-X#**` reference) verbatim from the source doc. `has_steps = false`, `steps = NULL` (consistent with CYC-006/007).
-3. **Verify** the cycle appears under `/qa/cycles` and that group/scenario counts match the table above (`SELECT count(*)`).
-4. **Move to the next phase only after verification.**
-
-Fixed UUIDs to be assigned (illustrative — generated at insert time):
-- CYC-008: `e1f2a3b4-c5d6-4e7f-8a90-111111111108`
-- CYC-009: `e1f2a3b4-c5d6-4e7f-8a90-111111111109`
-- CYC-010: `e1f2a3b4-c5d6-4e7f-8a90-111111111110`
-
-### Acceptance criteria
-- All 3 cycles visible in donut.ai's Test Cycles list with codes CYC-008/009/010.
-- Group + scenario totals match: 70, 28, 43 (zero scenarios dropped from any source doc).
-- Each scenario card shows the long-form `TT-…` reference in the body for traceability.
-- Testing guide on each cycle's detail page renders the principle/golden rule, critical bugs list, and execution order from the source doc.
-- No scenarios leak into other projects (`project_id = '11111111-1111-1111-1111-111111111111'` enforced on `test_cycles`).
+## Risk
+Very low — pure data update on a single cycle. RLS-safe (admin user). No FK or constraint impact.
