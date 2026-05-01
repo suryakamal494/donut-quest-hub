@@ -1,84 +1,112 @@
+# CYC-010 Refresh Plan — Timetable Substitution & Edge Cases QA
 
-## My Understanding (in plain words)
+## What I understood
 
-CYC-009 already has **real tester work** attached:
-- 28 scenarios across 4 groups (A. Upload Prerequisites · B. AI Parse & Manual Review · C. Validation · D. Embed Conflict)
-- **16 comments**, **16 verdicts**, **2 bugs** linked to specific scenarios
+You want the same kind of "document-driven refresh" we did for CYC-008 and CYC-009 — but applied to **CYC-010 (Timetable Substitution & Edge Cases QA)**. The current cycle description and scenario titles/descriptions are weak; the uploaded `timetable-substitution-edge-qa_1.md` is the new source of truth and must replace them.
 
-The current titles/descriptions are thin one-liners and don't convey the real test intent. The uploaded `timetable-upload-qa_1.md` has the rich 3-block format (*What this is / What to try / Expected*) we want — the same treatment we just did for CYC-008.
+## Why this one is simpler than CYC-009
 
-**But CYC-009 is NOT a CYC-008-style copy job**, because:
-1. The uploaded doc has **8 groups (A–H)** with **~46 scenarios**, while the cycle has **4 groups (A–D)** with **28 scenarios**. Codes like `A1, B1, C1, D1` exist in BOTH places but **mean different things** in each.
-   - Example: cycle `D1` is currently *"Embed Into Empty Workspace"*, while doc `D1` is *"Teacher Not Found In Institute Must Block Embed"*.
-2. So matching by `scenario_code` alone (the CYC-008 approach) would attach the wrong rich content to scenarios that already have comments and bugs — exactly the corruption you want to avoid.
+I audited CYC-010 before planning. It has:
 
-**The job, restated:**
-- Refresh cycle description + every scenario's title/description from the doc.
-- Existing comments, verdicts, and bugs must continue to make sense under the new content (they reference `scenario_id`, which never changes — but the *meaning* of that scenario must not drift).
-- That means **every scenario gets a deliberate, semantic mapping** to a passage in the doc, reviewed by you before any database write. No blind code-matching.
+- **0 cycle_scenario_comments**
+- **0 cycle_scenario_verdicts**
+- **0 bugs linked via `cycle_scenario_id`**
 
----
+There is **no tester activity to preserve**. That removes the entire "preserve UUIDs / map old codes to new codes" constraint that made CYC-009 risky. We can do a clean rebuild safely.
 
-## Plan
+## Structural mismatch (current DB vs new document)
 
-### Phase 1 — Build & Show You The Mapping (no DB writes)
+| | Groups | Scenarios |
+|---|---|---|
+| Current DB | 5 (A, B, C, D, E) | 40 |
+| New document | 8 (A, B, C, D, E, F, G, H) | 55 |
 
-I will produce one mapping table covering all 28 scenarios. Each row will show:
+The new document splits the old umbrella `E. Edge Cases & Regression Risks` (12 scenarios) into 4 cleaner sections: `E. Master-Data Regression Risks` (8), `F. Naming & Identity` (5), `G. State, Concurrency & Replay` (6), `H. Access, Permissions & Responsive` (6). Sections A–D are also expanded (e.g. C grows from 8 → 9 with a new "No available substitutes" scenario).
 
-| Cycle code | Current title | Existing activity | → Proposed doc source | Proposed new title |
-|---|---|---|---|---|
-| A1 | Batch Required Before Upload | 1 cmt, 1 verd | (no direct doc match — keep current intent, rewrite in 3-block format from existing description) | Batch Required Before Upload |
-| A4 | Unsupported File Type | 1 cmt, 1 verd | doc A1+A2+A3 (consolidated rejection coverage) | Unsupported File Types Must Be Rejected At The File Picker |
-| B2 | Low Confidence Cell | **1 bug**, 1 cmt, 1 verd | doc C1 (Low-Confidence Entries Must Be Visibly Flagged) | Low-Confidence Entries Must Be Visibly Flagged In The Parsed Grid |
-| D1 | Embed Into Empty Workspace | **1 bug**, 1 cmt, 1 verd | doc E1 (Embedding Into An Empty Week…) | Embedding Into An Empty Week Should Insert All Entries Cleanly |
-| … | … | … | … | … |
+A code-by-code in-place UPDATE (the CYC-009 approach) is the wrong tool here — the new structure has +15 scenarios and reorganized groups.
 
-For the **two scenarios with bugs** (`B2`, `D1`) I will additionally fetch the bug title + description and explicitly call out *"the bug is about X — does the proposed new content still describe a scenario where this bug makes sense? Yes/No"* so you can sign off.
+## Recommended approach: clean rebuild
 
-For the **16 scenarios with comments**, I will fetch each comment text and apply the same sanity check.
+Because there is no user activity, I recommend **delete-and-recreate** of `cycle_groups` + `cycle_scenarios` for CYC-010. Same pattern that `EditCycle.tsx` already uses when an admin saves edits in the UI.
 
-Where the cycle has a scenario but the doc has no clean equivalent (e.g. cycle `A1: Batch Required Before Upload` — the doc assumes a batch is already selected), I will **keep the cycle's current intent** and just rewrite the existing description in the 3-block format. I will not invent doc content for it.
+The cycle row itself (`test_cycles.id = e1f2a3b4-c5d6-4e7f-8a90-111111111110`, code `CYC-010`) stays intact — only `name` and `description` get updated.
 
-Where the doc has a great scenario the cycle doesn't cover (e.g. doc E5 *Cancelling The Conflict Dialog Must Make Zero Changes* maps cleanly to cycle `D5: Cancel Embed Conflict Dialog` — that is a direct hit), I'll mark it as a direct mapping.
+## Implementation steps
 
-### Phase 2 — Your Review Gate
+### Phase 1 — Update the cycle row (1 SQL statement)
 
-I'll present the full 28-row mapping table in chat. **Nothing is written until you approve it.** You can:
-- Approve as-is, OR
-- Reassign any row ("for B2, use doc C2 instead, not C1"), OR
-- Tell me to keep a scenario's original wording and just reformat it.
+`UPDATE test_cycles SET name = 'Timetable Substitution & Edge Cases QA', description = '<rich markdown>' WHERE id = 'e1f2a3b4-c5d6-4e7f-8a90-111111111110'`
 
-### Phase 3 — Apply (after approval)
+The new description (~3 KB) will include, taken verbatim from the document:
+- The opening paragraph (why this module matters)
+- "Before You Begin" setup checklist
+- "The Substitution Golden Rule" (the 5-point block)
+- "Critical Bugs QA Must Flag Immediately" (P0/P1/P2 grouped list)
+- "Suggested Execution Order" (8-step pass sequence)
 
-Once the mapping is locked:
-1. **One** `UPDATE test_cycles` for the cycle-level description (rewritten from the doc's *Before You Begin / What "Good" Upload Means / 7 Failure Modes / Critical Bugs / Suggested Execution Order* sections).
-2. **28** scoped `UPDATE cycle_scenarios SET title = …, description = …` statements, each filtered by `scenario_code` AND `group_id IN (SELECT id FROM cycle_groups WHERE cycle_id = 'e1f2a3b4-…-09')` to make absolutely sure no other cycle is touched.
-3. **No structural changes**: no inserts, no deletes, no `order_index` reshuffles, no group renames. The 4 group names (A. Upload Prerequisites, B. AI Parse & Manual Review, C. Validation, D. Embed Conflict) stay as they are — they correctly describe the cycle's existing 4-section organization, even though the doc uses 8 sections internally.
+### Phase 2 — Wipe existing groups & scenarios for CYC-010 only
 
-### Phase 4 — Post-Write Audit
+`DELETE FROM cycle_groups WHERE cycle_id = 'e1f2a3b4-c5d6-4e7f-8a90-111111111110'`
 
-After the writes, I will run:
-- A scenario count check (must still be exactly 28).
-- A comment/verdict/bug count check (must still be exactly **16 / 16 / 2** — proves nothing was orphaned).
-- Spot-check the two bug-bearing scenarios (`B2`, `D1`) by reading their new title/description back and confirming the linked bug still makes sense.
+This cascades to `cycle_scenarios` via FK. Scoped strictly to CYC-010 — no other cycle is touched. Safe because no comments/verdicts/bugs reference these scenario IDs.
 
----
+### Phase 3 — Insert 8 fresh groups
 
-## Why This Is Safe
+Order and names exactly as in the document:
 
-- All preserved data (`bug_comments`-equivalent: `cycle_scenario_comments`, `cycle_scenario_verdicts`, `bugs.cycle_scenario_id`) references `cycle_scenarios.id` — a UUID we never touch. Comments/verdicts/bugs cannot detach.
-- The risk is purely **semantic drift** (a comment saying "this failed because the file picker accepted PDF" sitting under a scenario newly retitled to talk about Excel files). Phase 1 + Phase 2 exist solely to prevent that.
+```text
+A. Marking Absences
+B. Coverage Needed Calculation
+C. Substitute Selection Engine
+D. Cross-Impact & Downstream Propagation
+E. Master-Data Regression Risks
+F. Naming & Identity Edge Cases
+G. State, Concurrency & Replay Edge Cases
+H. Access, Permissions & Responsive
+```
 
----
+### Phase 4 — Insert 55 scenarios (each in the 3-block format)
 
-## Out of Scope
+Every scenario will use the standard format already adopted across CYC-008 / CYC-009:
 
-- No structural restructuring of CYC-009 to mirror the doc's 8-group layout. (That would require deletions and break bug/comment links. If you want that later, it's a separate, much bigger job.)
-- No code or UI changes — `EditCycle` and `CycleDetail` already render markdown.
-- Other cycles (CYC-008, CYC-010, etc.) are not touched.
+```text
+**What this is:** <context paragraph from the doc>
 
----
+**What to try:** <action paragraph from the doc>
 
-## Deliverable On Approval
+**Expected:** <expected paragraph from the doc>
+```
 
-When you say "go", my next message will contain the full 28-row mapping table (Phase 1) for your review — no DB writes yet.
+Per-section counts:
+
+| Group | Codes | Count |
+|---|---|---|
+| A | A1–A7 | 7 |
+| B | B1–B7 | 7 |
+| C | C1–C9 | 9 |
+| D | D1–D7 | 7 |
+| E | E1–E8 | 8 |
+| F | F1–F5 | 5 |
+| G | G1–G6 | 6 |
+| H | H1–H6 | 6 |
+| **Total** | | **55** |
+
+`order_index` will follow the document order; `has_steps` = `false` (descriptive scenarios, no step JSON).
+
+### Phase 5 — Verification audit (read-only)
+
+After writes, run a SELECT to confirm:
+- 1 cycle, 8 groups, 55 scenarios
+- Every scenario contains the markers `**What this is:**`, `**What to try:**`, `**Expected:**`
+- Cycle description length > 2000 chars
+- No leftover scenarios from the old structure (codes outside the new A1–H6 set)
+
+## What I will NOT touch
+
+- `test_cycles.id`, `cycle_code`, `project_id`, `created_by`, `created_at` — preserved
+- Any other cycle (CYC-001 … CYC-009)
+- Any non-cycle table
+
+## Confirmation needed
+
+Reply **"approve"** and I'll execute Phases 1–5 in order. If you'd prefer the CYC-009-style "in-place UPDATE keeping current scenario UUIDs" instead — even though there's no activity to protect — say so and I'll switch to that mode (it would mean dropping/merging scenarios where the new structure has fewer in a section, and inserting new rows for the rest).
