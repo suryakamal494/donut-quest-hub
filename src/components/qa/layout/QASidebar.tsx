@@ -118,7 +118,8 @@ const navItems = [
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const location = useLocation();
   const { currentProject } = useProject();
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
+  const isAdmin = role === "admin";
   const [retestCount, setRetestCount] = useState(0);
   const [scenariosExpanded, setScenariosExpanded] = useState(true);
   
