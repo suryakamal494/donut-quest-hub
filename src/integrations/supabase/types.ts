@@ -1102,6 +1102,42 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_timesheets: {
+        Row: {
+          bug_ids: string[]
+          content_items: Json
+          created_at: string
+          id: string
+          project_id: string
+          summary: string | null
+          updated_at: string
+          user_id: string
+          work_date: string
+        }
+        Insert: {
+          bug_ids?: string[]
+          content_items?: Json
+          created_at?: string
+          id?: string
+          project_id: string
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+          work_date?: string
+        }
+        Update: {
+          bug_ids?: string[]
+          content_items?: Json
+          created_at?: string
+          id?: string
+          project_id?: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string
+          work_date?: string
+        }
+        Relationships: []
+      }
       selector_history: {
         Row: {
           created_at: string
