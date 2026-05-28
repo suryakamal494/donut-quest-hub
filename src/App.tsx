@@ -62,6 +62,8 @@ const ClosedBugs = lazy(() => import("./pages/bugs/ClosedBugs"));
 const BugReport = lazy(() => import("./pages/bugs/BugReport"));
 const PendingRetest = lazy(() => import("./pages/bugs/PendingRetest"));
 const ApiKeyManager = lazy(() => import("./pages/admin/ApiKeyManager"));
+const Timesheet = lazy(() => import("./pages/qa/Timesheet"));
+const AdminTimesheets = lazy(() => import("./pages/admin/AdminTimesheets"));
 
 const queryClient = new QueryClient();
 
@@ -96,6 +98,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={["admin"]}>
                     <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/timesheets"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AdminTimesheets />
                   </ProtectedRoute>
                 }
               />
@@ -148,6 +158,7 @@ const App = () => (
                 <Route path="suggestions/create" element={<CreateSuggestion />} />
                 <Route path="suggestions/:id" element={<SuggestionDetail />} />
                 <Route path="docs/developer" element={<DeveloperDocs />} />
+                <Route path="timesheet" element={<Timesheet />} />
               </Route>
 
               {/* Bug Tracking Routes */}
