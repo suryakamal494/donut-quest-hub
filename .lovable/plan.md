@@ -1,87 +1,74 @@
-## What I understood from your request
+## Source audit — `packages-qa.md` (2,080 lines)
 
-Two things in this turn:
-1. **Finish CYC-012** — Groups H (10 scenarios) and I (9 scenarios) were prepared but never executed. Database currently has 41 / 60 scenarios for that cycle.
-2. **Create CYC-013 — Teacher Reports — Students QA** from the just-uploaded `teacher-reports-students-qa.md`, using the same clean-build pattern as CYC-010 / 011 / 012.
+Twelve scenario groups, **99 scenarios total**, all using a consistent 6-part pattern (Why this matters / Setup / Steps / What to look for / Pass example / Bug example / Severity).
 
-## Source-document audit (CYC-013)
-
-Parsed 608 lines. Confirmed structure:
-
-| Group | Section title | Scenarios |
+| Group | Section title | Count |
 |---|---|---|
-| A | Students Tab Roster & PI Bucketing | A1–A6 (6) |
-| B | Student Header Card | B1–B4 (4) |
-| C | AI Student Summary | C1–C5 (5) |
-| D | Chapter Mastery Grid | D1–D5 (5) |
-| E | Exam History Timeline | E1–E5 (5) |
-| F | Difficulty Analysis & Weak Topics | F1–F5 (5) |
-| G | Generate Homework Parity, Edge Cases & Stability | G1–G11 (11) |
+| PKG-LIST | List view, filters & source tree | 8 |
+| PKG-CREATE | Create wizard | 8 |
+| PKG-HDR | Editor header, class dropdown & publish | 8 |
+| PKG-SUBJECTS | Subject chips | 7 |
+| PKG-CHP | Chapter rail & content sheet | 7 |
+| PKG-LSN | Lesson plan CRUD | 8 |
+| PKG-BLK | Lesson blocks & previews | 12 |
+| PKG-ATT | Chapter Tests, Grand Tests & PYP attachments | 8 |
+| PKG-LIFE | Lifecycle: draft, publish, archive, restore | 7 |
+| PKG-RSP | Mobile & tablet responsive | 7 |
+| PKG-EDGE | Edge cases & failure modes | 12 |
+| PKG-DATA | Mock seed & data integrity | 7 |
 
-**Total: 7 groups, 41 scenarios.**
+Preamble (lines 1–118) is a rich onboarding block: Who this guide is for, 6-part scenario pattern, P0–P3 severity legend, domain glossary, where-to-find-things in the UI, prerequisites, package-structure diagram, "five golden rules".
 
-The doc preamble (lines 1–49) follows the same four-part pattern as CYC-011/012, scoped to the individual learner:
-1. Intro paragraph (why "wrong name on the right banner" bugs are the hidden killers).
-2. **Threshold Reference table** (75/50/35 canonical vs 65/40/35 hard-codes — same as CYC-012).
-3. **Before You Begin — Seed Your Data First** (9-bullet seeding checklist: 25–30 student batch spanning all 4 PI bands, sparse/heavy/zero-attempt students, absent + newly-added students, boundary scores, multi-chapter weak-topic student, pre-existing Practice assignment).
-4. **Highest-Risk Bugs to Hunt** (7 numbered items: P0 prefill drift across Generate Homework entry points, threshold-vs-tooltip disagreement, stale state across student switches, PI leakage into teacher view, institute-exam subject leakage in timeline, Multi-Subject Risk scope clarification, lost `returnTo` on three-level drill-downs).
+## Carry-over from previous turn
 
-All 41 scenarios use the explicit `What this is / What to try / Expected` 3-block pattern natively — no special parsing handling needed.
-
-## Pre-flight check
-
-- Project: `11111111-1111-1111-1111-111111111111` (foundational).
-- Created by: `88326c88-1370-4d30-8eeb-e05941e74931` (admin).
-- Cycle code: trigger `generate_cycle_code` → `CYC-013`.
-- ID convention (matching CYC-008…012): `e1f2a3b4-c5d6-4e7f-8a90-111111111113`.
-- No prior CYC-013 data → clean build.
+DB audit shows **CYC-013 finished at 7 groups / 30 scenarios** — Group G (11 scenarios) was prepared in `/tmp/cyc013_scen_G.sql` but never executed. I'll close that gap as Phase 0 of this turn before starting CYC-014, so all prior cycles end clean.
 
 ## Implementation plan
 
-### Step 1 — Finish CYC-012 (carry-over from previous turn)
-Execute the two pre-staged SQL chunks already on disk:
-- `/tmp/cyc012_chunk_8.sql` → 10 rows into `cycle_groups H` and `cycle_scenarios H1–H10`.
-- `/tmp/cyc012_chunk_9.sql` → 9 rows into `cycle_groups I` and `cycle_scenarios I1–I9`.
-Verify CYC-012 closes at 9 groups / 60 scenarios with all three required headers in every row.
+### Phase 0 — Finish CYC-013 (carry-over)
+Execute the staged Group G insert: 1 row into `cycle_groups` + 11 rows into `cycle_scenarios` (G1–G11). Final target: 7 groups / 41 scenarios. Re-audit.
 
-### Step 2 — Insert the CYC-013 cycle row
-Single insert into `test_cycles`:
-- `id = e1f2a3b4-c5d6-4e7f-8a90-111111111113`
-- `name = 'Teacher Reports — Students QA'`
+### Phase 1 — Insert CYC-014 cycle row
+- `id = e1f2a3b4-c5d6-4e7f-8a90-111111111114`
+- `name = 'SuperAdmin Lesson Packages QA'`
+- `cycle_code = 'CYC-014'` (auto via trigger)
+- `project_id = 11111111-1111-1111-1111-111111111111`, `created_by = 88326c88-1370-4d30-8eeb-e05941e74931`
 - `status = 'active'`, `priority = 'medium'`
-- `project_id`, `created_by` as above
-- `description` ≈ 6 KB markdown built from doc preamble: opening paragraph + Threshold Reference table + 9-bullet seeding checklist + 7-item Highest-Risk list. Trigger fills `cycle_code = 'CYC-013'`.
+- `description` ≈ 7–8 KB markdown built from the preamble: intro paragraph + 6-part pattern explainer + P0–P3 severity table + condensed glossary + UI map + prerequisites checklist + package-structure diagram + five golden rules.
 
-### Step 3 — Parse the markdown
-Reuse the CYC-012 Python parser (`/tmp/parse_cyc012.py` template):
-- Split by `### ` group headers (A–G).
-- Within each group, split by `**X# — title**` scenario headers.
-- Extract leading description → "What this is", `What to try` block → "What to try", `Expected` block → "Expected".
-- Emit JSON manifest of 7 groups × 41 scenarios with `scenario_code`, `title`, formatted `description`, `order_index`.
+### Phase 2 — Parse the markdown
+Python script (template from CYC-012/013):
+- Split on `## PKG-…` for the 12 groups.
+- Within each group split on `### PKG-XXX-### — title` for scenarios.
+- Per scenario, map source sections into our standard 3-block format:
+  - **What this is** ← "Why this matters" + "Setup"
+  - **What to try** ← numbered "Steps"
+  - **Expected** ← "What to look for" + "Pass example" + "Bug example" + "Severity if it fails"
+- Emit JSON manifest with `scenario_code` (use the doc's native `PKG-LIST-001` style), `title`, `description`, `order_index`.
 
-### Step 4 — Insert groups and scenarios
-1. Insert 7 rows into `cycle_groups` (`order_index 0–6`), names matching section titles, `description` = one-line summary of each section.
-2. Bulk-insert 41 rows into `cycle_scenarios`, each with the standard 3-block markdown body, `has_steps = false`, `steps = NULL`. Will likely need 2–3 SQL chunks to stay within tool size limits (Group G alone has 11 scenarios).
+### Phase 3 — Insert groups + scenarios
+1. 12 rows into `cycle_groups` (order_index 0–11), one-line summary for each `description`.
+2. Bulk-insert 99 rows into `cycle_scenarios` in 3–4 SQL chunks to respect tool size limits. `has_steps = false`, `steps = NULL` (steps live inside the rendered markdown like the rest of the cycles).
 
-### Step 5 — Audit
-Read-only verification:
-- 1 cycle row with `cycle_code = 'CYC-013'`.
-- 7 cycle_groups in order A–G.
-- 41 cycle_scenarios; every description contains all three `**What this is:**`, `**What to try:**`, `**Expected:**` headers.
-- Spot-check three high-risk scenarios for content fidelity vs source doc:
-  - **B2** — PI not appearing on Student Report surface (P1 leakage check).
-  - **D2** — Chapter Mastery threshold-vs-tooltip disagreement (the headline 75/50/35 vs 65/40/35 bug).
-  - **G1** — Generate Homework prefill parity between Header CTA and AI Summary CTA (P0 prefill drift).
+### Phase 4 — Audit
+- 1 cycle with `cycle_code = 'CYC-014'`.
+- 12 groups, ordered PKG-LIST → PKG-DATA.
+- 99 scenarios; every description contains the three headers `**What this is:**`, `**What to try:**`, `**Expected:**`.
+- Spot-check 4 high-risk scenarios for fidelity to source:
+  - **PKG-CREATE-002** (kebab-case ID generation — P1 author UX).
+  - **PKG-HDR-004** (class dropdown switch — P0 cross-grade data leak risk, the "Class 11 still shows Class 6" example from the severity legend).
+  - **PKG-BLK-008** (reorder blocks — P1 lesson integrity).
+  - **PKG-LIFE-005** (archived package read-only — P0 data-mutation guard).
 
 ## Technical notes
 
-- All writes go through the **insert** tool (data-only, no schema change).
-- Python parser and SQL files live in `/tmp/` (ephemeral); not committed to the repo.
-- Same UUID/ordering conventions as the prior cycles so admin tools and any hard-coded references stay consistent.
+- Pure data seeding through the **insert** tool — no schema, RLS, or app-code changes.
+- UUID / ordering conventions match CYC-008…013 so admin tools and any hard-coded references stay consistent.
+- Parser + SQL chunks live in `/tmp/` (ephemeral); nothing committed to the repo.
 
 ## Out of scope (this turn)
 
-- No UI/code changes; pure data seeding for the existing Cycle Detail and Cycle Execution screens.
-- Multi-Subject Risk Copilot QA (explicitly excluded by the source doc — belongs in a future Copilot cycle, not Student Report).
+- No UI/code changes — the existing Cycle Detail and Cycle Execution screens already render this cycle.
+- Section 2080+ "Known Limitations & Out of Scope" copy from the source doc is folded into the cycle description but **not** turned into individual scenarios.
 
-Approve and I'll execute Steps 1–5 in one go and report final audit numbers for both CYC-012 and CYC-013.
+Approve and I'll run Phase 0 → 4 in one go and report final audit numbers for both CYC-013 and CYC-014.
