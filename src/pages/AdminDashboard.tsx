@@ -110,6 +110,7 @@ const AdminDashboard: React.FC = () => {
               { icon: BarChart3, label: "Dashboard", desc: "Overview & stats", path: "/qa" },
               { icon: TestTube2, label: "Scenarios", desc: "Manage test cases", path: "/qa/scenarios" },
               { icon: PlayCircle, label: "Test Runs", desc: "Execute & track", path: "/qa/runs" },
+              { icon: ClipboardCheck, label: "Timesheets", desc: "QA daily logs", path: "/admin/timesheets" },
               { icon: Key, label: "API Keys", desc: "External bug widget", path: "/bugs/api-keys" },
             ].map(item => (
               <Button key={item.path} variant="outline" onClick={() => navigate(item.path)} className="h-auto py-4 px-4 rounded-xl border-2 hover:border-primary/30 hover:bg-primary/5 justify-start">

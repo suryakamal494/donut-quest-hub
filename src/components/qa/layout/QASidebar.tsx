@@ -20,7 +20,8 @@ import {
   BookOpen,
   LineChart,
   RefreshCw,
-  Lightbulb
+  Lightbulb,
+  ClipboardCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,11 @@ const navItems = [
     title: "Suggestions",
     href: "/qa/suggestions",
     icon: Lightbulb,
+  },
+  {
+    title: "My Timesheet",
+    href: "/qa/timesheet",
+    icon: ClipboardCheck,
   },
   {
     title: "Test Scenarios",
