@@ -159,7 +159,7 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
       )}
     >
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.filter(item => item.title !== "Automation" || automationEnabled).map((item) => {
+        {navItems.filter(item => (item.title !== "Automation" || automationEnabled) && (!(item as any).adminOnly || isAdmin)).map((item) => {
           const active = isActive(item.href, item.end);
           const Icon = item.icon;
           const isCollapsible = (item as any).collapsible;
