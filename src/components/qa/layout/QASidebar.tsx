@@ -70,6 +70,12 @@ const navItems = [
     icon: ClipboardCheck,
   },
   {
+    title: "Team Timesheets",
+    href: "/admin/timesheets",
+    icon: ClipboardCheck,
+    adminOnly: true,
+  },
+  {
     title: "Test Scenarios",
     href: "/qa/scenarios",
     icon: FileText,
