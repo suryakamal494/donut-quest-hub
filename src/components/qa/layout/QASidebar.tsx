@@ -70,6 +70,12 @@ const navItems = [
     icon: ClipboardCheck,
   },
   {
+    title: "Team Timesheets",
+    href: "/admin/timesheets",
+    icon: ClipboardCheck,
+    adminOnly: true,
+  },
+  {
     title: "Test Scenarios",
     href: "/qa/scenarios",
     icon: FileText,
@@ -112,7 +118,8 @@ const navItems = [
 export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
   const location = useLocation();
   const { currentProject } = useProject();
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
+  const isAdmin = role === "admin";
   const [retestCount, setRetestCount] = useState(0);
   const [scenariosExpanded, setScenariosExpanded] = useState(true);
   
@@ -152,7 +159,7 @@ export function QASidebar({ collapsed, onCollapse }: QASidebarProps) {
       )}
     >
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.filter(item => item.title !== "Automation" || automationEnabled).map((item) => {
+        {navItems.filter(item => (item.title !== "Automation" || automationEnabled) && (!(item as any).adminOnly || isAdmin)).map((item) => {
           const active = isActive(item.href, item.end);
           const Icon = item.icon;
           const isCollapsible = (item as any).collapsible;

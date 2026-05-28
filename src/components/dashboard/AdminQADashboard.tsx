@@ -343,11 +343,18 @@ export function AdminQADashboard() {
           <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
           <p className="text-muted-foreground">Team performance & project health overview</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/admin">
-            User Management <ArrowRight className="h-3 w-3 ml-1" />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/timesheets">
+              Team Timesheets <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin">
+              User Management <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Team Overview Cards */}
