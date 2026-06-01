@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, ClipboardList, Loader2, Bug, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,27 +12,88 @@ import { useQATimesheet, type BugRef, type ContentItem } from "@/hooks/useQATime
 import { BugCodeInput } from "@/components/qa/timesheet/BugCodeInput";
 import { ContentItemEditor } from "@/components/qa/timesheet/ContentItemEditor";
 import { useProject } from "@/contexts/ProjectContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const toDateStr = (d: Date) => format(d, "yyyy-MM-dd");
 
+interface Draft {
+  bugRefs: BugRef[];
+  contentItems: ContentItem[];
+  summary: string;
+}
+
+const draftKey = (userId?: string, projectId?: string, workDate?: string) =>
+  userId && projectId && workDate ? `qa-timesheet-draft:${userId}:${projectId}:${workDate}` : null;
+
+const loadDraft = (key: string | null): Draft | null => {
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function Timesheet() {
+  const { user } = useAuth();
   const { currentProject, isLoading: projectLoading } = useProject();
   const [date, setDate] = useState<Date>(new Date());
   const workDate = toDateStr(date);
   const { timesheet, bugs, loading, saving, recent, ready, validateBugCode, save } = useQATimesheet(workDate);
 
-  const [bugRefs, setBugRefs] = useState<BugRef[]>([]);
-  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [summary, setSummary] = useState("");
+  const dKey = draftKey(user?.id, currentProject?.id, workDate);
 
-  // Re-sync from server only when the loaded entry's date/id changes, not on every fetch
+  // Initialize from draft synchronously so navigating away/back keeps unsaved input
+  const initialDraft = loadDraft(dKey);
+  const [bugRefs, setBugRefs] = useState<BugRef[]>(initialDraft?.bugRefs ?? []);
+  const [contentItems, setContentItems] = useState<ContentItem[]>(initialDraft?.contentItems ?? []);
+  const [summary, setSummary] = useState(initialDraft?.summary ?? "");
+
+  // Track which (project|date) we've already hydrated to avoid clobbering edits on refetch
+  const hydratedForRef = useRef<string | null>(initialDraft ? `${dKey}` : null);
+
+  // When date/project/user changes, reload draft (or clear) for that scope
   useEffect(() => {
-    if (!timesheet) return;
-    if (timesheet.work_date !== workDate) return;
+    const d = loadDraft(dKey);
+    if (d) {
+      setBugRefs(d.bugRefs);
+      setContentItems(d.contentItems);
+      setSummary(d.summary);
+      hydratedForRef.current = dKey;
+    } else {
+      setBugRefs([]);
+      setContentItems([]);
+      setSummary("");
+      hydratedForRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dKey]);
+
+  // Hydrate from server ONCE per (project|date) and only if no local draft exists
+  useEffect(() => {
+    if (!timesheet || timesheet.work_date !== workDate) return;
+    if (hydratedForRef.current === dKey) return; // already hydrated (from draft or prior server load)
     setBugRefs(bugs);
     setContentItems(timesheet.content_items || []);
     setSummary(timesheet.summary || "");
-  }, [timesheet?.id, timesheet?.work_date, workDate, bugs, timesheet]);
+    hydratedForRef.current = dKey;
+  }, [timesheet, bugs, workDate, dKey]);
+
+  // Persist draft on every change
+  useEffect(() => {
+    if (!dKey || typeof window === "undefined") return;
+    const hasContent = bugRefs.length > 0 || contentItems.length > 0 || summary.trim().length > 0;
+    try {
+      if (hasContent) {
+        window.localStorage.setItem(dKey, JSON.stringify({ bugRefs, contentItems, summary }));
+      } else {
+        window.localStorage.removeItem(dKey);
+      }
+    } catch {
+      // ignore quota errors
+    }
+  }, [dKey, bugRefs, contentItems, summary]);
 
   const minDate = new Date();
   minDate.setDate(minDate.getDate() - 7);
@@ -40,11 +101,14 @@ export default function Timesheet() {
   const handleSave = async () => {
     if (saving || !ready) return;
     const cleaned = contentItems.filter((c) => c.subject.trim() && c.title.trim());
-    await save({
+    const ok = await save({
       bug_ids: bugRefs.map((b) => b.id),
       content_items: cleaned,
       summary,
     });
+    if (ok && dKey && typeof window !== "undefined") {
+      try { window.localStorage.removeItem(dKey); } catch { /* noop */ }
+    }
   };
 
   const canSave = ready && !saving && (bugRefs.length > 0 || contentItems.some((c) => c.subject.trim() && c.title.trim()));
