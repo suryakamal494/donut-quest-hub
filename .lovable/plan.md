@@ -1,19 +1,30 @@
-## Problem
+## Goal
 
-Admin timesheet reports exist at `/admin/timesheets` (page `src/pages/admin/AdminTimesheets.tsx`), but the only entry point is a tile buried inside the Admin Dashboard (`/admin`). From `/qa`, where admins spend most of their time, the link is invisible — so it feels missing.
+Add a "Reports" feature for each of the four login types so that when a user files a bug on the Report Bug form, they can pick `<LoginType> Reports` from the Feature dropdown.
 
-## Fix
+## Changes
 
-Add an admin-only "Team Timesheets" entry to the QA sidebar, right below "My Timesheet", visible only when `profile.role === 'admin'`.
+### Data only (no UI/code changes)
 
-### Changes
+Insert four feature rows for **each existing project** (`The Donut AI` and `Test Project 2`):
 
-1. **`src/components/qa/layout/QASidebar.tsx`**
-   - Add a new nav item `{ title: "Team Timesheets", href: "/admin/timesheets", icon: ClipboardCheck, adminOnly: true }`.
-   - Filter the rendered nav list with `profile?.role === 'admin'` for items marked `adminOnly`.
-   - Mobile bottom nav (`QABottomNav.tsx`) untouched — overflow only.
+| login_type   | name                 |
+|--------------|----------------------|
+| super_admin  | Super Admin Reports  |
+| institute    | Institute Reports    |
+| teacher      | Teacher Reports      |
+| student      | Student Reports      |
 
-2. **`src/components/dashboard/AdminQADashboard.tsx`** (admin's `/qa` view)
-   - Add a small "Team Timesheets" quick-action card linking to `/admin/timesheets` so it's discoverable from the dashboard too.
+Each row uses the existing `features` table — no schema change. `sub_modules` left empty (admins can add later from feature management if needed). Skipped if a row with the same `(project_id, login_type, name)` already exists.
 
-No backend, RLS, or report-logic changes — the admin reports page itself already works; this is purely a navigation/discoverability fix.
+Since the Bug Report form (`CreateBug` → feature dropdown) already pulls from `features` filtered by selected `login_type` + current `project_id`, no frontend code changes are required. The new entries will automatically appear in the Feature dropdown when the corresponding login type is selected.
+
+### Out of scope
+
+- No new RLS, table, or column.
+- No changes to scenarios, cycles, or other modules.
+- Sub-modules under each Reports feature can be added later via the existing admin features management.
+
+## Technical notes
+
+Single `INSERT ... SELECT` against `public.features` for both projects × four login types, guarded by `WHERE NOT EXISTS` on `(project_id, login_type, name)`.
