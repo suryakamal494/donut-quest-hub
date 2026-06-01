@@ -16,7 +16,8 @@ import {
   ClipboardList,
   XCircle,
   Plus,
-  Lightbulb
+  Lightbulb,
+  ClipboardCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +54,12 @@ const mainNavItems = [
 ];
 
 const moreNavItems = [
+  {
+    title: "My Timesheet",
+    href: "/qa/timesheet",
+    icon: ClipboardCheck,
+    description: "Log your daily QA work",
+  },
   {
     title: "Suggestions",
     href: "/qa/suggestions",

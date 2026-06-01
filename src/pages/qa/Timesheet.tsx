@@ -16,34 +16,46 @@ import { useProject } from "@/contexts/ProjectContext";
 const toDateStr = (d: Date) => format(d, "yyyy-MM-dd");
 
 export default function Timesheet() {
-  const { currentProject } = useProject();
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [date, setDate] = useState<Date>(new Date());
   const workDate = toDateStr(date);
-  const { timesheet, bugs, loading, saving, recent, validateBugCode, save } = useQATimesheet(workDate);
+  const { timesheet, bugs, loading, saving, recent, ready, validateBugCode, save } = useQATimesheet(workDate);
 
   const [bugRefs, setBugRefs] = useState<BugRef[]>([]);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [summary, setSummary] = useState("");
 
+  // Re-sync from server only when the loaded entry's date/id changes, not on every fetch
   useEffect(() => {
+    if (!timesheet) return;
+    if (timesheet.work_date !== workDate) return;
     setBugRefs(bugs);
-    setContentItems(timesheet?.content_items || []);
-    setSummary(timesheet?.summary || "");
-  }, [bugs, timesheet]);
+    setContentItems(timesheet.content_items || []);
+    setSummary(timesheet.summary || "");
+  }, [timesheet?.id, timesheet?.work_date, workDate, bugs, timesheet]);
 
   const minDate = new Date();
   minDate.setDate(minDate.getDate() - 7);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving || !ready) return;
     const cleaned = contentItems.filter((c) => c.subject.trim() && c.title.trim());
-    save({
+    await save({
       bug_ids: bugRefs.map((b) => b.id),
       content_items: cleaned,
       summary,
     });
   };
 
-  const canSave = bugRefs.length > 0 || contentItems.some((c) => c.subject.trim() && c.title.trim());
+  const canSave = ready && !saving && (bugRefs.length > 0 || contentItems.some((c) => c.subject.trim() && c.title.trim()));
+
+  if (projectLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (

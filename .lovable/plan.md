@@ -1,30 +1,32 @@
-## Goal
+## Findings
+- The QA timesheet table currently has **0 saved entries**, so submissions are likely failing before data is persisted.
+- The timesheet hook runs authenticated/project-scoped queries as soon as `user` and `currentProject` exist, but it does **not wait for auth/profile/project loading to fully settle**. This can cause refresh-like behavior or silent no-op saves for QA users during session restoration.
+- Save failures are surfaced only as a toast, and successful saves do not confirm via a returned row, making it hard to catch failed inserts/upserts.
+- The timesheet form does not guard against rapid/double submission.
+- Mobile navigation currently does not expose “My Timesheet” in the More menu, which can make QA users enter it through direct links and makes testing harder.
 
-Add a "Reports" feature for each of the four login types so that when a user files a bug on the Report Bug form, they can pick `<LoginType> Reports` from the Feature dropdown.
+## Plan
+1. **Harden the timesheet data hook**
+   - Wait for auth and project context to finish loading before fetching or saving.
+   - Add explicit error handling for timesheet fetch, recent entries fetch, bug lookup, and save.
+   - Prevent stale requests from overwriting current form state when the selected date/project changes.
+   - Make save return a clear success/failure result and refetch only after confirmed success.
 
-## Changes
+2. **Fix save reliability**
+   - Keep the existing one-entry-per-person-per-day-per-project upsert behavior.
+   - Add `.select().single()` after save so the app verifies the row was actually written.
+   - Block duplicate submit clicks while saving.
+   - Show clear validation messages when auth/project is not ready or no valid work item is entered.
 
-### Data only (no UI/code changes)
+3. **Improve the Timesheet page behavior**
+   - Use the hook’s readiness/loading state so the page shows a stable loader instead of briefly rendering empty state.
+   - Disable the save button while loading/auth/project is not ready.
+   - Prevent accidental form-like Enter submission from causing navigation or refresh symptoms.
+   - Keep users’ entered work intact unless a different saved timesheet is loaded.
 
-Insert four feature rows for **each existing project** (`The Donut AI` and `Test Project 2`):
+4. **Make access easier on mobile**
+   - Add “My Timesheet” to the mobile More menu, matching the desktop sidebar.
 
-| login_type   | name                 |
-|--------------|----------------------|
-| super_admin  | Super Admin Reports  |
-| institute    | Institute Reports    |
-| teacher      | Teacher Reports      |
-| student      | Student Reports      |
-
-Each row uses the existing `features` table — no schema change. `sub_modules` left empty (admins can add later from feature management if needed). Skipped if a row with the same `(project_id, login_type, name)` already exists.
-
-Since the Bug Report form (`CreateBug` → feature dropdown) already pulls from `features` filtered by selected `login_type` + current `project_id`, no frontend code changes are required. The new entries will automatically appear in the Feature dropdown when the corresponding login type is selected.
-
-### Out of scope
-
-- No new RLS, table, or column.
-- No changes to scenarios, cycles, or other modules.
-- Sub-modules under each Reports feature can be added later via the existing admin features management.
-
-## Technical notes
-
-Single `INSERT ... SELECT` against `public.features` for both projects × four login types, guarded by `WHERE NOT EXISTS` on `(project_id, login_type, name)`.
+5. **Validate after implementation**
+   - Check code paths for create/update, bug-code validation, content-only entries, bug-only entries, date switching, and empty validation.
+   - Run a focused test/lint-compatible verification where possible and report exactly what was checked.
