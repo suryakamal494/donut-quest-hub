@@ -34,6 +34,8 @@ const Login: React.FC = () => {
 
   const { signIn, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextParam = searchParams.get("next");
   const { toast } = useToast();
 
   const copyDiagnostics = async () => {
