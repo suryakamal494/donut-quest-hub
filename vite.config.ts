@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     versionJsonPlugin(BUILD_ID),
+    mcpPlugin(),
   ].filter(Boolean),
   resolve: {
     alias: {
