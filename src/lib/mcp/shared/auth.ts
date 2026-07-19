@@ -44,7 +44,7 @@ export async function requireAdmin(ctx: ToolContext): Promise<AdminGuardResult> 
     };
   }
 
-  return { ok: true, userId };
+  return { ok: true, userId, error: err("") };
 }
 
 function err(message: string): ToolErrorResult {
