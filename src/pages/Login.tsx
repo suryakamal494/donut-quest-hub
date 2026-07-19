@@ -138,7 +138,9 @@ const Login: React.FC = () => {
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      navigate("/");
+      const safeNext =
+        nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+      navigate(safeNext);
     } catch (err) {
       if (timeoutId) clearTimeout(timeoutId);
 
