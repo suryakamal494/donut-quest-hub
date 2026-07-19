@@ -9,7 +9,7 @@ export type ToolErrorResult = {
 export type AdminGuardResult = {
   ok: boolean;
   userId: string;
-  error?: ToolErrorResult;
+  error: ToolErrorResult;
 };
 
 /**
