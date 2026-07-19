@@ -1138,6 +1138,118 @@ export type Database = {
         }
         Relationships: []
       }
+      retest_flags: {
+        Row: {
+          created_at: string
+          cycle_id: string
+          flagged_by: string
+          id: string
+          reason: string
+          resolved_at: string | null
+          scenario_id: string
+          tester_id: string
+          updated_at: string
+          verdict_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          cycle_id: string
+          flagged_by: string
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          scenario_id: string
+          tester_id: string
+          updated_at?: string
+          verdict_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          cycle_id?: string
+          flagged_by?: string
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          scenario_id?: string
+          tester_id?: string
+          updated_at?: string
+          verdict_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retest_flags_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "test_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retest_flags_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retest_flags_verdict_id_fkey"
+            columns: ["verdict_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenario_verdicts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scenario_assignments: {
+        Row: {
+          assigned_by: string
+          assigned_to: string
+          completed_at: string | null
+          created_at: string
+          cycle_id: string
+          id: string
+          note: string | null
+          scenario_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by: string
+          assigned_to: string
+          completed_at?: string | null
+          created_at?: string
+          cycle_id: string
+          id?: string
+          note?: string | null
+          scenario_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string
+          assigned_to?: string
+          completed_at?: string | null
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          note?: string | null
+          scenario_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scenario_assignments_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "test_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scenario_assignments_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "cycle_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       selector_history: {
         Row: {
           created_at: string
