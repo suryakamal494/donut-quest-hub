@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
 import { componentTagger } from "lovable-tagger";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
 /** Writes public/version.json at build time with the same BUILD_ID used in define. */
 function versionJsonPlugin(buildId: string): Plugin {
