@@ -89,6 +89,8 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+              <Route path="/connect" element={<ProtectedRoute allowedRoles={["admin"]}><Connect /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
