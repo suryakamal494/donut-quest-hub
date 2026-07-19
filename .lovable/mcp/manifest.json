@@ -1,0 +1,553 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://lysajjlxfgpbcsyaqjyu.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "qa-platform-mcp",
+      "version": "0.1.0",
+      "title": "QA Platform MCP"
+    },
+    "tools": [
+      {
+        "name": "list_projects",
+        "title": "List projects",
+        "description": "List all projects the admin can access, with id, name, and description.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_cycles",
+        "title": "List test cycles",
+        "description": "List test cycles in a project with progress counts (pass/fail/review/untested).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Project id from list_projects"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active",
+                "archived"
+              ]
+            }
+          },
+          "required": [
+            "project_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_cycle",
+        "title": "Get a cycle",
+        "description": "Get one cycle with groups and scenarios. Each scenario includes the latest verdict (status, comment, tester, timestamp) if any.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "cycle_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_scenario_verdicts",
+        "title": "Get scenario verdicts",
+        "description": "Full verdict history for one scenario in one cycle: all testers, all statuses, all comments. Use this to judge comment quality.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "scenario_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "cycle_id",
+            "scenario_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_pending_scenarios",
+        "title": "List pending scenarios",
+        "description": "Scenarios in active cycles for a project that have no verdict yet. Optionally filter by tester (returns scenarios the tester specifically has not verdicted).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "tester_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "project_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_tester_activity",
+        "title": "Get tester activity",
+        "description": "Per-tester day-wise activity within a date range: scenarios verdicted, bugs raised, timesheet entries. If tester_id omitted, returns activity for all testers in the project.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "from_date": {
+              "type": "string",
+              "description": "ISO date, e.g. 2026-07-01"
+            },
+            "to_date": {
+              "type": "string",
+              "description": "ISO date, inclusive"
+            },
+            "tester_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "project_id",
+            "from_date",
+            "to_date"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_bugs",
+        "title": "List bugs",
+        "description": "List bugs with filters. Returns bug_code, title, priority, status, fix_status, assignee, and timestamps.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "type": "string"
+            },
+            "fix_status": {
+              "type": "string"
+            },
+            "assigned_to": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "created_by": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "login_type": {
+              "type": "string"
+            },
+            "from_date": {
+              "type": "string"
+            },
+            "to_date": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_bug",
+        "title": "Get a bug",
+        "description": "Get full detail for one bug including description, comments, history, attachment URLs, and reopen count. Accepts either the bug_code (e.g. BUG-405) or the id.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "bug_code": {
+              "type": "string"
+            },
+            "bug_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_timesheets",
+        "title": "List timesheets",
+        "description": "Timesheet entries with bugs, content items, and summary text for a user + date range.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "from_date": {
+              "type": "string"
+            },
+            "to_date": {
+              "type": "string"
+            },
+            "user_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "project_id",
+            "from_date",
+            "to_date"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_testers",
+        "title": "List testers",
+        "description": "List approved users in a project along with their role. Use this before assigning scenarios or flagging verdicts to pick the correct user_id.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "project_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "flag_verdict_for_retest",
+        "title": "Flag verdict for re-test",
+        "description": "Mark a verdict as unsatisfactory and requiring re-test, with a reason. The tester sees this flag in their pending list. Pass verdict_id (preferred) OR (cycle_id + scenario_id + tester_id) to flag the latest verdict from that tester.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "verdict_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "scenario_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "tester_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Why this verdict needs re-test — shown to the tester."
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "assign_scenarios_to_tester",
+        "title": "Assign scenarios to tester",
+        "description": "Assign one or more cycle scenarios to a tester. Creates in-app notifications and shows up in the tester's pending list.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "scenario_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "minItems": 1
+            },
+            "assigned_to": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "cycle_id",
+            "scenario_ids",
+            "assigned_to"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "post_scenario_comment",
+        "title": "Post scenario comment",
+        "description": "Add a comment to a scenario's discussion thread in a cycle. Attributed to the admin identity.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cycle_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "scenario_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "comment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "cycle_id",
+            "scenario_id",
+            "comment"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_cycle",
+        "title": "Create test cycle with groups and scenarios",
+        "description": "Create a complete cycle in one call: cycle row + groups + scenarios. Use this after parsing a QA checklist. Scenario descriptions should follow the platform's standard format (What this is / What to try / Expected).",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ],
+              "default": "medium"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active",
+                "archived"
+              ],
+              "default": "draft"
+            },
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "scenarios": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "scenario_code": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "scenario_code",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "scenarios"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "project_id",
+            "name",
+            "groups"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

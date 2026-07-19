@@ -1,82 +1,89 @@
-## New Test Cycle — Offline Test Creation & Evaluation QA
 
-Create one new test cycle in the Donut AI project (`11111111-1111-1111-1111-111111111111`) covering the full offline exam lifecycle: pattern setup → PDF upload → extraction → tagging → offline configuration → Excel evaluation → reports → student portal. Scenarios use the platform's existing style (grouped, coded like `A1`, `B2`, with rich paragraph descriptions), not the numbered list from the source doc.
+# QA Platform MCP Server — Claude as your QA Manager
 
-### Cycle metadata
-- **Name:** Offline Test Creation & Evaluation QA — Pattern, Upload, Excel Response & Reports
-- **Description:** End-to-end validation of the offline exam workflow, from JEE pattern creation and PDF extraction through Excel response upload, evaluation, and role-based report visibility across admin, faculty and student portals.
-- **Priority:** high
-- **Status:** draft
-- **Project:** Donut AI (foundational)
+Expose this app as an MCP server that **you (admin)** connect to Claude. Claude reads live data (cycles, verdicts, comments, bugs, timesheets), applies whatever judgment/instructions you give it in Claude, and can then act back on the platform (assign scenarios, flag verdicts for re-test, create new cycles). All quality-of-comment judgment lives in Claude — the server just exposes clean data and safe write tools.
 
-### Groups & scenarios (34 total, consolidated from the 35 in the brief)
+## Approach
 
-**Group A — Test Pattern Setup (JEE Mains & Advanced)** — 4 scenarios
-- A1 Create JEE Mains Pattern
-- A2 Create JEE Advanced Pattern with section-based configuration
-- A3 Edit an existing pattern (ranges, types, marking)
-- A4 Select pattern during test creation and confirm it drives subject/question mapping
+- Add an app-hosted MCP server via `@lovable.dev/mcp-js` (Supabase Edge Function at `/functions/v1/mcp`).
+- Auth: Supabase OAuth 2.1 — only users with the `admin` role can call any tool. A guard runs in every tool handler; non-admins get an error.
+- All DB access goes through the caller's Supabase JWT so existing RLS (`has_project_access`, admin bypass) still applies. No service-role key.
+- Add a small `/connect` page in the app with the MCP URL and click-by-click connect steps for Claude.
 
-**Group B — PDF Upload & Preview Redirect** — 2 scenarios
-- B1 Upload PDF and confirm auto-redirect to Preview (no jumps)
-- B2 Verify Test Configuration, Subject tagging and Question tagging visible on Preview
+## Tools exposed to Claude (v1)
 
-**Group C — Question Extraction Quality & Corrections** — 5 scenarios
-- C1 Compare extracted question count to source PDF
-- C2 Extraction quality audit (no truncation / merge / split, options intact, images render)
-- C3 Missing Question — insert via raw markdown, numbering preserved
-- C4 Edit Question — fix truncation, options, OCR mistakes
-- C5 Final question count matches source before proceeding
+**Read (monitoring / quality review):**
 
-**Group D — Subject, Chapter & Topic Tagging** — 5 scenarios
-- D1 Configure subject-wise question number ranges
-- D2 Apply subject pattern and verify mapping
-- D3 Chapter list availability in Chapter Configuration
-- D4 Chapter tagging coverage on every question
-- D5 Topic tagging coverage; no untagged questions remain
+| Tool | Purpose |
+|---|---|
+| `list_projects` | All projects you can see, with ids. |
+| `list_cycles` | Cycles in a project with progress: total scenarios, pass/fail/review/untested counts, last activity. |
+| `get_cycle` | One cycle: groups, scenarios, and per-scenario latest verdict + comment + tester. |
+| `get_scenario_verdicts` | Full verdict history for a scenario (all testers, all comments, timestamps) — Claude reads this to judge comment quality. |
+| `list_pending_scenarios` | Scenarios in active cycles with no verdict yet, optionally filtered by tester. |
+| `get_tester_activity` | Per-tester day-wise counts: scenarios verdicted, comments written, bugs raised, timesheet entries. Date range param. |
+| `list_bugs` | Bugs with filters (status, fix_status, assignee, project, date range, login_type, feature). |
+| `get_bug` | One bug: full description, comments, history, attachments-URLs, reopen_count, SLA. |
+| `list_timesheets` | Timesheet entries by user + date range: bugs raised, content items, summary. |
+| `list_testers` | Approved QA users in a project (id, name, role) so Claude can pick assignees. |
 
-**Group E — Test Creation & Offline Configuration** — 4 scenarios
-- E1 Complete test creation with all configured settings
-- E2 Make Offline — happy path once conditions met
-- E3 Offline toggle disabled until at least one Excel is uploaded
-- E4 Assign multiple batches to a single offline test
+**Write (management actions):**
 
-**Group F — Excel Response Upload & Evaluation** — 4 scenarios
-- F1 Upload Offline Response Excel for assigned batch
-- F2 Evaluation honors pattern (types, marks, negative & partial marking)
-- F3 Instant report generation after Excel upload (no manual calc)
-- F4 Restrict duplicate Excel upload for same batch
-- (Also covers "Offline result upload for Advanced pattern")
+| Tool | Purpose |
+|---|---|
+| `flag_verdict_for_retest` | Marks a specific verdict as needing re-test with Claude's reason. Implemented via a new `retest_flags` table + reverts `feature_health_status` to `needs_retest` (reusing the existing pattern). Shows up in the tester's dashboard. |
+| `assign_scenarios_to_tester` | Assigns one or more cycle scenarios to a named tester (new `scenario_assignments` table), creates in-app notifications, appears in "My Pending Scenarios". |
+| `create_cycle` | Creates a full cycle: cycle row + groups + scenarios (mirrors the CYC-011..015 seeding shape) in one call. Claude passes the whole tree. |
+| `add_scenarios_to_cycle` | Adds groups/scenarios to an existing cycle. |
+| `post_scenario_comment` | Adds a comment to a scenario verdict thread as the admin (e.g. "Claude flagged: comment too vague, please re-test with specific inputs"). |
 
-**Group G — Report Validation (Admin View)** — 3 scenarios
-- G1 Exam Report generated and displays calculated results
-- G2 Batch Report reflects uploaded results per batch
-- G3 Student Reports generated per student from Excel data
+Every write tool records `created_by = admin user id` (from the OAuth token) so audit trails stay intact. No tool can delete data in v1.
 
-**Group H — Faculty Report Access Control** — 3 scenarios
-- H1 Physics faculty sees only Physics reports (repeat check for Chem & Math)
-- H2 Multi-section faculty — reports limited to assigned sections
-- H3 Multi-subject faculty — all assigned subjects visible, no others
+## What Claude does with these (example loop, all logic in Claude)
 
-**Group I — Student Portal (Grand Test & My Progress)** — 3 scenarios
-- I1 Offline exam card shows "View Results" instead of "Start Test"
-- I2 My Progress → Exams shows the offline exam
-- I3 My Progress lists all test types (Grand, Initial, Quick, others)
-- I4 Student can open own report immediately post-evaluation
+1. Morning: Claude calls `get_tester_activity` for the last 3 days.
+2. For each tester, calls `get_scenario_verdicts` on their recent scenarios, reads the comments, and — using your instructions in the Claude project — decides which are weak/incomplete.
+3. For weak ones: calls `flag_verdict_for_retest` + `post_scenario_comment` with a specific reason.
+4. Calls `list_pending_scenarios`, picks the next batch per tester priority, and calls `assign_scenarios_to_tester`.
+5. When you paste a new checklist in Claude, it calls `create_cycle` with the parsed groups/scenarios — same shape we've been seeding manually.
 
-**Group J — End-to-End Workflow** — 1 scenario
-- J1 Full workflow: Pattern → Upload → Verify → Tag → Create → Offline → Batches → Excel → Reports → Faculty check → Student check
+## Files & DB changes
 
-### Consolidation notes
-- Merged source "Verify Questions" (edit/missing/images) with extraction-quality scenarios in Group C to avoid overlap.
-- Merged "Offline result upload for Advanced" into F1/F2 (same flow, pattern-driven).
-- Kept every distinct check from the source; only removed pure duplicates.
+**New files (build phase):**
+- `src/lib/mcp/index.ts` — `defineMcp` entry, OAuth issuer wired to Supabase.
+- `src/lib/mcp/tools/*.ts` — one file per tool above (~15 files, each small).
+- `src/lib/mcp/shared/auth.ts` — `requireAdmin(ctx)` helper (checks `has_role(user_id, 'admin')`).
+- `src/lib/mcp/shared/supabase.ts` — per-request Supabase client using `ctx.getToken()`.
+- `src/pages/OAuthConsent.tsx` at route `/.lovable/oauth/consent` — admin-only consent screen.
+- `src/pages/Connect.tsx` at route `/connect` — MCP URL + Claude connect/refresh steps, linked from admin nav.
+- `vite.config.ts` — add `mcpPlugin()`.
 
-### Technical details (for implementer)
-- Insert 1 row into `test_cycles` (trigger auto-generates `CYC-###`).
-- Insert 10 rows into `cycle_groups` with sequential `order_index`.
-- Insert 34 rows into `cycle_scenarios` with `scenario_code` values `A1..A4, B1..B2, C1..C5, D1..D5, E1..E4, F1..F4, G1..G3, H1..H3, I1..I4, J1` and `has_steps=false`.
-- `created_by` set to the current admin (`thedonut.ai@gmail.com`) — will look up via `profiles.email`.
-- Descriptions written as full paragraphs matching existing CYC-004 style (executable by an intern without further context).
+**Migrations:**
+- `retest_flags` table: `id, verdict_id, cycle_id, scenario_id, tester_id, reason, flagged_by, resolved_at, created_at` + RLS (admin write, tester read own, project members read via `has_project_access`).
+- `scenario_assignments` table: `id, cycle_id, scenario_id, assigned_to, assigned_by, note, completed_at, created_at` + RLS (admin write, assignee read own, project members read). Feeds `MyPendingScenarios` widget.
+- Both tables get standard GRANTs (`authenticated`, `service_role`) per project conventions.
 
-Once approved, I'll ship it as a single SQL insert migration.
+**Config:**
+- `supabase/config.toml`: add `[functions.mcp]` with `verify_jwt = false` (mcp-js validates the OAuth token itself).
+- Call `supabase--configure_oauth_server` to activate the OAuth 2.1 authorization server.
+
+## Security posture
+
+- Admin-only: `requireAdmin` runs first in every handler. Non-admin token → tool returns `isError: true`, "Admin role required".
+- Since only you (admin) will connect for now, this matches your "Only you connects" answer. Adding per-user connections later is just relaxing the `requireAdmin` on read tools.
+- All queries go through the caller's JWT → RLS enforced. No service-role client anywhere in `src/lib/mcp/`.
+- Deploy the `mcp` edge function after every tool change; the manifest extractor validates the entry before deploy.
+
+## Out of scope (v1, can add later)
+
+- Bug triage writes (assign bug, change fix_status, comment on bug). Read-only for bugs in v1.
+- Deleting cycles/scenarios/verdicts.
+- Per-user (non-admin) connections.
+- Automatic scheduled runs — Claude runs when you prompt it; no cron.
+
+## Verification
+
+- `code--exec` smoke test: call `list_cycles` and `get_tester_activity` via curl with a real admin OAuth token, confirm shapes.
+- Connect Claude to the MCP URL from `/connect`, ask it "Which cycles were tested this week and which comments look weak?" — it should read verdicts and reply with a list.
+- Test a write path: ask Claude to flag one specific verdict, confirm the row appears in `retest_flags` and the tester sees it.
+

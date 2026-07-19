@@ -60,6 +60,8 @@ const BugDetail = lazy(() => import("./pages/bugs/BugDetail"));
 const EditBug = lazy(() => import("./pages/bugs/EditBug"));
 const ClosedBugs = lazy(() => import("./pages/bugs/ClosedBugs"));
 const BugReport = lazy(() => import("./pages/bugs/BugReport"));
+const Connect = lazy(() => import("./pages/Connect"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const PendingRetest = lazy(() => import("./pages/bugs/PendingRetest"));
 const ApiKeyManager = lazy(() => import("./pages/admin/ApiKeyManager"));
 const Timesheet = lazy(() => import("./pages/qa/Timesheet"));
@@ -87,6 +89,8 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+              <Route path="/connect" element={<ProtectedRoute allowedRoles={["admin"]}><Connect /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

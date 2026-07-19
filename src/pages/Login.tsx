@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ const Login: React.FC = () => {
 
   const { signIn, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextParam = searchParams.get("next");
   const { toast } = useToast();
 
   const copyDiagnostics = async () => {
@@ -136,7 +138,9 @@ const Login: React.FC = () => {
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      navigate("/");
+      const safeNext =
+        nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+      navigate(safeNext);
     } catch (err) {
       if (timeoutId) clearTimeout(timeoutId);
 

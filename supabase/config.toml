@@ -1,5 +1,8 @@
 project_id = "lysajjlxfgpbcsyaqjyu"
 
+[functions.mcp]
+verify_jwt = false
+
 [functions.prepare-automation]
 verify_jwt = false
 
